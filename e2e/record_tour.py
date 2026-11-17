@@ -113,7 +113,7 @@ def record() -> Path:
             t.cap(
                 "Your books, your payment gateway and your bank never match. Settle finds out why."
             )
-            t.show(page.locator(".hero .preview"), 3.2)
+            t.show(page.locator(".hero h1"), 3.2)
 
             # 2. Sample
             t.cap("")
@@ -181,45 +181,68 @@ def record() -> Path:
             page.keyboard.press("Escape")
             t.wait(0.6)
 
+            # Each caption is set only after its screen is showing, and cleared between beats.
             # 8. Ask (real model; the wait is real too)
-            t.cap("Ask anything. Every figure is checked.")
+            t.cap("")
             t.click(page.locator("#nav-ask"), 0.4)
-            t.click(
-                page.locator(
-                    "#page-ask .suggest button",
-                    has_text="Why did a settlement never reach my bank?",
-                ),
-                0,
-            )
+            t.click(page.locator("#page-ask .suggest button", has_text="Why did a settlement never reach my bank?"), 0)  # fmt: skip
             page.locator("#chat > .answer:not(.pending)").first.wait_for(timeout=90_000)
+            t.cap("Ask anything. Every figure is checked against your files.")
             t.show(page.locator("#chat > .answer:not(.pending)").first, 3.4)
 
+            # 8b. Copilot: select the line nothing matches, reconcile it with AI, a person confirms
+            t.cap("")
+            t.click(page.locator("#nav-patterns"), 0.4)
+            pick = page.locator("#exc-list input.pick-row").first
+            if pick.count():
+                t.show(pick, 0.6)
+                pick.check(force=True)
+                t.cap("Something doesn't match? Select it and hand it to Copilot")
+                t.click(page.locator("#sel-ai"), 0)
+                page.locator("#cp-log .change, #cp-log .banner.err").first.wait_for(timeout=120_000)
+                card = page.locator("#cp-log .change").last
+                if card.count():
+                    t.cap(
+                        "Copilot prepares the change; nothing happens until a named person allows it"
+                    )
+                    t.show(card, 2.6)
+                    card.locator(".cc-name").fill("")
+                    card.locator(".cc-name").type("Priya, Finance", delay=60)
+                    t.click(card.locator("button", has_text="Allow once"), 0)
+                    page.locator("#cp-log .change .banner.okb").last.wait_for(timeout=60_000)
+                    t.cap("Allowed: code applies it, the month re-reconciles, and it can be undone")
+                    t.show(page.locator("#cp-log .change").last, 2.6)
+                page.locator("#copilot header button[aria-label='Close Copilot']").click()
+                t.wait(0.3)
+
             # 9. Scanned PDF
-            t.cap("Scanned or locked bank PDFs: read by AI, verified by the balance chain")
+            t.cap("")
             t.click(page.locator("#nav-new"), 0.4)
             t.click(page.locator("#go-upload"), 0.6)
             page.set_input_files("#f-razorpay", str(SAMPLE / "razorpay_settlements.csv"))
             page.set_input_files("#f-bank", str(SAMPLE / "bank_statement_scanned.pdf"))
             page.set_input_files("#f-orders", str(SAMPLE / "orders.csv"))
-            t.show(page.locator(".slot[data-slot=bank]"), 1.2)
+            t.show(page.locator(".slot[data-slot=bank]"), 1.0)
             t.click(page.locator("#upload-form button[type=submit]"), 0)
             page.wait_for_selector("#review-summary .banner", timeout=120_000)
+            t.cap("Scanned or locked bank PDFs: read by AI, verified by the balance chain")
             t.show(page.locator("#review-summary"), 2.6)
+            t.cap("")
             t.click(page.locator("#review-go"), 0)
             page.wait_for_selector("#results:not([hidden]) .statement", timeout=60_000)
-            t.wait(1.0)
+            t.wait(0.6)
 
             # 10. Chaos
-            t.cap("A brand-new random month. Every hidden problem found.")
             t.click(page.locator("#nav-chaos"), 0)
             page.wait_for_selector("#answer-key")
             key = page.locator("#answer-key")
-            t.show(key.locator("h2"), 0.8)
             t.cap(f"A brand-new random month. {key.locator('p b').first.inner_text()}.")
+            t.show(key.locator("h2"), 0.8)
             page.mouse.wheel(0, 300)
             t.wait(2.4)
 
             # 11. Audit report + end card
+            t.cap("")
             page.goto(f"{url}/api/report")
             page.wait_for_load_state()
             t.cap("Audit-ready report, Tally journal, Excel pack")

@@ -68,6 +68,59 @@ to the paisa and shows what's left for a person to decide.
   accepted. Model-backed endpoints are rate limited per IP (20 per 10 minutes); uploads are capped
   at 15 MB per file.
 
+## Settle Copilot: a coding agent, but for the finance team
+
+Like a coding agent, but for your finance team: it does the work, you approve every change.
+
+The Copilot is on every page (bottom right, or ⌘K → Ask Settle). It knows which page, issue or
+payout is open and which rows are ticked. It runs the same agent loop as Ask, with the same
+read-only SQL sandbox and number guard, plus tools that can only *propose*:
+
+| Read | Propose (a change card; never applied by the model) |
+|---|---|
+| run_sql, get_finding, get_settlement, list_actions, list_unmatched, inspect_file | propose_manual_match, propose_rule, propose_resolve, propose_actions, propose_file_transform |
+
+The interaction borrows from coding agents:
+
+- **Plan first.** For anything with more than one step it calls `make_plan` and ticks steps off
+  with `done_step`; the panel shows the checklist.
+- **Every write is a change card** built by code: what changes, before → after, ₹ impact, rows
+  touched, the checks it passed. Buttons: Allow once, Always allow this kind (offered only for
+  kinds the policy may automate), Reject. Allowing needs a name. **There is no apply tool**; the
+  confirm endpoint re-checks (a manual match must still tie to the paisa; actions still pass the
+  gate) and code applies it.
+- **Tool transparency:** each step it ran is listed (Looked up the data · 3 rows · 12 ms).
+- **/ commands** (/reconcile, /explain, /draft-tickets, /approve, /rules, /close-month, /export)
+  and **@ mentions** (@F3, @setl_…, an attached sheet @S1).
+- **Attach a sheet** (.xlsx/.csv). Code reads values only (no formulas, no macros) and suggests
+  a mapping; the transform is a validated plan run in DuckDB with quoted identifiers and bound
+  values (no free SQL). Confirm to use it as the orders / bank / gateway input.
+- **Undo:** every confirmed change can be undone from the card or the audit trail; code reverses
+  it and the month reconciles again. Stop cancels a request in flight.
+- **Memory:** "What Settle remembers" holds the rules and a person's manual matches, each with
+  who and why, and suggests rules for small books-side differences that repeat.
+
+### Manual matches
+
+When the engine won't guess (two credits fit one payout, a credit from last month), a person
+ticks the lines and either hands them to the Copilot or fills a short form. A match links bank
+lines to a payout only if they add up exactly, or explains them with a named reason. It never
+changes an amount; the bridge is rebuilt by code and still closes to ₹0.00.
+
+### Approval policy (Settings)
+
+Like a coding agent's permission settings, enforced by `app/gate.py`; only a person edits it
+(logged with name and before/after):
+
+- Copilot mode: ask before every change (default), auto-accept low-risk, or read-only.
+- Per kind: ask every time, auto-allow up to ₹X, or never. Tickets to Razorpay, Razorpay API
+  calls, customer notes and webhook replays are locked to ask.
+- Hard cap ₹5,000: above it a named person always approves; it can be lowered, never raised.
+- Two-person rule (maker-checker) above ₹Y: a second, different name confirms; nobody approves a
+  change they made.
+- Always-allowed grants (from change cards) listed with who and when, revocable.
+- Limits: AI requests per hour, tool steps per request, attached file size, AI on/off.
+
 ## Measured results
 
 From `evals/results.md`, `evals/pdf_results.md` and `e2e/REPORT.md`.

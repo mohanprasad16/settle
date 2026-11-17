@@ -364,7 +364,7 @@ function render(v) {
   put(root, nav, el("div", { class: "app" }, top, ...Object.values(pages)));
   show("results");
   crumb(state.page);
-  if (!location.hash.startsWith("#/")) setHash(state.page, "", true);
+  if (route().page !== state.page || !location.hash.startsWith("#/")) setHash(state.page, "", true);
   if (state.page === "audit") refreshAudit();
   if (state.page === "settlements") refreshSettlements();
   if (state.page === "settings") refreshSettings();

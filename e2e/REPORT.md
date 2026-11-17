@@ -1,12 +1,13 @@
 # Settle system test
 
-Run 2026-11-17 17:31 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 183/183 checks passed.
+Run 2026-11-17 19:21 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 205/205 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
 | 0 Setup | 2 | 0 |
-| 1 Landing | 23 | 0 |
+| 1 Landing | 21 | 0 |
 | 10 Quality | 18 | 0 |
+| 11 AI-native | 24 | 0 |
 | 11 Guidance | 10 | 0 |
 | 2 Sample results | 11 | 0 |
 | 3 Finding drawers | 9 | 0 |
@@ -23,17 +24,17 @@ Run 2026-11-17 17:31 · real Chrome via Playwright · desktop 1366×900 and phon
 | Step | Seconds |
 |---|---|
 | sample (click to results) | 0.82 |
-| ask: Why did a settlement never reach my bank? | 14.73 |
-| ask: How much did I lose to chargebacks this month? | 12.45 |
-| ask: Which day had the most refunds? | 9.90 |
-| ask: What should I do first? | 6.20 |
-| chaos month 1 | 0.83 |
-| chaos month 2 | 0.81 |
-| chaos month 3 | 0.82 |
+| ask: Why did a settlement never reach my bank? | 8.56 |
+| ask: How much did I lose to chargebacks this month? | 12.99 |
+| ask: Which day had the most refunds? | 8.63 |
+| ask: What should I do first? | 9.58 |
+| chaos month 1 | 0.84 |
+| chaos month 2 | 0.82 |
+| chaos month 3 | 0.81 |
 | CSV upload (submit to results) | 0.85 |
-| locked PDF (submit to review) | 8.91 |
-| scanned PDF (submit to review) | 7.90 |
-| digital PDF (submit to review) | 7.40 |
+| locked PDF (submit to review) | 8.92 |
+| scanned PDF (submit to review) | 10.42 |
+| digital PDF (submit to review) | 9.41 |
 
 ## Every check
 
@@ -51,9 +52,7 @@ Run 2026-11-17 17:31 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ tour video plays (or its fallback shows)
 - ✅ How it works has 3 steps
 - ✅ trust strip has 4 points
-- ✅ hero net sales matches the sample (₹22,87,307.00)
-- ✅ hero received in bank matches the sample (₹21,26,760.32)
-- ✅ hero missing settlement matches the sample (₹21,196.39)
+- ✅ hero shows the product tour with a poster
 - ✅ headline is three-way, not Razorpay-only
 - ✅ Connections page shows 3 source cards
 - ✅ key / consent fields are disabled in the demo
@@ -88,6 +87,33 @@ Run 2026-11-17 17:31 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ phone issues: no sideways scroll
 - ✅ phone drawer: no sideways scroll
 - ✅ no console errors or page errors anywhere
+
+### 11 AI-native
+
+- ✅ tour video above the fold at 1366x768
+- ✅ tour video above the fold at 1440x900
+- ✅ results get a route
+- ✅ browser Back returns to the previous page
+- ✅ Forward works too
+- ✅ a deep link opens the issue after a refresh
+- ✅ logo goes to Overview
+- ✅ ⌘K opens an issue by id
+- ✅ Copilot is on every page with its own suggestions
+- ✅ slash-command menu
+- ✅ @-mention suggests issues
+- ✅ selecting a line shows the action bar
+- ✅ change card shows before → after and its checks
+- ✅ Always allow isn't offered above the cap
+- ✅ Allow once needs a name
+- ✅ manual match: unmatched line gone, Unexplained ₹0.00
+- ✅ undo brings the line back and the bridge still ties
+- ✅ What Settle remembers suggests a rule
+- ✅ the suggested rule resolves its issues and the bridge ties
+- ✅ locked kinds can't be changed
+- ✅ after setting manual matches to Never, they're refused
+- ✅ policy edits are logged with who and what changed
+- ✅ Approvals offers bulk Copilot prompts
+- ✅ decision log filters by who
 
 ### 11 Guidance
 
@@ -179,12 +205,12 @@ Run 2026-11-17 17:31 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #920454: every hidden problem found, nothing extra
-- ✅ Random month #920454: unexplained ₹0.00 on both bridges
-- ✅ Random month #107280: every hidden problem found, nothing extra
-- ✅ Random month #107280: unexplained ₹0.00 on both bridges
-- ✅ Random month #946941: every hidden problem found, nothing extra
-- ✅ Random month #946941: unexplained ₹0.00 on both bridges
+- ✅ Random month #948037: every hidden problem found, nothing extra
+- ✅ Random month #948037: unexplained ₹0.00 on both bridges
+- ✅ Random month #581967: every hidden problem found, nothing extra
+- ✅ Random month #581967: unexplained ₹0.00 on both bridges
+- ✅ Random month #929994: every hidden problem found, nothing extra
+- ✅ Random month #929994: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
@@ -291,11 +317,19 @@ Run 2026-11-17 17:31 · real Chrome via Playwright · desktop 1366×900 and phon
 - `e2e/screenshots/28_empty_state_rules.png`
 - `e2e/screenshots/29_ai_off_template_explanation.png`
 - `e2e/screenshots/30_error_rate_limit.png`
-- `e2e/screenshots/31_landing_phone.png`
-- `e2e/screenshots/32_phone_header.png`
-- `e2e/screenshots/33_results_phone.png`
-- `e2e/screenshots/34_results_phone_full.png`
-- `e2e/screenshots/35_finding_drawer_phone.png`
+- `e2e/screenshots/31_landing_hero_video.png`
+- `e2e/screenshots/32_command_palette.png`
+- `e2e/screenshots/33_copilot_overview.png`
+- `e2e/screenshots/34_change_card_before_confirm.png`
+- `e2e/screenshots/35_change_card_after_confirm.png`
+- `e2e/screenshots/36_suggested_rules.png`
+- `e2e/screenshots/37_settings_policy.png`
+- `e2e/screenshots/38_approvals_bulk.png`
+- `e2e/screenshots/39_landing_phone.png`
+- `e2e/screenshots/40_phone_header.png`
+- `e2e/screenshots/41_results_phone.png`
+- `e2e/screenshots/42_results_phone_full.png`
+- `e2e/screenshots/43_finding_drawer_phone.png`
 
 ## Bugs the system test found
 
@@ -313,3 +347,13 @@ Noted, not changed (model wording, not UI): for the missing settlement the AI sa
 while the drafted fix is a ticket to Razorpay. Both are reasonable (a UTR was issued, so the bank is a fair
 first call) but they should agree; tighten the explanation prompt's contact rule.
 
+
+## Copilot, real model (Gemini), smoke run on the sample month
+
+| Flow | Steps it ran | Plan | Result | Time |
+|---|---|---|---|---|
+| "Why did a settlement never reach my bank, and who should I contact?" | get_finding, get_settlement | — | Verified answer: setl_6ODkowvxYxMciS (UTR UTIBR58302335367), ₹21,196.39 settled 14 Oct, never credited; contact Razorpay support. No change proposed. | 6.9 s |
+| "Reconcile the selected bank line: it's last month's settlement…" (bank row 1 ticked) | make_plan, run_sql ×2, done_step, propose_manual_match, done_step | 2 steps, both ticked | Verified. One change card, "Explain 1 unmatched bank line" (₹67,380.05), waiting for a person; Always allow not offered (above the ₹5,000 cap). | 12.0 s |
+| "Approve all the Razorpay support tickets that are waiting. Prepare it for me." | list_actions, make_plan, done_step, propose_actions, done_step | 2 steps, both ticked | Verified. One card, "Approve 8 actions" (A14…A24), waiting; Always allow not offered (Razorpay-facing kinds are locked). | 12.8 s |
+
+Nothing changed in any run until a card was confirmed by a named person.

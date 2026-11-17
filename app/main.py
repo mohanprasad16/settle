@@ -45,7 +45,7 @@ from app.gate import HARD_CAP, LOCKED, MODES, Gate, Policy
 from app.gate import KINDS as POLICY_KINDS
 from app.llm import GeminiLLM, Usage
 from app.load import REQUIRED, LoadError, load
-from app.money import to_paise
+from app.money import rupees, to_paise
 from app.pdf_bank import PdfLocked, check, extract, pages, write_csv
 from app.roi import roi
 from app.rules import ManualMatch, Rule, suggest_rules
@@ -992,6 +992,7 @@ def export(request: Request):
 
 # --- Copilot and change cards ----------------------------------------------------------------
 
+
 def _ctx(s: Session) -> copilot_mod.Ctx:
     return copilot_mod.Ctx(s.con, s.result, s.gate, s.sheets, s.proposals, s.log)
 
@@ -1262,7 +1263,9 @@ def reject_proposal(request: Request, pid: str, body: ApproveIn):
 def list_proposals(request: Request):
     """Every change card this session, newest first: for Approvals and undo."""
     s = _loaded(request)
-    return JSONResponse(jsonable_encoder([_card(p, s.policy) for p in reversed(s.proposals.values())]))
+    return JSONResponse(
+        jsonable_encoder([_card(p, s.policy) for p in reversed(s.proposals.values())])
+    )
 
 
 @app.get("/api/proposals/{pid}/sheet.csv")
@@ -1297,6 +1300,28 @@ def _policy_view(s: Session) -> dict:
         "ai_calls_per_hour": p.ai_calls_per_hour, "max_tool_steps": p.max_tool_steps,
         "max_file_mb": p.max_file_mb, "ai_enabled": p.ai_enabled, "preview": preview,
     }  # fmt: skip
+
+
+def _policy_diff(old: dict, new: dict) -> list[str]:
+    """What changed, in words a finance person reads: "Manual match: ask → never"."""
+    out = []
+    before = {k["kind"]: k for k in old["kinds"]}
+    for k in new["kinds"]:
+        b = before[k["kind"]]
+        name = k["kind"].replace("_", " ").capitalize()
+        if b["mode"] != k["mode"]:
+            out.append(f"{name}: {b['mode']} → {k['mode']}")
+        elif b["auto_max"] != k["auto_max"] and k["mode"] == "auto":
+            out.append(f"{name} auto limit: {rupees(b['auto_max'])} → {rupees(k['auto_max'])}")
+    for key, label, fmt in [("copilot_mode", "Copilot mode", str), ("hard_cap", "Hard cap", rupees),
+                            ("maker_checker_over", "Two-person rule above", lambda v: "off" if v is None else rupees(v)),
+                            ("ai_calls_per_hour", "AI requests per hour", str), ("max_tool_steps", "Max tool steps", str),
+                            ("max_file_mb", "Max file MB", str), ("ai_enabled", "AI on", str)]:  # fmt: skip
+        if old[key] != new[key]:
+            out.append(f"{label}: {fmt(old[key])} → {fmt(new[key])}")
+    if len(old["grants"]) > len(new["grants"]):
+        out.append("revoked an always-allow permission")
+    return out
 
 
 @app.get("/api/policy")
@@ -1368,6 +1393,5 @@ def set_policy(request: Request, body: PolicyIn):
                 a.status, a.reason = s.gate._decide(a)
                 s.gate.actions[aid] = a
     new = _policy_view(s)
-    diff = {k: (old[k], new[k]) for k in new if k not in ("preview", "modes") and old[k] != new[k]}
-    s.log.log("human", "changed the approval policy", f"by {who}: " + json.dumps(diff, default=str)[:600])  # fmt: skip
+    s.log.log("human", "changed the approval policy", f"by {who}: " + ("; ".join(_policy_diff(old, new)) or "no change"))  # fmt: skip
     return _respond(sid, new)

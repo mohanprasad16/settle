@@ -103,3 +103,9 @@ twin refunds in the same minute and three-decimal amounts all came out right.
 - **A retried upload showed the previous attempt's error.** The new upload counts rows before
   reading the files, and the old error toast stayed up, so a fresh mistake was reported as the last
   one. A submit now clears old alerts and shows progress straight away.
+- **A refresh opened the wrong page.** Loading the sample or a random month kept the old
+  `#/…` route in the URL, so reloading showed the last page instead of the new month's overview.
+  The browser suite caught it; `render()` now rewrites the route whenever the page changes.
+- **Tour captions ran ahead of the screen.** "Scanned or locked bank PDFs…" showed over the Ask
+  answer because each caption was set before its navigation. Captions are now set only after the
+  screen for that beat is showing, and cleared between beats.

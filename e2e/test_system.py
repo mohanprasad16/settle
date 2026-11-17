@@ -39,6 +39,19 @@ console_errors: list[str] = []
 shots: list[str] = []
 
 
+PAGE_IDS = [
+    "overview",
+    "settlements",
+    "issues",
+    "flow",
+    "patterns",
+    "ask",
+    "audit",
+    "rules",
+    "settings",
+]
+
+
 def check(area: str, name: str, ok, detail: str = "") -> bool:
     checks.append((area, name, bool(ok), str(detail)[:300]))
     print(
@@ -59,6 +72,10 @@ def shot(page, name: str, full: bool = False) -> None:
 
 
 def start(port: int, **env) -> subprocess.Popen:
+    # A server already on this port would answer instead of ours, with its own state and limits.
+    with contextlib.suppress(httpx.HTTPError):
+        httpx.get(f"http://127.0.0.1:{port}/api/health", timeout=1)
+        raise RuntimeError(f"port {port} is already in use; stop that server and run again")
     log = open(tempfile.gettempdir() + f"/settle-e2e-{port}.log", "w")  # noqa: SIM115 (lives as long as the server)
     p = subprocess.Popen(
         ["uv", "run", "uvicorn", "app.main:app", "--port", str(port)],
@@ -174,17 +191,9 @@ def landing(page, exp):
     )
     check(A, "How it works has 3 steps", page.locator(".steps > li").count() == 3)
     check(A, "trust strip has 4 points", page.locator(".trust > li").count() == 4)
-    r = exp["_result"]
-    hero = page.inner_text(".preview")
-    start, end = r.books_to_razorpay[0].amount, r.razorpay_to_bank[-1].amount
-    miss = next(f.amount for f in r.findings if f.check == "settlement_missing")
-    for label, v in [("net sales", start), ("received in bank", end), ("missing settlement", miss)]:
-        check(
-            A,
-            f"hero {label} matches the sample ({rupees(v)})",
-            rupees(v).replace("-", "") in hero,
-            hero,
-        )
+    # The hero shows the real app (the tour video) instead of a hand-typed preview card, so no
+    # sample figure can go stale on the landing page.
+    check(A, "hero shows the product tour with a poster", page.get_attribute("#tour-video", "poster") == "/static/tour.jpg")  # fmt: skip
     shot(page, "landing_desktop", full=True)
     check(
         A,
@@ -322,7 +331,7 @@ def guidance(page):
     )
     page.keyboard.press("Escape")
     heads = page.eval_on_selector_all(".page .page-head h1", "els => els.length")
-    check(A, "every page has a heading with a one-line purpose", heads == 8, heads)
+    check(A, "every page has a heading with a one-line purpose", heads == len(PAGE_IDS), heads)
     check(A, "Start here starts at 0 of 3 for a new month", not done_steps(page), done_steps(page))
     goto_page(page, "issues")
 
@@ -903,7 +912,8 @@ def failures(page, ctx, browser, exp):
     check(
         A,
         "Saved rules empty state explains how to make the first rule",
-        "No saved rules yet" in pb.inner_text("#page-rules"),
+        "No rules yet" in pb.inner_text("#page-rules")
+        and "Mark as expected" in pb.inner_text("#page-rules"),
     )
     shot(pb, "empty_state_rules")
     pb.click("#nav-chaos")
@@ -1065,12 +1075,151 @@ def quality(browser):
     ph.close()
 
 
+# --- 11 AI-native: navigation, Copilot, change cards, policy -------------------------------------
+
+
+def native(page, ctx):
+    A = "11 AI-native"
+    # Hero video above the fold at the two reviewer sizes.
+    fresh = ctx.browser.new_context()  # no session cookie: a first-time visitor sees the landing
+    for w, h in [(1366, 768), (1440, 900)]:
+        pv = fresh.new_page()
+        pv.set_viewport_size({"width": w, "height": h})
+        pv.goto(base("A"))
+        pv.wait_for_selector("#tour-video")
+        box = pv.locator("#tour-video").bounding_box()
+        check(
+            A, f"tour video above the fold at {w}x{h}", box and box["y"] + box["height"] <= h, box
+        )
+        if w == 1366:
+            shot(pv, "landing_hero_video")
+        pv.close()
+    fresh.close()
+    page.goto(base("A"))
+    page.evaluate("history.replaceState(null, '', '/'); loadSample()")  # fresh sample, same session
+    wait_results(page)
+    check(A, "results get a route", page.url.endswith("#/overview"), page.url)
+    page.click("#nav-issues")
+    page.click("#nav-settlements")
+    page.wait_for_selector("#settlement-rows tr[data-status]")
+    page.go_back()
+    check(A, "browser Back returns to the previous page", page.url.endswith("#/issues") and page.is_visible("#page-issues"), page.url)  # fmt: skip
+    page.go_forward()
+    check(A, "Forward works too", page.url.endswith("#/settlements"), page.url)
+    page.goto(base("A") + "/#/issues/F2")
+    page.wait_for_selector("#drawer-title")
+    check(A, "a deep link opens the issue after a refresh", page.is_visible("#drawer") and page.is_visible("#page-issues"))  # fmt: skip
+    page.keyboard.press("Escape")
+    page.click("#results .brand")
+    check(A, "logo goes to Overview", page.url.endswith("#/overview") and page.is_visible("#page-overview"))  # fmt: skip
+    page.keyboard.press("Control+k")
+    page.wait_for_selector("#palette[open]")
+    page.keyboard.type("F3")
+    shot(page, "command_palette")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#drawer-title")
+    check(A, "⌘K opens an issue by id", page.url.endswith("#/issues/F3"), page.url)
+    page.keyboard.press("Escape")
+
+    # Copilot on every page, page-aware.
+    page.click("#cp-launch")
+    seen = {}
+    for k in ["overview", "settlements", "issues", "flow", "patterns", "ask", "audit", "rules", "settings"]:  # fmt: skip
+        page.evaluate("k => go(k)", k)
+        page.wait_for_timeout(150)
+        seen[k] = page.locator("#cp-suggest button").first.inner_text()
+    check(A, "Copilot is on every page with its own suggestions", len(set(seen.values())) >= 7, seen)  # fmt: skip
+    page.evaluate("go('overview')")
+    shot(page, "copilot_overview")
+    page.fill("#cp-q", "/")
+    check(
+        A, "slash-command menu", page.locator("#cp-menu li", has_text="/close-month").count() == 1
+    )
+    page.fill("#cp-q", "@F")
+    page.locator("#cp-q").press("End")
+    page.locator("#cp-q").type("1")
+    check(A, "@-mention suggests issues", page.locator("#cp-menu li", has_text="@F1").count() >= 1)
+    page.fill("#cp-q", "")
+    page.locator("#copilot header button[aria-label='Close Copilot']").click()
+
+    # Manual match through a change card (built by code from the form; no model needed).
+    page.evaluate("go('patterns')")
+    page.locator("#exc-list input.pick-row").first.check()
+    check(A, "selecting a line shows the action bar", page.is_visible("#sel-bar #sel-ai") and page.is_visible("#sel-manual"))  # fmt: skip
+    page.click("#sel-manual")
+    page.fill("#mm-note", "Prior-month settlement credited 1 Oct")
+    page.click("#cp-log form button[type=submit]")
+    card = page.locator("#cp-log .change").last
+    card.wait_for()
+    check(A, "change card shows before → after and its checks", card.locator(".cc-diff tr").count() >= 1 and card.locator(".cc-checks li").count() >= 2)  # fmt: skip
+    check(A, "Always allow isn't offered above the cap", card.locator("button", has_text="Always allow").count() == 0)  # fmt: skip
+    shot(page, "change_card_before_confirm")
+    card.locator(".cc-name").fill("")
+    card.locator("button", has_text="Allow once").click()
+    check(A, "Allow once needs a name", "Type your name" in card.inner_text())
+    card.locator(".cc-name").fill("Priya")
+    card.locator("button", has_text="Allow once").click()
+    page.locator("#cp-log .change .banner.okb").last.wait_for()
+    shot(page, "change_card_after_confirm")
+    v = page.evaluate("state.view")
+    check(A, "manual match: unmatched line gone, Unexplained ₹0.00", not v["unmatched_credits"] and v["totals"]["unexplained"] == 0)  # fmt: skip
+    page.locator("#cp-log .change").last.locator("button", has_text="Undo").click()
+    page.wait_for_timeout(600)
+    v = page.evaluate("state.view")
+    check(A, "undo brings the line back and the bridge still ties", v["unmatched_credits"] and v["totals"]["unexplained"] == 0)  # fmt: skip
+    page.locator("#copilot header button[aria-label='Close Copilot']").click()
+    page.evaluate("clearSelection()")
+
+    # Suggested rule → change card → confirm.
+    page.evaluate("go('rules')")
+    sug = page.locator("#page-rules .card.sug").first
+    check(A, "What Settle remembers suggests a rule", sug.count() == 1)
+    shot(page, "suggested_rules")
+    sug.locator("button").click()
+    rc = page.locator("#page-rules .change").first
+    rc.wait_for()
+    rc.locator(".cc-name").fill("Priya")
+    rc.locator("button", has_text="Allow once").click()
+    page.wait_for_timeout(700)
+    v = page.evaluate("state.view")
+    check(A, "the suggested rule resolves its issues and the bridge ties", len(v["rules"]) == 1 and v["resolved"] and v["totals"]["unexplained"] == 0)  # fmt: skip
+
+    # Settings: locked rows, a policy change that changes behaviour, a grant revoked.
+    page.evaluate("go('settings')")
+    page.wait_for_selector("#pol-kinds")
+    shot(page, "settings_policy")
+    locked = page.locator("#pol-kinds tr[data-kind=razorpay_ticket] select")
+    check(A, "locked kinds can't be changed", locked.is_disabled() and locked.locator("option[value=auto]").count() == 0)  # fmt: skip
+    page.fill("#pol-who", "Priya")
+    page.locator("#pol-kinds tr[data-kind=manual_match] select").select_option("never")
+    page.wait_for_timeout(600)
+    r = page.evaluate("""async () => { const v = state.view; const row = v.unmatched_credits[0].row_no;
+        const res = await fetch('/api/proposals/manual', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({bank_rows:[row], note:'x'})});
+        return res.status; }""")
+    check(A, "after setting manual matches to Never, they're refused", r == 422, r)
+    page.locator("#pol-kinds tr[data-kind=manual_match] select").select_option("ask")
+    page.wait_for_timeout(500)
+    log = httpx.get(base("A") + "/api/audit", cookies={c["name"]: c["value"] for c in page.context.cookies()}).json()["log"]  # fmt: skip
+    check(A, "policy edits are logged with who and what changed", any(e["action"] == "changed the approval policy" and "Priya" in e["detail"] and "Manual match: ask → never" in e["detail"] for e in log))  # fmt: skip
+
+    # Approvals: bulk prompts and log filter.
+    page.evaluate("go('audit')")
+    page.wait_for_selector("#log-body tr")
+    check(A, "Approvals offers bulk Copilot prompts", page.locator("#page-audit .suggest button", has_text="Approve all fee journals").count() == 1)  # fmt: skip
+    page.locator("#page-audit button.chip[data-actor=human]").click()
+    shown = [
+        r.get_attribute("data-actor") for r in page.locator("#log-body tr:not([hidden])").all()
+    ]
+    check(A, "decision log filters by who", shown and set(shown) == {"human"}, set(shown))
+    shot(page, "approvals_bulk")
+
+
 def main() -> int:
     SHOTS.mkdir(parents=True, exist_ok=True)
     for f in SHOTS.glob("*.png"):
         f.unlink()
     servers = [
-        start(PORTS["A"]),
+        start(PORTS["A"], SETTLE_AI_CALLS="200"),  # the limit itself is tested on server C
         start(PORTS["B"], GEMINI_API_KEY=""),
         start(PORTS["C"], SETTLE_AI_CALLS="0"),
     ]
@@ -1094,7 +1243,7 @@ def main() -> int:
                 lambda: landing(page, exp), lambda: sample_results(page, exp), lambda: guidance(page), lambda: settlements_page(page, exp), lambda: drawers(page, exp),
                 lambda: actions(page, ctx), lambda: ask(page, ctx), lambda: chaos(page),
                 lambda: upload(page, exp, Path(tmp)), lambda: downloads(page, ctx, Path(tmp)),
-                lambda: failures(page, ctx, browser, exp), lambda: quality(browser),
+                lambda: failures(page, ctx, browser, exp), lambda: native(page, ctx), lambda: quality(browser),
             ]  # fmt: skip
             for step in steps:
                 try:
