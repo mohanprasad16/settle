@@ -562,6 +562,12 @@ form.addEventListener("submit", async (e) => {
 
 const FIELDS = [["txn_date", "Date"], ["narration", "Narration"], ["ref_no", "Reference"], ["debit", "Withdrawal"], ["credit", "Deposit"], ["balance", "Balance"]];
 const LIKELY = { withdrawal: "debit", deposit: "credit", balance: "balance" };
+const AMOUNT = new Set(["debit", "credit", "balance"]);
+// Amounts read as ₹ with Indian grouping; the server accepts that or plain numbers back.
+function fmtAmount(x) {
+  const n = Number(String(x ?? "").replace(/[₹,\s]/g, ""));
+  return x === "" || x == null || Number.isNaN(n) ? (x ?? "") : rupees(Math.round(n * 100));
+}
 
 function showReview(v) {
   const breaks = new Map(v.breaks.map((b) => [b.row, b]));
@@ -581,12 +587,17 @@ function fillReview(rows, breaks) {
       const b = breaks.get(i + 1);
       return el("tr", { class: b ? "broken" : "", title: b ? `Expected balance ${rupees(b.expected_balance)}, printed ${rupees(b.printed_balance)}` : null },
         el("td", {}, String(i + 1)),
-        ...FIELDS.map(([k, l]) => el("td", {}, el("input", { value: r[k] ?? "", "data-k": k, class: b && LIKELY[b.likely_field] === k ? "likely" : "", "aria-label": `Row ${i + 1} ${l}` }))));
+        ...FIELDS.map(([k, l]) => {
+          const attrs = { "data-k": k, class: b && LIKELY[b.likely_field] === k ? "likely" : "", "aria-label": `Row ${i + 1} ${l}` };
+          // The narration wraps so the whole line is readable; it is how a person recognises the row.
+          if (k === "narration") return el("td", {}, el("textarea", { ...attrs, rows: 2, title: r[k] ?? "" }, r[k] ?? ""));
+          return el("td", {}, el("input", { ...attrs, value: AMOUNT.has(k) ? fmtAmount(r[k]) : r[k] ?? "" }));
+        }));
     })));
 }
 
 $("#review-go").addEventListener("click", async () => {
-  const rows = $$("#review-table tbody tr").map((tr) => Object.fromEntries($$("input", tr).map((i) => [i.dataset.k, i.value])));
+  const rows = $$("#review-table tbody tr").map((tr) => Object.fromEntries($$("input, textarea", tr).map((i) => [i.dataset.k, i.value])));
   loading(["Checking the balances again…", "Reconciling…"]);
   try { render(await api("POST", "/api/bank-preview/confirm", { rows })); alerts.replaceChildren(); }
   catch (e) {
