@@ -230,5 +230,29 @@
     "who_to_contact": "your store/ops team",
     "source": "model",
     "verified": true
+  },
+  "71950fb896a55840": {
+    "headline": "Payment captured but order status remains pending",
+    "what_happened": "The customer paid \u20b94,998.00 using a card for order no KK-10594, and payment id pay_rcY3WHJfPrYfmq was captured on 3 Oct 2026 under razorpay order id order_txEjHbALGbG4xq. However, the books status for this \u20b94,998.00 transaction is still marked as pending.",
+    "likely_cause": "Most likely, a technical update between Razorpay and your website failed after the payment succeeded.",
+    "what_to_do": [
+      "Check your store backend using reference ids KK-10594 and pay_rcY3WHJfPrYfmq to see if the order can be manually confirmed.",
+      "Share payment id pay_rcY3WHJfPrYfmq and razorpay order id order_txEjHbALGbG4xq with technical help to fix the status."
+    ],
+    "who_to_contact": "your store/ops team",
+    "source": "model",
+    "verified": true
+  },
+  "286c7d11f7d66f4b": {
+    "headline": "Payment captured for order KK-10702 but store status remains pending",
+    "what_happened": "The customer paid \u20b9499.00 using netbanking for order no KK-10702, which was captured on 5 Oct 2026 under payment id pay_Qr5xKwC0L30e36 and razorpay order id order_XPNk2wDbl6s6mS. However, the books status for this order still shows pending.",
+    "likely_cause": "Most likely, the automatic update confirmation between the payment system and your store system was delayed or disconnected after the netbanking transaction was completed.",
+    "what_to_do": [
+      "Check your store backend for order no KK-10702 to manually match it with reference id pay_Qr5xKwC0L30e36.",
+      "Update the books status from pending to paid so your team can process the order."
+    ],
+    "who_to_contact": "your store/ops team",
+    "source": "model",
+    "verified": true
   }
 }

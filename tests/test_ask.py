@@ -103,3 +103,36 @@ def test_step_cap_holds(data):
     )
     a = ask(con, result, "Loop forever", llm)
     assert len(a.steps) == MAX_CALLS and llm.agent_calls == MAX_CALLS
+
+
+def test_trace_records_each_tool_call(data):
+    con, result = data
+    llm = FakeLLM(
+        [AgentReply("", [ToolCall("get_finding", {"id": "F1"})]),
+         _sql("SELECT row_no FROM rp LIMIT 3"), _sql("DROP TABLE rp")],
+        [Answer(answer="Done.", citations=[])],
+    )  # fmt: skip
+    a = ask(con, result, "trace me", llm)
+    assert [(t["step"], t["tool"], t["rows_returned"]) for t in a.trace] == [
+        (1, "get_finding", 1), (2, "run_sql", 3), (3, "run_sql", 0)
+    ]  # fmt: skip
+    assert a.trace[1]["input"] == "SELECT row_no FROM rp LIMIT 3" and "error" in a.trace[2]
+
+
+def test_money_without_rupee_sign_is_sent_back(data):
+    con, result = data
+    missing = next(f for f in result.findings if f.check == "settlement_missing")
+    llm = FakeLLM([], [Answer(answer="It was 53,657.47.", citations=[]),
+                       Answer(answer="It was ₹53,657.47.", citations=[])])  # fmt: skip
+    a = ask(con, result, "How much was the missing settlement?", llm)
+    assert a.verified and a.answer == "It was ₹53,657.47." and llm.json_calls == 2
+    assert missing.amount == 5365747
+
+
+def test_findings_and_contacts_are_given_up_front(data):
+    from app.ask import system_prompt
+    from app.explain import explain_all
+
+    _, result = data
+    prompt = system_prompt(result, explain_all(result, None))
+    assert "UTIBR" in prompt and "contact: Razorpay support" in prompt
