@@ -128,9 +128,9 @@ More detail: [Architecture](docs/ARCHITECTURE.md) · [Prompts and why they're wr
 
 ## How I know it works
 
-- **126 test-plan cases, all passing**, each with an ID and the test that proves it:
-  [Test plan](docs/TEST_PLAN.md) · [Test report](docs/test-report.html) (169 unit and API tests,
-  214 browser checks in real Chrome on laptop and phone width).
+- **139 test-plan cases, all passing**, each with an ID and the test that proves it:
+  [Test plan](docs/TEST_PLAN.md) · [Test report](docs/test-report.html) (175 unit and API tests,
+  252 browser checks in real Chrome on laptop and phone width).
 - **Held-out months**: 50 random months never used while building or tuning: precision 100%,
   recall 100%, both bridges at ₹0 in every month, about 12,000 rows a second.
 - **Blind edge cases, misses published.** New tricky cases written after the fact and run once:
@@ -148,12 +148,12 @@ Four layers, each catching a different kind of mistake:
 1. **Answer keys, not guesses.** The sample month and every random month are generated with
    problems planted on purpose and an answer key. A test passes only if the engine finds every
    planted problem with the exact ₹ amount, flags nothing else, and both bridges close to ₹0.
-2. **Unit and API tests** (169) for the engine, matching, each AI guard, Settle AI's change
+2. **Unit and API tests** (175) for the engine, matching, each AI guard, Settle AI's change
    cards, the approval policy, inputs and outputs. The model is replaced by a scripted stand-in,
    so the tests are exact, fast and need no key. Guardrail tests try to break things on purpose:
    invented numbers, SQL that reaches for files, "approve everything" hidden in an Excel cell,
    approving your own change under two-person approval.
-3. **A system test in a real browser** (214 checks). It starts the real server and drives Chrome
+3. **A system test in a real browser** (252 checks). It starts the real server and drives Chrome
    like a finance user: every page, every button, every Settle AI flow end to end (plan → change
    card → Allow → Undo), uploads of CSV, Excel and scanned and locked PDFs, downloads, back and
    forward, phone width, keyboard only, and the failure states (AI off, network drop, rate limit,
@@ -247,7 +247,7 @@ Speed didn't replace testing. Every feature was tested end to end before I calle
 system test drives the real app in Chrome like a finance user (laptop and phone width, every page,
 every Settle AI flow, every failure state), on top of unit and API tests and the held-out
 evaluation. An independent QA pass then tried to break it and fixed what it found. The final run
-on this version: **126 of 126 test-plan cases, 169 unit and API tests and 214 browser checks, all
+on this version: **137 of 137 test-plan cases (plus 2 measured in evals), 175 unit and API tests and 252 browser checks, all
 passing**, with one command and no API key: `uv run python -m tests.run_all`. GitHub Actions runs
 the same suite on every push.
 

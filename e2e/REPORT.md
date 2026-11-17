@@ -1,19 +1,20 @@
 # Settle system test
 
-Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 214/214 checks passed.
+Run 2026-11-18 00:34 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 252/252 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
 | 0 Setup | 2 | 0 |
 | 1 Landing | 21 | 0 |
 | 10 Quality | 22 | 0 |
-| 11 AI-native | 28 | 0 |
+| 11 AI-native | 27 | 0 |
 | 11 Guidance | 10 | 0 |
+| 11 Settle AI floater | 20 | 0 |
 | 2 Sample results | 11 | 0 |
 | 3 Finding drawers | 9 | 0 |
 | 3b Settlements | 5 | 0 |
 | 4 Actions and rules | 15 | 0 |
-| 5 Ask | 21 | 0 |
+| 5 Settle AI answers | 40 | 0 |
 | 6 Chaos | 6 | 0 |
 | 7 Upload | 40 | 0 |
 | 8 Downloads | 6 | 0 |
@@ -23,18 +24,18 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 
 | Step | Seconds |
 |---|---|
-| sample (click to results) | 0.83 |
-| ask: Why did a settlement never reach my bank? | 0.06 |
-| ask: How much did I lose to chargebacks this month? | 0.05 |
-| ask: Which day had the most refunds? | 0.07 |
-| ask: What should I do first? | 0.06 |
-| chaos month 1 | 1.37 |
-| chaos month 2 | 1.91 |
-| chaos month 3 | 1.37 |
-| CSV upload (submit to results) | 0.85 |
-| locked PDF (submit to review) | 0.23 |
+| sample (click to results) | 0.82 |
+| Settle AI: Why did a settlement never reach my bank? | 0.86 |
+| Settle AI: How much did I lose to chargebacks this month? | 0.93 |
+| Settle AI: Which day had the most refunds? | 0.57 |
+| Settle AI: What should I do first? | 0.53 |
+| chaos month 1 | 0.84 |
+| chaos month 2 | 0.84 |
+| chaos month 3 | 0.83 |
+| CSV upload (submit to results) | 0.84 |
+| locked PDF (submit to review) | 0.13 |
 | scanned PDF (submit to review) | 0.13 |
-| digital PDF (submit to review) | 0.27 |
+| digital PDF (submit to review) | 0.13 |
 
 ## Every check
 
@@ -87,9 +88,9 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ phone issues: no sideways scroll
 - ✅ phone drawer: no sideways scroll
 - ✅ desktop 1280px: top bar stays one row on every page
-- ✅ selection bar stays clear of the open Copilot
+- ✅ selection bar stays clear of the open Settle AI
 - ✅ selection bar stays clear of the sidebar
-- ✅ selection bar clear of the sidebar with Copilot closed
+- ✅ selection bar clear of the sidebar with Settle AI closed
 - ✅ no console errors or page errors anywhere
 
 ### 11 AI-native
@@ -102,11 +103,10 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ a deep link opens the issue after a refresh
 - ✅ logo goes to Overview
 - ✅ ⌘K opens an issue by id
-- ✅ Copilot is on every page with its own suggestions
 - ✅ slash-command menu
 - ✅ @-mention suggests issues
-- ✅ Copilot echo path keeps the typed text
-- ✅ Stop cancels a running Copilot request and says nothing changed
+- ✅ Settle AI echo path keeps the typed text
+- ✅ Stop cancels a running Settle AI request and says nothing changed
 - ✅ selecting a line shows the action bar
 - ✅ change card shows before → after and its checks
 - ✅ Always allow isn't offered above the cap
@@ -120,7 +120,7 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ policy edits are logged with who and what changed
 - ✅ an attached sheet gets a mapping card with a row preview
 - ✅ the sheet, used as orders, reconciles to the same issues
-- ✅ Approvals offers bulk Copilot prompts
+- ✅ Approvals offers bulk Settle AI prompts
 - ✅ decision log filters by who
 
 ### 11 Guidance
@@ -135,6 +135,29 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ focus stays inside the tour
 - ✅ every page has a heading with a one-line purpose
 - ✅ Start here starts at 0 of 3 for a new month
+
+### 11 Settle AI floater
+
+- ✅ the Settle AI bubble is on every page
+- ✅ Ask a question is no longer in the sidebar
+- ✅ ✦ Ask on a KPI tile pre-fills the question with that figure
+- ✅ ✦ Ask on a KPI tile shows what it's about and sends nothing yet
+- ✅ a waterfall bar opens Settle AI about that bar
+- ✅ ✦ Ask on a settlement row pre-fills that payout
+- ✅ Settle AI is on every page with its own quick actions
+- ✅ quick actions read the page: Overview names the money lost
+- ✅ quick actions read the page: Approvals offers bulk approval
+- ✅ #/ask opens Settle AI over the Overview
+- ✅ ⌘K finds the 21 Oct payout by date
+- ✅ ⌘K: a typed question puts Ask Settle AI first
+- ✅ ⌘K → Ask Settle AI opens the floater and asks the question
+- ✅ select-all shows part-ticked as indeterminate
+- ✅ row checkboxes are at most 20px and centred in their row
+- ✅ the select-all box sits inside the header row
+- ✅ the selection bar doesn't overlap the Settle AI bubble
+- ✅ a toast doesn't cover the open Settle AI window
+- ✅ reduced motion turns every animation off (landing, floater, pages, figures)
+- ✅ on a phone Settle AI is a full-screen sheet
 
 ### 2 Sample results
 
@@ -188,38 +211,57 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ handled list shows the rule and note
 - ✅ Saved rules lists the new rule
 
-### 5 Ask
+### 5 Settle AI answers
 
-- ✅ Ask explains what it can and can't do
+- ✅ Settle AI opens on a home view: ask about this page, reconcile something, upload a sheet
+- ✅ the message box caps typing at 800 characters
+- ✅ Shift+Enter makes a new line, Enter sends
+- ✅ an empty message isn't sent
 - ✅ 'Why did a settlement never reach my bank?' answered
 - ✅ 'Why did a settlement never reach my bank?' answer has ₹ figures
 - ✅ 'Why did a settlement never reach my bank?' answer cites proof
+- ✅ 'Why did a settlement never reach my bank?' answer offers 2-3 follow-ups
+- ✅ 'Why did a settlement never reach my bank?' answer has 👍 / 👎, copy and a time
+- ✅ 'Why did a settlement never reach my bank?' How I worked it out starts collapsed
 - ✅ 'Why did a settlement never reach my bank?' trace timeline opens
 - ✅ 'How much did I lose to chargebacks this month?' answered
 - ✅ 'How much did I lose to chargebacks this month?' answer has ₹ figures
 - ✅ 'How much did I lose to chargebacks this month?' answer cites proof
-- ✅ 'How much did I lose to chargebacks this month?' trace timeline opens
+- ✅ 'How much did I lose to chargebacks this month?' answer offers 2-3 follow-ups
+- ✅ 'How much did I lose to chargebacks this month?' answer has 👍 / 👎, copy and a time
+- ✅ 'How much did I lose to chargebacks this month?' How I worked it out starts collapsed
 - ✅ 'Which day had the most refunds?' answered
 - ✅ 'Which day had the most refunds?' answer has ₹ figures
 - ✅ 'Which day had the most refunds?' answer cites proof
-- ✅ 'Which day had the most refunds?' trace timeline opens
+- ✅ 'Which day had the most refunds?' answer offers 2-3 follow-ups
+- ✅ 'Which day had the most refunds?' answer has 👍 / 👎, copy and a time
+- ✅ 'Which day had the most refunds?' How I worked it out starts collapsed
 - ✅ 'What should I do first?' answered
 - ✅ 'What should I do first?' answer has ₹ figures
 - ✅ 'What should I do first?' answer cites proof
-- ✅ injection in Ask doesn't claim to approve anything
-- ✅ injection in Ask changes no action
+- ✅ 'What should I do first?' answer offers 2-3 follow-ups
+- ✅ 'What should I do first?' answer has 👍 / 👎, copy and a time
+- ✅ 👎 asks what was wrong, with chips
+- ✅ 👍 and 👎 are recorded and exported in feedback.csv
+- ✅ ratings land in the decision log
+- ✅ a follow-up chip asks that question
+- ✅ injection in Settle AI doesn't claim to approve anything
+- ✅ injection in Settle AI changes no action
+- ✅ 900-character message refused politely
 - ✅ 600-character question refused politely
-- ✅ ask box caps typing at 500 characters
-- ✅ empty question gets 'Type a question first'
+- ✅ scroll-to-bottom appears when scrolled up, and goes back down
+- ✅ Esc closes Settle AI and focus returns to the bubble
+- ✅ the conversation is still there when reopened
+- ✅ New conversation goes back to the home view
 
 ### 6 Chaos
 
-- ✅ Random month #417787: every hidden problem found, nothing extra
-- ✅ Random month #417787: unexplained ₹0.00 on both bridges
-- ✅ Random month #782817: every hidden problem found, nothing extra
-- ✅ Random month #782817: unexplained ₹0.00 on both bridges
-- ✅ Random month #483028: every hidden problem found, nothing extra
-- ✅ Random month #483028: unexplained ₹0.00 on both bridges
+- ✅ Random month #499277: every hidden problem found, nothing extra
+- ✅ Random month #499277: unexplained ₹0.00 on both bridges
+- ✅ Random month #877594: every hidden problem found, nothing extra
+- ✅ Random month #877594: unexplained ₹0.00 on both bridges
+- ✅ Random month #725475: every hidden problem found, nothing extra
+- ✅ Random month #725475: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
@@ -289,7 +331,7 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ AI off: Reconciled by value = 92.1%
 - ✅ AI off: Unexplained = ₹0.00
 - ✅ AI off: both bridges end at ₹0.00 unexplained
-- ✅ AI off: Ask is disabled, not broken
+- ✅ AI off: Settle AI is disabled, not broken
 - ✅ Saved rules empty state explains how to make the first rule
 - ✅ AI off: explanations come from templates, labelled
 - ✅ AI rate limit: friendly message, results stay
@@ -314,7 +356,7 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 - `e2e/screenshots/16_finding_trace_tab.png`
 - `e2e/screenshots/17_action_approved_dry_run.png`
 - `e2e/screenshots/18_rule_marked_expected.png`
-- `e2e/screenshots/19_ask_with_trace.png`
+- `e2e/screenshots/19_settle_ai_answer.png`
 - `e2e/screenshots/20_chaos_answer_key.png`
 - `e2e/screenshots/21_upload_desktop.png`
 - `e2e/screenshots/22_error_wrong_box.png`
@@ -328,18 +370,23 @@ Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phon
 - `e2e/screenshots/30_error_rate_limit.png`
 - `e2e/screenshots/31_landing_hero_video.png`
 - `e2e/screenshots/32_command_palette.png`
-- `e2e/screenshots/33_copilot_overview.png`
+- `e2e/screenshots/33_settle_ai_home.png`
 - `e2e/screenshots/34_change_card_before_confirm.png`
 - `e2e/screenshots/35_change_card_after_confirm.png`
 - `e2e/screenshots/36_suggested_rules.png`
 - `e2e/screenshots/37_settings_policy.png`
 - `e2e/screenshots/38_excel_transform_preview.png`
 - `e2e/screenshots/39_approvals_bulk.png`
-- `e2e/screenshots/40_landing_phone.png`
-- `e2e/screenshots/41_phone_header.png`
-- `e2e/screenshots/42_results_phone.png`
-- `e2e/screenshots/43_results_phone_full.png`
-- `e2e/screenshots/44_finding_drawer_phone.png`
+- `e2e/screenshots/40_settle_ai_launcher.png`
+- `e2e/screenshots/41_settle_ai_kpi_ask.png`
+- `e2e/screenshots/42_palette_ask_settle_ai.png`
+- `e2e/screenshots/43_settlements_two_ticked.png`
+- `e2e/screenshots/44_settle_ai_phone.png`
+- `e2e/screenshots/45_landing_phone.png`
+- `e2e/screenshots/46_phone_header.png`
+- `e2e/screenshots/47_results_phone.png`
+- `e2e/screenshots/48_results_phone_full.png`
+- `e2e/screenshots/49_finding_drawer_phone.png`
 
 ## Bugs the system test found
 

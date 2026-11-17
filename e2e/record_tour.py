@@ -2,13 +2,16 @@
 
     uv run python -m e2e.record_tour     # writes app/static/tour.{mp4,jpg} and docs/tour.gif
 
-Real server, real sample, real model for the Ask answer and the scanned PDF, so every figure on
-screen is what the app actually produced. Captions read their numbers off the page. A soft dot
-stands in for the mouse and a ring marks what each caption is about. Re-run after UI changes.
+Real server, real sample files, the real model for the scanned PDF and every Settle AI answer, so
+every figure on screen is what the app actually produced. Captions read their numbers off the
+page. Five chapters (bring your data, see every rupee, ask Settle AI, fix with approval, hand it
+to the auditor); a cursor with a click ripple, and the page eases in on what a caption is about.
+Re-run after UI changes.
 Needs ffmpeg (the raw WebM is ~25 MB, too heavy to serve). Only the waits for the model are
-sped up, and each says so on screen with its real length: "⏩ AI working (N s, sped up)".
+sped up, and each says so on screen with its real length: "AI working: N s real time".
 """
 
+import csv
 import shutil
 import subprocess
 import time
@@ -22,46 +25,70 @@ PORT = 8790
 SIZE = {"width": 1366, "height": 768}
 STATIC = ROOT / "app" / "static"
 OUT = ROOT / "e2e" / "tour_raw"
+FRAMES = Path("/tmp/tour_v3")  # stills for review; not part of the app
 TRIM = 0.6  # encode() skips the blank first moment before the page paints
 SPED = 1.6  # each AI wait plays in about this many seconds
 
 OVERLAY = """
 (() => {
   const css = `
-    #tour-cap { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 99999;
-      background: rgba(20,32,56,.94); color: #fff; font: 600 24px/1.35 system-ui, sans-serif;
-      padding: 14px 26px; border-radius: 12px; max-width: 1100px; text-align: center;
-      box-shadow: 0 8px 30px rgba(0,0,0,.25); transition: opacity .35s; opacity: 0; pointer-events: none; }
-    #tour-dot { position: fixed; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px;
-      border-radius: 50%; background: rgba(231,76,60,.85); border: 3px solid #fff; z-index: 99999;
-      box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .7s cubic-bezier(.4,0,.2,1); pointer-events: none; }
-    #tour-ring { position: fixed; z-index: 99998; border: 3px solid rgba(231,76,60,.75); border-radius: 10px;
-      box-shadow: 0 0 0 6px rgba(231,76,60,.15); transition: all .5s ease; opacity: 0; pointer-events: none; }
-    #tour-end { position: fixed; inset: 0; z-index: 100000; background: #142038; color: #fff;
-      display: grid; place-content: center; text-align: center; font: 600 28px system-ui, sans-serif; }
-    #tour-end b { display: block; font: 700 64px Georgia, serif; margin-bottom: 14px; }
+    #tour-cap { position: fixed; left: 50%; bottom: 30px; transform: translate(-50%, 8px); z-index: 99999;
+      display: flex; align-items: center; gap: 12px; max-width: 1080px;
+      background: rgba(15, 23, 42, .74); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+      color: #fff; font: 600 22px/1.35 Inter, system-ui, sans-serif; padding: 12px 22px 12px 14px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14); box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      transition: opacity .3s, transform .3s; opacity: 0; pointer-events: none; }
+    #tour-cap.on { opacity: 1; transform: translate(-50%, 0); }
+    #tour-cap i { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+      background: rgba(255,255,255,.14); font-style: normal; font-size: 16px; }
+    #tour-cap.ai i { background: linear-gradient(135deg, #3b5bff, #8b5cf6); }
+    #tour-cur { position: fixed; left: 0; top: 0; width: 26px; height: 26px; z-index: 100001; pointer-events: none;
+      transition: transform .75s cubic-bezier(.4,0,.2,1); filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .tour-ripple { position: fixed; z-index: 100000; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
+      border: 3px solid rgba(91, 76, 255, .85); pointer-events: none; animation: tour-rip .55s ease-out forwards; }
+    @keyframes tour-rip { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+    #tour-chap, #tour-end { position: fixed; inset: 0; z-index: 100002; display: grid; place-content: center; text-align: center;
+      background: radial-gradient(1200px 600px at 70% 20%, rgba(139,92,246,.35), transparent 60%),
+                  radial-gradient(900px 500px at 15% 90%, rgba(59,91,255,.35), transparent 60%), #0b1220;
+      color: #fff; font-family: Inter, system-ui, sans-serif; opacity: 0; transition: opacity .3s; }
+    #tour-chap.on, #tour-end.on { opacity: 1; }
+    #tour-chap small { display: block; font: 600 20px Inter, system-ui, sans-serif; color: #b9c2ff; margin-bottom: 10px; letter-spacing: .02em; }
+    #tour-chap b { display: block; font: 700 64px/1.05 Inter, system-ui, sans-serif; letter-spacing: -.03em; }
+    #tour-end b { display: block; font: 700 72px Inter, system-ui, sans-serif; letter-spacing: -.03em; margin-bottom: 14px; }
+    #tour-end span { font: 500 26px Inter, system-ui, sans-serif; color: #c7cde0; }
+    #main { transition: transform .8s cubic-bezier(.4,0,.2,1); }
     section.tour { display: none !important; }  /* don't film the video slot inside the video */`;
+  const CUR = `<svg viewBox="0 0 24 24" width="26" height="26"><path d="M4 2l15 11-6.6.9 3.8 7.2-2.6 1.3-3.8-7.3L4 20z" fill="#fff" stroke="#0f172a" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
   const add = () => {
     if (document.getElementById("tour-cap")) return;
     const s = document.createElement("style"); s.textContent = css; document.head.append(s);
-    for (const id of ["tour-cap", "tour-dot", "tour-ring"]) {
-      const d = document.createElement("div"); d.id = id; document.body.append(d);
-    }
-    document.getElementById("tour-dot").style.transform = "translate(683px, 384px)";
+    const c = document.createElement("div"); c.id = "tour-cap"; c.innerHTML = "<i></i><span></span>"; document.body.append(c);
+    const k = document.createElement("div"); k.id = "tour-cur"; k.innerHTML = CUR; document.body.append(k);
+    k.style.transform = "translate(683px, 384px)";
   };
+  const full = (id, html) => { add(); const e = document.createElement("div"); e.id = id; e.innerHTML = html;
+    document.body.append(e); requestAnimationFrame(() => e.classList.add("on")); return e; };
   window.__tour = {
-    cap(t) { add(); const c = document.getElementById("tour-cap"); c.textContent = t; c.style.opacity = t ? 1 : 0; },
-    dot(x, y) { add(); document.getElementById("tour-dot").style.transform = `translate(${x}px, ${y}px)`; },
-    ring(r) { add(); const g = document.getElementById("tour-ring");
-      if (!r) { g.style.opacity = 0; return; }
-      Object.assign(g.style, { left: r.x - 8 + "px", top: r.y - 8 + "px", width: r.w + 16 + "px", height: r.h + 16 + "px", opacity: 1 }); },
-    end(title, line) { add(); const e = document.createElement("div"); e.id = "tour-end";
-      e.innerHTML = `<div><b></b><span></span></div>`; e.querySelector("b").textContent = title;
-      e.querySelector("span").textContent = line; document.body.append(e); },
+    cap(t, icon = "•", ai = false) { add(); const c = document.getElementById("tour-cap");
+      c.querySelector("span").textContent = t; c.querySelector("i").textContent = icon; c.classList.toggle("ai", ai); c.classList.toggle("on", !!t); },
+    cur(x, y) { add(); document.getElementById("tour-cur").style.transform = `translate(${x - 4}px, ${y - 2}px)`; },
+    ripple(x, y) { const r = document.createElement("div"); r.className = "tour-ripple"; r.style.left = x + "px"; r.style.top = y + "px";
+      document.body.append(r); setTimeout(() => r.remove(), 600); },
+    zoom(c, s) { const m = document.getElementById("main"); const b = m.getBoundingClientRect();
+      if (!c) { m.style.transform = ""; return; }
+      m.style.transformOrigin = `${c.x - b.left}px ${c.y - b.top}px`;
+      m.style.transform = `translate(${innerWidth / 2 - c.x}px, ${innerHeight / 2 - c.y}px) scale(${s})`; },
+    chap(n, title) { const e = full("tour-chap", `<div><small></small><b></b></div>`);
+      e.querySelector("small").textContent = `${n} of 5`; e.querySelector("b").textContent = title; },
+    unchap() { const e = document.getElementById("tour-chap"); if (!e) return; e.classList.remove("on"); setTimeout(() => e.remove(), 320); },
+    end(title, line) { const e = full("tour-end", `<div><b></b><span></span></div>`);
+      e.querySelector("b").textContent = title; e.querySelector("span").textContent = line; },
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", add); else add();
 })();
 """
+
+SPARK = "✦"
 
 
 class Tour:
@@ -70,39 +97,64 @@ class Tour:
         self.t0 = time.perf_counter()  # the recording starts with the page
         self.fast: list[tuple[float, float]] = []  # AI waits, seconds into the recording
 
+    def now(self) -> float:
+        return time.perf_counter() - self.t0
+
     def ai_wait(self, done) -> None:
         """Wait for the model under a live counter of real seconds; encode() speeds it up."""
         self.page.evaluate("""() => { const s = Date.now(); const tick = () => window.__tour.cap(
-            `⏩ AI working (${Math.round((Date.now() - s) / 1000)} s, sped up)`); tick();
+            `AI working: ${Math.round((Date.now() - s) / 1000)} s real time (long waits sped up)`, "⏩", true); tick();
             window.__aiTimer = setInterval(tick, 250); }""")
-        a = time.perf_counter() - self.t0
+        a = self.now()
         done()
         self.wait(0.3)  # let the counter show its final value
         self.page.evaluate("clearInterval(window.__aiTimer)")
         # Leave ~0.7 s at normal speed at the start so the label can be read.
-        self.fast.append((a + 0.7, time.perf_counter() - self.t0))
+        self.fast.append((a + 0.7, self.now()))
 
-    def cap(self, text: str, hold: float = 0) -> None:
-        self.page.evaluate("t => window.__tour.cap(t)", text)
+    def cap(self, text: str, hold: float = 0, icon: str = "•", ai: bool = False) -> None:
+        self.page.evaluate("([t, i, a]) => window.__tour.cap(t, i, a)", [text, icon, ai])
         self.wait(hold)
+
+    def chapter(self, n: int, title: str) -> None:
+        self.cap("")
+        self.page.evaluate("([n, t]) => window.__tour.chap(n, t)", [n, title])
+        self.wait(1.3)
+        self.page.evaluate("window.__tour.unchap()")
+        self.wait(0.35)
 
     def wait(self, s: float) -> None:
         self.page.wait_for_timeout(int(s * 1000))
 
-    def show(self, loc, hold: float = 0.8, ring: bool = True) -> None:
-        """Scroll the element into view, glide the dot to it and ring it."""
-        loc.evaluate("e => e.scrollIntoView({behavior: 'smooth', block: 'center'})")
-        self.wait(0.9)
+    def centre(self, loc):
         b = loc.bounding_box()
-        if b:
-            self.page.evaluate("p => window.__tour.dot(p.x, p.y)", {"x": b["x"] + b["width"] / 2, "y": b["y"] + b["height"] / 2})  # fmt: skip
-            r = {"x": b["x"], "y": b["y"], "w": b["width"], "h": b["height"]}
-            self.page.evaluate("r => window.__tour.ring(r)", r if ring else None)
+        return {"x": b["x"] + b["width"] / 2, "y": b["y"] + b["height"] / 2} if b else None
+
+    def show(self, loc, hold: float = 0.8, scroll: bool = True) -> None:
+        """Scroll the element into view and glide the cursor to it."""
+        if scroll:
+            loc.evaluate("e => e.scrollIntoView({behavior: 'smooth', block: 'center'})")
+            self.wait(0.8)
+        c = self.centre(loc)
+        if c:
+            self.page.evaluate("c => window.__tour.cur(c.x, c.y)", c)
         self.wait(hold)
 
-    def click(self, loc, hold: float = 0.6) -> None:
-        self.show(loc, 0.5)
-        self.page.evaluate("window.__tour.ring(null)")
+    def zoom(self, loc, scale: float = 1.35, hold: float = 1.6) -> None:
+        """Ease the page in on an element, hold, ease back out."""
+        c = self.centre(loc)
+        if c:
+            self.page.evaluate("([c, s]) => window.__tour.zoom(c, s)", [c, scale])
+            self.wait(0.85 + hold)
+            MARKS.setdefault("zoom", self.now() - 0.3)
+            self.page.evaluate("window.__tour.zoom(null)")
+            self.wait(0.85)
+
+    def click(self, loc, hold: float = 0.6, scroll: bool = True) -> None:
+        self.show(loc, 0.5, scroll)
+        c = self.centre(loc)
+        if c:
+            self.page.evaluate("c => window.__tour.ripple(c.x, c.y)", c)
         # ponytail: force skips Playwright's stability wait, which a smooth scroll can starve.
         loc.click(force=True)
         self.wait(hold)
@@ -123,152 +175,162 @@ def record() -> Path:
             page = ctx.new_page()
             t = Tour(page)
             FAST.clear()
+            MARKS.clear()
             url = f"http://127.0.0.1:{PORT}"
             page.goto(url)
             page.wait_for_selector("#try-sample")
+            page.wait_for_timeout(500)
+            CUT[0] = t.now()  # the film starts here; the blank first paint is cut
 
-            # 1. The tour opens on the results, not on the landing page it is embedded in (a
-            # landing-in-landing frame). encode() cuts everything filmed before this point.
-            start_t = time.perf_counter()
-            page.locator("#try-sample").click(force=True)
-            page.wait_for_selector("#results:not([hidden]) .statement")
-            secs = time.perf_counter() - start_t  # the app's real work, click to results
-            page.wait_for_timeout(400)
-            CUT[0] = time.perf_counter() - t.t0
-            t.cap("Your books, payments and bank never match. Settle finds out why.")
-            t.show(page.locator(".statement"), 1.6, ring=False)
-            n = page.evaluate("async () => (await (await fetch('/api/result')).json()).totals.rows")
-            rows = f"{n['razorpay'] + n['orders'] + n['bank']:,}"
-            took = "in under a second" if secs < 1 else f"in {secs:.1f} seconds"
-            t.cap(f"{rows} rows reconciled {took}")
-            t.show(page.locator(".statement"), 1.8)
-
-            # 3. Summary
-            lost = page.locator(".statement .loss .fig").inner_text()
-            unexpl = page.locator(".statement .tied .fig").inner_text()
-            t.cap(f"{lost} lost · Unexplained {unexpl}: every rupee lands on a named line")
-            t.show(page.locator("[data-kpi=unexplained]"), 0.6)
-            CUT[1] = time.perf_counter() - t.t0  # poster: Money lost + Unexplained ₹0.00 on screen
-            t.wait(1.4)
-
-            # 4. The bridge
-            t.cap("Books → payment gateway → bank, closed to the paisa")
-            t.show(page.locator("section[aria-labelledby=wf-h]"), 2.4)
-
-            # 5. Guidance
-            t.cap("A first-time user knows what to do: three steps, ticked off as you go")
-            t.show(page.locator("#start-here"), 2.0)
-
-            # 5b. Settlements, payout by payout
-            value = page.locator("[data-kpi=value] .fig").inner_text()
+            # 1. Bring your data: connect, or upload three files (a scanned PDF is read and checked).
+            t.chapter(1, "Bring your data")
+            MARKS["chapter"] = t.now() - 1.2
+            t.click(page.locator("#open-connect"), 0.6)
+            page.wait_for_selector("#connections:not([hidden])")
+            t.cap("Connect Razorpay, your bank and your books: read-only, with your consent", 2.8)
+            t.show(page.locator("#demo-sync"), 1.4)
             t.cap("")
-            t.click(page.locator("#nav-settlements"), 0)
-            page.wait_for_selector("#settlement-rows tr[data-status]")
-            missing = page.locator("#set-filters .chip[data-status=missing] .n")
-            gone = f" · {missing.inner_text()} never reached the bank" if missing.count() else ""
-            t.cap(f"Every payout against your bank: {value} reconciled by value{gone}")
-            t.show(page.locator("#settlement-list"), 1.0, ring=False)
-            row = page.locator("#settlement-rows tr[data-status=missing]")
-            if row.count():
-                t.show(row.first, 1.6)
-            t.click(page.locator("#nav-overview"), 0.4)
-
-            # 6. The biggest issue
-            t.cap("")
-            t.click(page.locator("#page-overview .page-head .btn.primary"), 1.0)
-            page.wait_for_selector("#tab-summary h3")
-            t.cap("Plain-English reason, proof rows, and where the money stopped")
-            t.show(page.locator("#tab-summary h3").first, 1.4)
-            t.click(page.locator("#t-trace"), 0.3)
-            t.show(page.locator("#tab-trace ol.chain"), 1.4)
-            t.click(page.locator("#t-evidence"), 0.3)
-            t.show(page.locator("#tab-evidence table.ev").first, 1.2)
-
-            # 7. Approve a fix with a name
-            t.click(page.locator("#t-fix"), 0.3)
-            card = page.locator("#drawer-sheet .action").first
-            t.cap("Nothing moves money without a named approver")
-            t.show(card, 1.0)
-            page.locator("#approver").fill("")
-            t.click(page.locator("#approver"), 0.2)
-            page.locator("#approver").type("Priya, Finance", delay=70)
-            t.click(card.locator("button.btn.ok"), 2.0)
-            page.keyboard.press("Escape")
-            t.wait(0.6)
-
-            # Each caption is set only after its screen is showing, and cleared between beats.
-            # 8. Ask (real model; the wait is real too)
-            t.cap("")
-            t.click(page.locator("#nav-ask"), 0.4)
-            t.click(page.locator("#page-ask .suggest button", has_text="Why did a settlement never reach my bank?"), 0)  # fmt: skip
-            t.ai_wait(lambda: page.locator("#chat > .answer:not(.pending)").first.wait_for(timeout=90_000))  # fmt: skip
-            t.cap("Ask anything. Every figure is checked against your files.")
-            t.show(page.locator("#chat > .answer:not(.pending)").first, 2.8)
-
-            # 8b. Copilot: select the line nothing matches, reconcile it with AI, a person confirms
-            t.cap("")
-            t.click(page.locator("#nav-patterns"), 0.4)
-            pick = page.locator("#exc-list input.pick-row").first
-            if pick.count():
-                t.show(pick, 0.6)
-                pick.check(force=True)
-                t.cap("Something doesn't match? Select it and hand it to Copilot")
-                t.click(page.locator("#sel-ai"), 0)
-                t.ai_wait(lambda: page.locator("#cp-log .cp-a .badge, #cp-log .banner.err").last.wait_for(timeout=120_000))  # fmt: skip
-                card = page.locator("#cp-log .change").last
-                if card.count():
-                    t.cap(
-                        "Copilot prepares the change; nothing happens until a named person allows it"
-                    )
-                    t.show(card, 2.2)
-                    card.locator(".cc-name").fill("")
-                    card.locator(".cc-name").type("Priya, Finance", delay=60)
-                    t.click(card.locator("button", has_text="Allow once"), 0)
-                    page.locator("#cp-log .change .banner.okb").last.wait_for(timeout=60_000)
-                    t.cap("Allowed: code applies it, the month re-reconciles, and it can be undone")
-                    t.show(page.locator("#cp-log .change").last, 2.0)
-                page.locator("#copilot header button[aria-label='Close Copilot']").click()
-                t.wait(0.3)
-
-            # 9. Scanned PDF
-            t.cap("")
-            t.click(page.locator("#nav-new"), 0.4)
+            t.click(page.locator("#conn-back"), 0.5)
             t.click(page.locator("#go-upload"), 0.6)
+            t.cap("Or upload three files you already have. This bank statement is a scanned PDF.")
             page.set_input_files("#f-razorpay", str(SAMPLE / "razorpay_settlements.csv"))
             page.set_input_files("#f-bank", str(SAMPLE / "bank_statement_scanned.pdf"))
             page.set_input_files("#f-orders", str(SAMPLE / "orders.csv"))
-            t.show(page.locator(".slot[data-slot=bank]"), 1.0)
+            t.show(page.locator(".slots"), 1.8)
+            MARKS["data_in"] = t.now() - 0.6
+            t.cap("")
             t.click(page.locator("#upload-form button[type=submit]"), 0)
             t.ai_wait(lambda: page.wait_for_selector("#review-summary .banner", timeout=120_000))
-            t.cap("Scanned or locked bank PDFs: read by AI, verified by the balance chain")
-            t.show(page.locator("#review-summary"), 2.0)
+            t.cap("The AI reads it; code checks every running balance before you use it")
+            t.zoom(page.locator("#review-summary"), 1.25, 1.6)
+            # The model sometimes misreads a digit on the scan. Then the row waits for a person, and
+            # the film shows that: the outlined box is corrected from the statement, on camera.
+            broken = page.locator("#review-table tr.broken")
+            if broken.count():
+                truth = list(
+                    csv.DictReader((SAMPLE / "bank_statement.csv").read_text().splitlines())
+                )
+                t.cap("A row didn't add up, so it waits for a person, who fixes it from the PDF")
+                for i in range(broken.count()):
+                    row = broken.nth(i)
+                    n = int(row.locator("td").first.inner_text())
+                    t.show(row, 1.0)
+                    for k in ("debit", "credit", "balance"):
+                        box = row.locator(f"input[data-k={k}]")
+                        if box.input_value().replace("₹", "").replace(",", "") != truth[n - 1][k]:
+                            t.click(box, 0.2, scroll=False)
+                            box.fill("")
+                            box.type(truth[n - 1][k], delay=50)
+                    t.wait(0.8)
             t.cap("")
+            start_t = time.perf_counter()
             t.click(page.locator("#review-go"), 0)
             page.wait_for_selector("#results:not([hidden]) .statement", timeout=60_000)
-            t.wait(0.6)
+            secs = time.perf_counter() - start_t  # the app's real work, confirm to results
 
-            # 10. Chaos
-            t.click(page.locator("#nav-chaos"), 0)
-            page.wait_for_selector("#answer-key")
-            key = page.locator("#answer-key")
-            t.cap(f"A brand-new random month. {key.locator('p b').first.inner_text()}.")
-            t.show(key.locator("h2"), 0.8)
-            page.mouse.wheel(0, 300)
-            t.wait(2.0)
+            # 2. See every rupee
+            t.chapter(2, "See every rupee")
+            n = page.evaluate("async () => (await (await fetch('/api/result')).json()).totals.rows")
+            rows = f"{n['razorpay'] + n['orders'] + n['bank']:,}"
+            took = "in under a second" if secs < 1 else f"in {secs:.1f} seconds"
+            lost = page.locator(".statement .loss .fig").inner_text()
+            unexpl = page.locator(".statement .tied .fig").inner_text()
+            t.cap(f"{rows} rows reconciled {took}. {lost} lost, and Unexplained {unexpl}")
+            t.show(page.locator(".statement"), 3.2)
+            t.cap("Books → payment gateway → bank, every rupee on a named line")
+            page.locator("section[aria-labelledby=wf-h]").evaluate("e => e.scrollIntoView({behavior: 'smooth', block: 'center'})")  # fmt: skip
+            t.wait(0.9)
+            t.zoom(page.locator("section[aria-labelledby=wf-h] .wf"), 1.3, 2.4)
 
-            # 11. Audit report + end card
+            # 3. Ask Settle AI, from what you're looking at
+            t.chapter(3, "Ask Settle AI")
+            page.locator(".statement").evaluate("e => e.scrollIntoView({block: 'center'})")
+            t.cap("Every figure has a ✦ Ask. It opens Settle AI with that figure as context", icon=SPARK, ai=True)  # fmt: skip
+            page.locator("[data-kpi=loss]").hover()
+            t.click(page.locator("[data-kpi=loss] .ask-ai"), 1.6, scroll=False)
             t.cap("")
+            page.locator("#cp-q").press("Enter")
+            t.ai_wait(lambda: page.locator("#cp-log .cp-turn").first.wait_for(timeout=120_000))
+            page.wait_for_function("() => !cp.busy", timeout=30_000)
+            turn = page.locator("#cp-log .cp-turn").first
+            ok = turn.locator(".badge.ok").count() > 0  # the caption says what the badge says
+            t.cap("Answers cite the rows they used, and every figure was checked" if ok else "Answers cite their rows; a figure it can't verify is flagged, never hidden", icon=SPARK, ai=True)  # fmt: skip
+            t.show(turn.locator(".cp-meta"), 2.4, scroll=False)
+            MARKS["poster"] = t.now()
+            MARKS["overview_ai"] = t.now()
+            t.click(turn.locator("button[aria-label='Good answer']"), 1.0, scroll=False)
+            t.cap("Rate it 👍 or 👎. That's how the test set grows", icon=SPARK, ai=True)
+            t.show(turn.locator(".cp-next"), 2.4, scroll=False)
+            page.locator("#copilot header button[aria-label='Close Settle AI']").click()
+            t.wait(0.4)
+            # ⌘K: jump anywhere, or ask from anywhere.
+            t.cap("⌘K: jump anywhere, or ask Settle AI from anywhere", icon="⌘")
+            page.keyboard.press("Control+k")
+            page.wait_for_selector("#palette[open]")
+            t.wait(0.5)
+            page.keyboard.type("21 oct", delay=90)
+            t.wait(1.3)
+            page.fill("#palette-q", "")
+            page.keyboard.type("Why is the 21 Oct payout short?", delay=45)
+            t.show(page.locator("#palette-list li.po-ai"), 1.0, scroll=False)
+            t.cap("")
+            page.keyboard.press("Enter")
+            t.ai_wait(lambda: page.wait_for_function("() => document.querySelectorAll('#cp-log .cp-turn').length >= 2 && !cp.busy", timeout=120_000))  # fmt: skip
+            t.cap("The same answer checks, from any page", icon=SPARK, ai=True)
+            t.show(page.locator("#cp-log .cp-turn").last.locator(".cp-text"), 3.0, scroll=False)
+            page.locator("#copilot header button[aria-label='Close Settle AI']").click()
+            t.wait(0.3)
+
+            # 4. Fix with approval: tick the line nothing matches, Settle AI prepares, a person allows.
+            t.chapter(4, "Fix with approval")
+            t.click(page.locator("#nav-patterns"), 0.4)
+            pick = page.locator("#exc-list input.pick-row").first
+            t.cap("A bank credit nothing matches. Tick it and ask Settle AI to reconcile it")
+            t.show(pick, 0.6)
+            pick.check(force=True)
+            t.wait(0.5)
+            t.click(page.locator("#cp-launch"), 0.4, scroll=False)
+            t.click(page.locator("#cp-new"), 0.6, scroll=False)  # back to the home view
+            t.cap("")
+            t.click(page.locator("#cp-reconcile"), 0, scroll=False)
+            t.ai_wait(lambda: page.wait_for_function("() => document.querySelector('#cp-log .change') && !cp.busy", timeout=120_000))  # fmt: skip
+            card = page.locator("#cp-log .change").last
+            t.cap("It prepares the change: before → after, and the checks it passed", icon=SPARK, ai=True)  # fmt: skip
+            t.show(card, 3.0)
+            MARKS["change_card"] = t.now() - 0.8
+            card.locator(".cc-name").fill("")
+            card.locator(".cc-name").type("Priya, Finance", delay=55)
+            t.cap("Nothing happens until a named person allows it")
+            t.click(card.locator("button", has_text="Allow once"), 0)
+            page.locator("#cp-log .change .banner.okb").last.wait_for(timeout=60_000)
+            unexpl = page.evaluate("rupees(state.view.totals.unexplained)")
+            t.cap(f"Allowed. Code applies it, the month reconciles again: Unexplained {unexpl}")
+            t.show(page.locator("#cp-log .change").last, 3.0, scroll=False)
+            page.locator("#copilot header button[aria-label='Close Settle AI']").click()
+            t.wait(0.3)
+            t.cap("")
+            t.click(page.locator("#nav-settings"), 0.4)
+            page.wait_for_selector("#pol-kinds")
+            t.cap(
+                "Your approval policy decides what may run alone. Code enforces it, not the model"
+            )
+            t.zoom(page.locator("#pol-kinds"), 1.2, 1.8)
+
+            # 5. Hand it to the auditor
+            t.chapter(5, "Hand it to the auditor")
             page.goto(f"{url}/api/report")
             page.wait_for_load_state()
-            t.cap("Audit-ready report, Tally journal, Excel pack")
-            t.wait(1.0)
-            page.mouse.wheel(0, 500)
-            t.wait(1.8)
+            t.cap("An audit report with every decision and who made it, plus the BRS, Tally journal and Excel pack")  # fmt: skip
+            t.wait(1.4)
+            page.mouse.wheel(0, 600)
+            t.wait(3.0)
             t.cap("")
             page.evaluate(
                 "window.__tour.end('Settle', 'Account for every rupee · github.com/mohanprasad16/settle')"
             )
-            t.wait(2.5)
+            t.wait(0.4)
+            MARKS["end"] = t.now()
+            t.wait(2.4)
 
             FAST.extend(t.fast)
             video = page.video.path()
@@ -280,7 +342,18 @@ def record() -> Path:
 
 
 FAST: list[tuple[float, float]] = []
-CUT = [TRIM, 8.0]  # [where the film starts, where the poster frame is], seconds into the recording
+CUT = [TRIM]  # where the film starts, seconds into the recording
+MARKS: dict[str, float] = {}  # named moments (poster, report frames), seconds into the recording
+
+
+def film_time(raw: float) -> float:
+    """Where a moment of the raw recording lands in the encoded film, after the AI speed-ups."""
+    out = raw - CUT[0]
+    for a, b in sorted(FAST):
+        if b - a > SPED + 0.5 and a < raw:
+            gone = min(raw, b) - a
+            out -= gone - gone * SPED / (b - a)
+    return out
 
 
 def speedup_filter(fast: list[tuple[float, float]], trim: float) -> str:
@@ -304,8 +377,12 @@ def encode(webm: Path) -> None:
     subprocess.run([*ff, "-ss", f"{CUT[0]:.2f}", "-i", str(webm), "-filter_complex", speedup_filter(FAST, CUT[0]), "-map", "[out]",
                     "-c:v", "libx264", "-preset", "slow", "-crf", "28",
                     "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", str(STATIC / "tour.mp4")], check=True)  # fmt: skip
-    # The poster is filmed before the first AI wait, so its offset is not changed by the speed-ups.
-    subprocess.run([*ff, "-ss", f"{CUT[1] - CUT[0]:.2f}", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(STATIC / "tour.jpg")], check=True)  # fmt: skip
+    # The poster: the Overview with Settle AI open on a checked answer.
+    subprocess.run([*ff, "-ss", f"{film_time(MARKS['poster']):.2f}", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(STATIC / "tour.jpg")], check=True)  # fmt: skip
+    FRAMES.mkdir(parents=True, exist_ok=True)
+    for name in ["chapter", "data_in", "zoom", "overview_ai", "change_card", "end"]:
+        if name in MARKS:
+            subprocess.run([*ff, "-ss", f"{film_time(MARKS[name]):.2f}", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(FRAMES / f"tour_{name}.jpg")], check=True)  # fmt: skip
     gif = ROOT / "docs" / "tour.gif"
     vf = "fps=8,scale=760:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer"
     subprocess.run([*ff, "-ss", "0", "-t", "15", "-i", str(STATIC / "tour.mp4"), "-vf", vf, str(gif)], check=True)  # fmt: skip
@@ -315,6 +392,8 @@ if __name__ == "__main__":
     webm = record()
     encode(webm)
     print("AI waits sped up:", ", ".join(f"{b - a:.0f} s" for a, b in FAST))
+    length = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(STATIC / "tour.mp4")], capture_output=True, text=True, check=True).stdout.strip()  # fmt: skip
+    print(f"film length: {float(length):.0f} s")
     for f in [STATIC / "tour.mp4", STATIC / "tour.jpg", ROOT / "docs" / "tour.gif"]:
         if f.exists():
             print(f"{f.relative_to(ROOT)}: {f.stat().st_size / 1e6:.1f} MB")
