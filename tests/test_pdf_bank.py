@@ -130,6 +130,6 @@ def test_extracted_statement_gives_the_same_reconciliation(tmp_path):
     period2 = load(con2, SAMPLE / "razorpay_settlements.csv", SAMPLE / "bank_statement.csv",
                    SAMPLE / "orders.csv")  # fmt: skip
     expected = run(con2, period2)
-    key = lambda r: [(f.check, f.amount, f.refs[0]) for f in r.findings]  # noqa: E731
+    key = lambda r: [(f.check, f.amount, f.refs[0]) for f in r.findings]
     assert key(result) == key(expected)
     assert result.totals["unexplained"] == 0
