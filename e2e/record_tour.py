@@ -5,7 +5,8 @@
 Real server, real sample, real model for the Ask answer and the scanned PDF, so every figure on
 screen is what the app actually produced. Captions read their numbers off the page. A soft dot
 stands in for the mouse and a ring marks what each caption is about. Re-run after UI changes.
-Needs ffmpeg (the raw WebM is ~25 MB, too heavy to serve).
+Needs ffmpeg (the raw WebM is ~25 MB, too heavy to serve). Only the waits for the model are
+sped up, and each says so on screen with its real length: "⏩ AI working (N s, sped up)".
 """
 
 import shutil
@@ -21,6 +22,8 @@ PORT = 8790
 SIZE = {"width": 1366, "height": 768}
 STATIC = ROOT / "app" / "static"
 OUT = ROOT / "e2e" / "tour_raw"
+TRIM = 0.6  # encode() skips the blank first moment before the page paints
+SPED = 1.6  # each AI wait plays in about this many seconds
 
 OVERLAY = """
 (() => {
@@ -64,6 +67,20 @@ OVERLAY = """
 class Tour:
     def __init__(self, page):
         self.page = page
+        self.t0 = time.perf_counter()  # the recording starts with the page
+        self.fast: list[tuple[float, float]] = []  # AI waits, seconds into the recording
+
+    def ai_wait(self, done) -> None:
+        """Wait for the model under a live counter of real seconds; encode() speeds it up."""
+        self.page.evaluate("""() => { const s = Date.now(); const tick = () => window.__tour.cap(
+            `⏩ AI working (${Math.round((Date.now() - s) / 1000)} s, sped up)`); tick();
+            window.__aiTimer = setInterval(tick, 250); }""")
+        a = time.perf_counter() - self.t0
+        done()
+        self.wait(0.3)  # let the counter show its final value
+        self.page.evaluate("clearInterval(window.__aiTimer)")
+        # Leave ~0.7 s at normal speed at the start so the label can be read.
+        self.fast.append((a + 0.7, time.perf_counter() - self.t0))
 
     def cap(self, text: str, hold: float = 0) -> None:
         self.page.evaluate("t => window.__tour.cap(t)", text)
@@ -105,6 +122,7 @@ def record() -> Path:
             ctx.add_init_script(OVERLAY)
             page = ctx.new_page()
             t = Tour(page)
+            FAST.clear()
             url = f"http://127.0.0.1:{PORT}"
             page.goto(url)
             page.wait_for_selector("#try-sample")
@@ -186,7 +204,7 @@ def record() -> Path:
             t.cap("")
             t.click(page.locator("#nav-ask"), 0.4)
             t.click(page.locator("#page-ask .suggest button", has_text="Why did a settlement never reach my bank?"), 0)  # fmt: skip
-            page.locator("#chat > .answer:not(.pending)").first.wait_for(timeout=90_000)
+            t.ai_wait(lambda: page.locator("#chat > .answer:not(.pending)").first.wait_for(timeout=90_000))  # fmt: skip
             t.cap("Ask anything. Every figure is checked against your files.")
             t.show(page.locator("#chat > .answer:not(.pending)").first, 3.4)
 
@@ -199,9 +217,7 @@ def record() -> Path:
                 pick.check(force=True)
                 t.cap("Something doesn't match? Select it and hand it to Copilot")
                 t.click(page.locator("#sel-ai"), 0)
-                page.locator("#cp-log .cp-a .badge, #cp-log .banner.err").last.wait_for(
-                    timeout=120_000
-                )
+                t.ai_wait(lambda: page.locator("#cp-log .cp-a .badge, #cp-log .banner.err").last.wait_for(timeout=120_000))  # fmt: skip
                 card = page.locator("#cp-log .change").last
                 if card.count():
                     t.cap(
@@ -226,7 +242,7 @@ def record() -> Path:
             page.set_input_files("#f-orders", str(SAMPLE / "orders.csv"))
             t.show(page.locator(".slot[data-slot=bank]"), 1.0)
             t.click(page.locator("#upload-form button[type=submit]"), 0)
-            page.wait_for_selector("#review-summary .banner", timeout=120_000)
+            t.ai_wait(lambda: page.wait_for_selector("#review-summary .banner", timeout=120_000))
             t.cap("Scanned or locked bank PDFs: read by AI, verified by the balance chain")
             t.show(page.locator("#review-summary"), 2.6)
             t.cap("")
@@ -257,6 +273,7 @@ def record() -> Path:
             )
             t.wait(3.0)
 
+            FAST.extend(t.fast)
             video = page.video.path()
             ctx.close()
             browser.close()
@@ -265,12 +282,29 @@ def record() -> Path:
         server.terminate()
 
 
+FAST: list[tuple[float, float]] = []
+
+
+def speedup_filter(fast: list[tuple[float, float]], trim: float = TRIM) -> str:
+    """ffmpeg filter that plays the recording at normal speed except the AI waits, each squeezed
+    to about SPED seconds. Times are seconds into the raw recording."""
+    parts, at = [], trim
+    for a, b in sorted(fast):
+        if b - a > SPED + 0.5:
+            parts += [(at, a, 1.0), (a, b, (b - a) / SPED)]
+            at = b
+    parts.append((at, None, 1.0))
+    chains = [f"[0:v]trim=start={s - trim:.2f}" + (f":end={e - trim:.2f}" if e else "") +
+              f",setpts=(PTS-STARTPTS)/{f:.3f}[v{i}]" for i, (s, e, f) in enumerate(parts)]  # fmt: skip
+    return ";".join(chains) + ";" + "".join(f"[v{i}]" for i in range(len(parts))) + f"concat=n={len(parts)}:v=1:a=0,fps=25[out]"  # fmt: skip
+
+
 def encode(webm: Path) -> None:
     if not shutil.which("ffmpeg"):
         raise SystemExit(f"ffmpeg not found; the raw recording is at {webm}")
     ff = ["ffmpeg", "-y", "-loglevel", "error"]
-    # Skip the blank first moment before the page paints.
-    subprocess.run([*ff, "-ss", "0.6", "-i", str(webm), "-c:v", "libx264", "-preset", "slow", "-crf", "28",
+    subprocess.run([*ff, "-ss", str(TRIM), "-i", str(webm), "-filter_complex", speedup_filter(FAST), "-map", "[out]",
+                    "-c:v", "libx264", "-preset", "slow", "-crf", "28",
                     "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", str(STATIC / "tour.mp4")], check=True)  # fmt: skip
     subprocess.run([*ff, "-ss", "8", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(STATIC / "tour.jpg")], check=True)  # fmt: skip
     gif = ROOT / "docs" / "tour.gif"
@@ -281,6 +315,7 @@ def encode(webm: Path) -> None:
 if __name__ == "__main__":
     webm = record()
     encode(webm)
+    print("AI waits sped up:", ", ".join(f"{b - a:.0f} s" for a, b in FAST))
     for f in [STATIC / "tour.mp4", STATIC / "tour.jpg", ROOT / "docs" / "tour.gif"]:
         if f.exists():
             print(f"{f.relative_to(ROOT)}: {f.stat().st_size / 1e6:.1f} MB")
