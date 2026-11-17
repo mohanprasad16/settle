@@ -82,3 +82,11 @@ From fresh batch 2, written after the fixes above and run once. Nothing was chan
 
 The ₹0-net settlement, a partial capture with a partial refund, a bank credit one paisa over,
 twin refunds in the same minute and three-decimal amounts all came out right.
+
+## UI and system test (browser, real Chrome)
+
+- **Ask answers with no proof.** The browser test found answers that named a settlement id or an exact
+  amount but cited nothing, because only "F1"-style ids were auto-cited. Fixed at the shared citation
+  step: any finding the answer names by id, reference or exact amount is attached.
+- **Contrast below AA.** The "owed to a customer" amber was 4.14:1; darkened to 4.94:1.
+- **Unreadable narration on the PDF review.** Widened so a person can recognise the row they are fixing.

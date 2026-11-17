@@ -10,6 +10,7 @@ Every error leaves as {"error": plain English, "hint": what to do next}; never a
 
 import io
 import logging
+import os
 import random
 import shutil
 import tempfile
@@ -54,7 +55,8 @@ STATIC = Path(__file__).resolve().parent / "static"
 SESSION_TTL = 60 * 60  # seconds idle before a session is dropped
 MAX_SESSIONS = 200
 MAX_UPLOAD = 15 * 1024 * 1024  # bytes per file
-AI_CALLS_PER_WINDOW, AI_WINDOW = 20, 10 * 60  # per IP: 20 model-backed requests / 10 min
+AI_CALLS_PER_WINDOW = int(os.environ.get("SETTLE_AI_CALLS", "20"))  # per IP, model-backed requests
+AI_WINDOW = 10 * 60  # ... per 10 minutes
 SLOTS = {"razorpay": "rp", "bank": "bank", "orders": "orders"}
 SLOT_LABEL = {
     "rp": "Razorpay settlement report",
