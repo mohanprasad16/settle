@@ -1,6 +1,6 @@
 # Settle system test
 
-Run 2026-11-17 17:13 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 183/183 checks passed.
+Run 2026-11-17 17:19 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 183/183 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
@@ -23,17 +23,17 @@ Run 2026-11-17 17:13 · real Chrome via Playwright · desktop 1366×900 and phon
 | Step | Seconds |
 |---|---|
 | sample (click to results) | 0.82 |
-| ask: Why did a settlement never reach my bank? | 7.85 |
-| ask: How much did I lose to chargebacks this month? | 8.99 |
-| ask: Which day had the most refunds? | 59.09 |
-| ask: What should I do first? | 8.49 |
+| ask: Why did a settlement never reach my bank? | 8.51 |
+| ask: How much did I lose to chargebacks this month? | 11.33 |
+| ask: Which day had the most refunds? | 11.49 |
+| ask: What should I do first? | 10.93 |
 | chaos month 1 | 0.83 |
 | chaos month 2 | 0.82 |
-| chaos month 3 | 0.82 |
-| CSV upload (submit to results) | 0.87 |
-| locked PDF (submit to review) | 7.88 |
-| scanned PDF (submit to review) | 7.43 |
-| digital PDF (submit to review) | 8.39 |
+| chaos month 3 | 0.83 |
+| CSV upload (submit to results) | 0.85 |
+| locked PDF (submit to review) | 9.41 |
+| scanned PDF (submit to review) | 7.89 |
+| digital PDF (submit to review) | 10.42 |
 
 ## Every check
 
@@ -179,12 +179,12 @@ Run 2026-11-17 17:13 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #262340: every hidden problem found, nothing extra
-- ✅ Random month #262340: unexplained ₹0.00 on both bridges
-- ✅ Random month #254375: every hidden problem found, nothing extra
-- ✅ Random month #254375: unexplained ₹0.00 on both bridges
-- ✅ Random month #761542: every hidden problem found, nothing extra
-- ✅ Random month #761542: unexplained ₹0.00 on both bridges
+- ✅ Random month #112575: every hidden problem found, nothing extra
+- ✅ Random month #112575: unexplained ₹0.00 on both bridges
+- ✅ Random month #940933: every hidden problem found, nothing extra
+- ✅ Random month #940933: unexplained ₹0.00 on both bridges
+- ✅ Random month #251209: every hidden problem found, nothing extra
+- ✅ Random month #251209: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 

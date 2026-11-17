@@ -196,7 +196,8 @@
     <div class="banner info" role="note"><div><b>This is a demo, so it runs on sample data.</b> Live mode connects with a read-only key or your consent; those fields are switched off here. "Run a demo sync" loads the sample month as if it came from all three sources.</div></div>
     <div class="conn-grid">
       <article class="card conn" data-source="gateway">
-        <div class="conn-top"><span class="conn-ico" aria-hidden="true">₹</span><div><h2>Payment gateway</h2><p class="small muted">Razorpay</p></div><span class="kind timing conn-status">Demo: sample data</span></div>
+        <div class="conn-top"><span class="conn-ico" aria-hidden="true">₹</span><div><h2>Payment gateway</h2><p class="small muted">Razorpay</p></div></div>
+        <div><span class="kind timing conn-status">Demo: sample data</span></div>
         <p><b>Pulls:</b> every settlement and the payments, refunds, chargebacks and fees inside it.</p>
         <p><b>Connects with:</b> Razorpay's Settlement Reconciliation API and a read-only API key. The connector is built; uploads use the same columns.</p>
         <div class="field"><label for="k-id">Key ID</label><input id="k-id" type="text" placeholder="rzp_live_…" disabled></div>
@@ -205,14 +206,16 @@
         <p class="small muted conn-synced">Last synced: never</p>
       </article>
       <article class="card conn" data-source="bank">
-        <div class="conn-top"><span class="conn-ico" aria-hidden="true">⌂</span><div><h2>Bank</h2><p class="small muted">Your current account</p></div><span class="kind timing conn-status">Demo: sample data</span></div>
+        <div class="conn-top"><span class="conn-ico" aria-hidden="true">⌂</span><div><h2>Bank</h2><p class="small muted">Your current account</p></div></div>
+        <div><span class="kind timing conn-status">Demo: sample data</span></div>
         <p><b>Pulls:</b> the statement lines, with the UTR or reference on each credit.</p>
         <p><b>Connects with:</b> the Account Aggregator framework (RBI's consent-based way to share bank data), your bank's API, or a RazorpayX current account. Or upload the CSV or PDF statement, even scanned or password-locked.</p>
         <div class="field"><label for="k-aa">Account Aggregator consent</label><input id="k-aa" type="text" placeholder="Your mobile number for the consent request" disabled></div>
         <p class="small muted conn-synced">Last synced: never</p>
       </article>
       <article class="card conn" data-source="books">
-        <div class="conn-top"><span class="conn-ico" aria-hidden="true">≡</span><div><h2>Books and orders</h2><p class="small muted">Store or accounting system</p></div><span class="kind timing conn-status">Demo: sample data</span></div>
+        <div class="conn-top"><span class="conn-ico" aria-hidden="true">≡</span><div><h2>Books and orders</h2><p class="small muted">Store or accounting system</p></div></div>
+        <div><span class="kind timing conn-status">Demo: sample data</span></div>
         <p><b>Pulls:</b> orders with their amount, status and refunds.</p>
         <p><b>Connects with:</b> Shopify, WooCommerce, Zoho Books or Tally. Or upload an orders export.</p>
         <div class="field"><label for="k-books">Store or accounts</label><select id="k-books" disabled><option>Shopify</option><option>WooCommerce</option><option>Zoho Books</option><option>Tally</option></select></div>

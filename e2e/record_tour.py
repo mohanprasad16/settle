@@ -110,7 +110,9 @@ def record() -> Path:
             page.wait_for_selector("#try-sample")
 
             # 1. Landing
-            t.cap("Your books, Razorpay and your bank never match. Settle finds out why.")
+            t.cap(
+                "Your books, your payment gateway and your bank never match. Settle finds out why."
+            )
             t.show(page.locator(".hero .preview"), 3.2)
 
             # 2. Sample
@@ -122,8 +124,8 @@ def record() -> Path:
             page.locator("#try-sample").click(force=True)
             page.wait_for_selector("#results:not([hidden]) .statement")
             secs = time.perf_counter() - start_t
-            sub = page.locator("[data-kpi=auto] .sub").inner_text()  # "3,559 of 3,741 rows"
-            rows = sub.split(" of ")[1].split(" ")[0]
+            n = page.evaluate("async () => (await (await fetch('/api/result')).json()).totals.rows")
+            rows = f"{n['razorpay'] + n['orders'] + n['bank']:,}"
             took = "in under a second" if secs < 1 else f"in {secs:.1f} seconds"
             t.cap(f"{rows} rows reconciled {took}")
             t.show(page.locator(".statement"), 2.4)
@@ -135,12 +137,26 @@ def record() -> Path:
             t.show(page.locator("[data-kpi=unexplained]"), 2.6)
 
             # 4. The bridge
-            t.cap("Books → Razorpay → Bank, closed to the paisa")
+            t.cap("Books → payment gateway → bank, closed to the paisa")
             t.show(page.locator("section[aria-labelledby=wf-h]"), 3.2)
 
             # 5. Guidance
             t.cap("A first-time user knows what to do: three steps, ticked off as you go")
             t.show(page.locator("#start-here"), 2.8)
+
+            # 5b. Settlements, payout by payout
+            value = page.locator("[data-kpi=value] .fig").inner_text()
+            t.cap("")
+            t.click(page.locator("#nav-settlements"), 0)
+            page.wait_for_selector("#settlement-rows tr[data-status]")
+            missing = page.locator("#set-filters .chip[data-status=missing] .n")
+            gone = f" · {missing.inner_text()} never reached the bank" if missing.count() else ""
+            t.cap(f"Every payout against your bank: {value} reconciled by value{gone}")
+            t.show(page.locator("#settlement-list"), 1.4, ring=False)
+            row = page.locator("#settlement-rows tr[data-status=missing]")
+            if row.count():
+                t.show(row.first, 2.0)
+            t.click(page.locator("#nav-overview"), 0.4)
 
             # 6. The biggest issue
             t.cap("")
