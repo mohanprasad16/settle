@@ -65,6 +65,17 @@ class DecisionLog:
         for h in result.handled:
             self.log("engine", "handled", f"{h['label']} ({h['count']})")
 
+    def record_ai(self, explanations: dict, drafts: dict | None = None) -> None:
+        """Each piece of model writing: who wrote it, and whether its numbers passed the guard."""
+        for fid, x in explanations.items():
+            how = "model, numbers verified" if x.source == "model" and x.verified else "template fallback"  # fmt: skip
+            self.log("ai" if x.source == "model" else "engine", "explained", how, fid)
+        for fid, ds in (drafts or {}).items():
+            for d in ds:
+                self.log(
+                    "ai" if d.source == "model" else "engine", f"drafted {d.kind}", d.source, fid
+                )
+
     def export(self, path: Path) -> None:
         with open(path, "w", newline="") as fh:
             w = csv.DictWriter(fh, ["ts", "actor", "action", "finding_id", "detail", "inputs"])
@@ -72,8 +83,13 @@ class DecisionLog:
             w.writerows(asdict(d) for d in self.entries)
 
 
-def pack(result: Result, journals: list[Entry], out: Path) -> list[Path]:
-    """CSV pack for Excel: findings, both bridges, journals."""
+LOG_ROWS = 40  # decision-log rows printed in the report's appendix; the CSV has them all
+
+
+def pack(
+    result: Result, journals: list[Entry], out: Path, log: DecisionLog | None = None
+) -> list[Path]:
+    """CSV pack for Excel: findings, both bridges, journals, and the full decision log."""
     out.mkdir(parents=True, exist_ok=True)
     paths = [out / "findings.csv", out / "bridges.csv", out / "journals.csv"]
     with open(paths[0], "w", newline="") as fh:
@@ -89,6 +105,9 @@ def pack(result: Result, journals: list[Entry], out: Path) -> list[Path]:
             for s in steps:
                 w.writerow([name, s.label, s.kind, s.count, f"{s.amount / 100:.2f}"])
     to_csv(journals, paths[2], result.period.end)
+    if log is not None:
+        paths.append(out / "decision_log.csv")
+        log.export(paths[-1])
     return paths
 
 
@@ -236,13 +255,16 @@ def render(
 <tr><td>Explanations with every number verified</td><td class="num">{verified} of {len(explanations)}</td></tr>
 <tr><td>Figures computed by the model</td><td class="num">0 (all by the engine)</td></tr></table>""")
 
-    if log and log.entries:
-        out.append(
-            "<h2>Decision log</h2><table><tr><th>Time</th><th>Actor</th><th>Decision</th><th>Detail</th><th>Inputs</th></tr>"
-        )
-        out += [f"<tr><td>{_e(d.ts)}</td><td>{_e(d.actor)}</td><td>{_e(d.action)} {_e(d.finding_id or '')}</td><td>{_e(d.detail)}</td><td><code>{_e(d.inputs)}</code></td></tr>" for d in log.entries]  # fmt: skip
-        out.append("</table>")
-
     out.append("""<h2>Sign-off</h2><table class="sign"><tr><th style="width:30%"></th><th>Name</th><th>Signature</th><th>Date</th></tr>
-<tr><td>Prepared by</td><td></td><td></td><td></td></tr><tr><td>Reviewed by</td><td></td><td></td><td></td></tr></table></body></html>""")
+<tr><td>Prepared by</td><td></td><td></td><td></td></tr><tr><td>Reviewed by</td><td></td><td></td><td></td></tr></table>""")
+
+    if log and log.entries:
+        shown = log.entries[:LOG_ROWS]
+        more = len(log.entries) - len(shown)
+        out.append(f"<h2 style='break-before: page'>Appendix: decision log</h2><p class='muted'>{len(log.entries)} decisions"
+                   + (f"; the first {LOG_ROWS} are shown, all of them are in decision_log.csv in the export pack" if more else "")
+                   + ".</p><table><tr><th>Time</th><th>Actor</th><th>Decision</th><th>Detail</th><th>Inputs</th></tr>")  # fmt: skip
+        out += [f"<tr><td>{_e(d.ts)}</td><td>{_e(d.actor)}</td><td>{_e(d.action)} {_e(d.finding_id or '')}</td><td>{_e(d.detail)}</td><td><code>{_e(d.inputs)}</code></td></tr>" for d in shown]  # fmt: skip
+        out.append("</table>")
+    out.append("</body></html>")
     return "\n".join(out)

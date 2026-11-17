@@ -39,6 +39,7 @@ class Action:
     reason: str = ""
     approved_by: str = ""
     sent: dict | None = None  # what was (or in demo mode, would have been) sent
+    proposed_by: str = "engine"  # engine (built by code) | ai (worded by the model)
 
     def __post_init__(self):
         if not self.idempotency_key:
@@ -52,11 +53,18 @@ class Gate:
     policy: Policy = field(default_factory=Policy)
     actions: dict[str, Action] = field(default_factory=dict)
     executed: int = 0
+    log: object = None  # app.audit.DecisionLog; every decision the gate makes lands there
+
+    def _record(self, actor: str, what: str, a: Action) -> None:
+        if self.log is not None:
+            self.log.log(actor, what, f"{a.id} {a.type}: {a.status} ({a.approved_by or a.reason})",
+                         a.finding_id, [a.type, a.amount, a.idempotency_key])  # fmt: skip
 
     def propose(self, a: Action) -> Action:
         a.id = f"A{len(self.actions) + 1}"
         a.status, a.reason = self._decide(a)
         self.actions[a.id] = a
+        self._record(a.proposed_by, "proposed", a)
         return a
 
     def _decide(self, a: Action) -> tuple[str, str]:
@@ -87,6 +95,7 @@ class Gate:
         if a.status != "needs_approval":
             raise PermissionError(f"{a.id} is {a.status}; only actions waiting for approval can be approved")  # fmt: skip
         a.status, a.approved_by = "approved", approver.strip()
+        self._record("human", "approved", a)
         return a
 
     def execute(self, action_id: str) -> Action:
@@ -100,4 +109,5 @@ class Gate:
         a.sent = {"dry_run": True, "at": datetime.now().isoformat(timespec="seconds"),
                   "type": a.type, "payload": a.payload, "idempotency_key": a.idempotency_key}  # fmt: skip
         a.status = "executed"
+        self._record("human" if a.approved_by else "engine", "executed (dry run)", a)
         return a

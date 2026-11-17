@@ -187,7 +187,7 @@ def test_audit_report_has_every_section(world, tmp_path):
     page = render(result, files, actions=list(g.actions.values()), journals=journal.entries(con, result), log=log)  # fmt: skip
     for section in ["Inputs", "Summary", "Books to Razorpay", "Razorpay to bank", "Findings (",
                     "Handled automatically", "Rules applied", "Could not resolve automatically",
-                    "Journal entries suggested", "Actions", "AI usage", "Decision log", "Sign-off",
+                    "Journal entries suggested", "Actions", "AI usage", "Appendix: decision log", "Sign-off",
                     "Prepared by", "Reviewed by"]:  # fmt: skip
         assert section in page, section
     assert page.count('class="residual"') == 2  # both bridges, both ₹0.00
@@ -195,3 +195,51 @@ def test_audit_report_has_every_section(world, tmp_path):
     assert len(log.entries) >= len(result.findings) + 1
     paths = pack(result, journal.entries(con, result), tmp_path / "pack")
     assert all(p.exists() and p.stat().st_size for p in paths)
+
+
+def test_every_action_goes_through_the_gate_and_is_logged(world):
+    from app.actions import propose_all
+
+    con, _, result = world
+    log = DecisionLog()
+    g = Gate({f.id: f for f in result.findings}, log=log)
+    drafts = draft_all(result, None)
+    acts = propose_all(g, result, journal.entries(con, result), drafts)
+    assert acts and all(a.id in g.actions for a in acts)
+    assert {a.type for a in acts} >= {"journal_post", "razorpay_ticket", "razorpay_api_call",
+                                      "customer_note", "webhook_replay"}  # fmt: skip
+    # nothing that moves money or reaches a person runs without a named approver
+    assert all(a.status in ("needs_approval", "auto") for a in acts)
+    assert all(a.type == "journal_post" and a.amount <= Policy().auto_journal_max
+               for a in acts if a.status == "auto")  # fmt: skip
+    assert sum(d.action == "proposed" for d in log.entries) == len(acts)
+    a = next(a for a in acts if a.type == "webhook_replay")
+    with pytest.raises(PermissionError):
+        g.execute(a.id)
+    g.execute(g.approve(a.id, "Asha (finance)").id)
+    assert [d.action for d in log.entries[-2:]] == ["approved", "executed (dry run)"]
+
+
+def test_model_facing_modules_cannot_reach_the_gate():
+    import inspect
+
+    from app import ask, drafts, explain
+
+    for mod in (ask, drafts, explain):
+        src = inspect.getsource(mod)
+        assert not any(
+            x in src for x in ("app.gate", "app.actions", "Gate", "propose", ".approve(")
+        )
+
+
+def test_decision_log_is_an_appendix_after_sign_off(world, tmp_path):
+    con, files, result = world
+    log = DecisionLog()
+    for i in range(100):
+        log.log("engine", "flagged", f"row {i}")
+    page = render(result, files, log=log)
+    assert page.index("Sign-off") < page.index("Appendix: decision log")
+    assert page.count("<td>engine</td>") == 40 and "decision_log.csv" in page
+    paths = pack(result, journal.entries(con, result), tmp_path / "pack", log)
+    assert paths[-1].name == "decision_log.csv"
+    assert len(paths[-1].read_text().splitlines()) == 101
