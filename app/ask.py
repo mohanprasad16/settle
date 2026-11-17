@@ -287,6 +287,8 @@ def ask(
     # Figures from our own prompt and engine facts count; from free text only ids do.
     base = system_prompt(replace(result, findings=[]), None)
     allowed = _allowed(base, question) | _research_allowed(outputs)
+    # Ids (UTRs, settlement ids) the Copilot prompt quoted about the selection; never bare numbers.
+    allowed |= {_norm(x) for x in _TOKEN.findall(extra) if re.search(r"[A-Za-z]", x)}
     for f in result.findings:
         allowed |= allowed_numbers(fact_sheet(f))
     for attempt in range(2):

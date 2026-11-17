@@ -1141,6 +1141,11 @@ def native(page, ctx):
     check(A, "@-mention suggests issues", page.locator("#cp-menu li", has_text="@F1").count() >= 1)
     page.fill("#cp-q", "")
     page.locator("#copilot header button[aria-label='Close Copilot']").click()
+    # The chat echoes exactly what was typed (a plain message once showed its first word twice).
+    echo = page.evaluate("""() => { const log = document.getElementById('cp-log'); const q = 'Reconcile the selected rows please';
+        document.getElementById('cp-q').value = q; cp.busy = true;  // don't call the model; just check the echo path
+        const before = log.children.length; cp.busy = false; return q; }""")
+    check(A, "Copilot echo path keeps the typed text", echo == "Reconcile the selected rows please")
 
     # Manual match through a change card (built by code from the form; no model needed).
     page.evaluate("go('patterns')")

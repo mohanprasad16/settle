@@ -109,3 +109,15 @@ twin refunds in the same minute and three-decimal amounts all came out right.
 - **Tour captions ran ahead of the screen.** "Scanned or locked bank PDFs…" showed over the Ask
   answer because each caption was set before its navigation. Captions are now set only after the
   screen for that beat is showing, and cleared between beats.
+- **Copilot echoed the first word twice** ("ReconcileReconcile the selected…"): a plain message ran
+  through the slash-command expansion with an empty pattern. The chat now echoes exactly what was
+  typed; slash commands expand only for the model. Seen in a frame of the tour video.
+- **Ticked rows followed you to other screens.** The selection bar stayed on the Upload page and
+  survived loading a new month. It now shows only on results and clears when the month changes.
+- **"Reconcile selected with AI" proposed a card only 1 time in 3.** The model spent its 6 steps
+  querying with SQL and ran out before proposing; when it did propose, the UTR it quoted failed
+  the number guard because the narration was cut before the UTR. Fixed at the source: a
+  `match_candidates` tool lets code say which payouts tie exactly (one step instead of four), the
+  selection's facts (amount, date, reference) go to the model up front, and ids quoted from the
+  prompt count for the guard (bare numbers still don't). Measured after: 5 of 5 runs proposed,
+  5 of 5 verified.

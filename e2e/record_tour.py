@@ -199,7 +199,9 @@ def record() -> Path:
                 pick.check(force=True)
                 t.cap("Something doesn't match? Select it and hand it to Copilot")
                 t.click(page.locator("#sel-ai"), 0)
-                page.locator("#cp-log .change, #cp-log .banner.err").first.wait_for(timeout=120_000)
+                page.locator("#cp-log .cp-a .badge, #cp-log .banner.err").last.wait_for(
+                    timeout=120_000
+                )
                 card = page.locator("#cp-log .change").last
                 if card.count():
                     t.cap(

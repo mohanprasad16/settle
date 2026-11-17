@@ -216,6 +216,8 @@ function loading(steps, sub = "This takes a few seconds.") {
 const views = ["landing", "upload", "review", "connections", "results"];
 function show(name) {
   for (const v of views) $("#" + v).hidden = v !== name;
+  const bar = document.getElementById("sel-bar");
+  if (bar) bar.hidden = name !== "results";  // ticked rows belong to the results, not other screens
   window.scrollTo({ top: 0 });
 }
 
@@ -312,6 +314,7 @@ const PAGES = [
 ];
 
 function render(v) {
+  if (state.view && (v.source !== state.view.source || v.seed !== state.view.seed)) { cp.sel = { settlements: [], bank_rows: [], findings: [], actions: [] }; document.getElementById("sel-bar")?.remove(); }
   state.view = v;
   state.sets = null; // payout list is fetched when the Settlements page is first opened
   const root = $("#results");
@@ -1603,13 +1606,14 @@ function clearSelection() {
 async function sendCopilot() {
   const input = $("#cp-q"), log = $("#cp-log");
   let msg = input.value.trim();
+  const typed = msg;  // what the person wrote; slash commands expand only for the model
   if (!msg || cp.busy) return;
   $("#cp-menu").hidden = true;
   const cmd = msg.split(/\s+/)[0];
   if (cmd === "/export") { input.value = ""; log.append(el("div", { class: "msg-q" }, msg), el("div", { class: "cp-a" }, "Here you go: ", el("a", { href: "/api/report", target: "_blank", rel: "noopener" }, "audit report"), " · ", el("a", { href: "/api/brs" }, "BRS (.csv)"), " · ", el("a", { href: "/api/journal" }, "Tally journal (.csv)"), " · ", el("a", { href: "/api/export" }, "Excel pack (.zip)"))); return; }
   if (SLASH_PROMPT[cmd]) msg = `${SLASH_PROMPT[cmd]} ${msg.slice(cmd.length).trim()}`.trim();
   input.value = "";
-  log.append(el("div", { class: "msg-q" }, input.dataset.shown || msg.replace(SLASH_PROMPT[cmd] || "", cmd)));
+  log.append(el("div", { class: "msg-q" }, typed));
   const status = el("div", { class: "cp-status" }, el("span", { class: "spinner sm", "aria-hidden": "true" }), el("span", { id: "cp-status-t" }, "Reading this month…"));
   log.append(status); log.scrollTop = log.scrollHeight;
   const words = ["Reading this month…", "Looking things up…", "Checking every figure…", "Preparing changes for you…"];
@@ -1644,7 +1648,7 @@ function copilotReply(d) {
 }
 function stepLabel(t) {
   return { run_sql: "Looked up the data", get_finding: "Opened an issue", get_settlement: "Opened a payout", list_actions: "Listed the fixes", list_unmatched: "Listed unmatched lines",
-    inspect_file: "Read the attached file", make_plan: "Made a plan", done_step: "Ticked off a step" }[t.tool] || (t.tool.startsWith("propose_") ? "Prepared a change" : t.tool);
+    inspect_file: "Read the attached file", match_candidates: "Checked which payouts tie", make_plan: "Made a plan", done_step: "Ticked off a step" }[t.tool] || (t.tool.startsWith("propose_") ? "Prepared a change" : t.tool);
 }
 
 function changeCard(p) {
@@ -1728,7 +1732,7 @@ function drawSelBar() {
   if (!n) { bar?.remove(); return; }
   if (!bar) { bar = el("div", { class: "sel-bar", id: "sel-bar", role: "region", "aria-label": "Selected rows" }); document.body.append(bar); }
   put(bar, el("b", {}, `${n} selected`),
-    el("button", { class: "btn primary small", type: "button", id: "sel-ai", onclick: () => { openCopilot(); $("#cp-q").value = "Reconcile the selected rows: match them to the right payout if they add up exactly, otherwise tell me what they are."; sendCopilot(); } }, "✦ Reconcile selected with AI"),
+    el("button", { class: "btn primary small", type: "button", id: "sel-ai", onclick: () => { openCopilot(); $("#cp-q").value = "Reconcile the selected rows and prepare the change for me to confirm: link them to the payout they add up to exactly, or, if none fits, explain them with a short reason (for example a prior-month settlement)."; sendCopilot(); } }, "✦ Reconcile selected with AI"),
     el("button", { class: "btn small", type: "button", id: "sel-manual", onclick: manualForm }, "Match manually…"),
     el("button", { class: "btn ghost small", type: "button", onclick: clearSelection }, "Clear"));
 }
