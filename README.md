@@ -58,6 +58,27 @@ through a local ODBC connector).
 - **Hand it to the auditor**: audit report with every decision and who made it, BRS, Excel pack,
   Tally journal (debits always equal credits).
 
+## Settle Copilot: what a coding agent is for developers, for a finance team
+
+I do most of my own work through a coding agent (Claude Code): I say what I need, it plans, it
+does the work, and I approve every change before it lands. Settle gives a finance team the same
+way of working. On every page there's a Copilot that knows what's on screen and what's ticked,
+and most of the manual reconciliation work is a prompt away, with a person approving every change.
+
+| In a coding agent | In Settle |
+|---|---|
+| Ask or tell it what you need | Copilot on every page: "Why is the 21 Oct payout short?", "Match the selected bank line", "Draft tickets for all money-lost issues", "Approve all fee journals under ₹500" |
+| It plans, then works step by step | A plan as a checklist, ticked off as it works, with every step it ran shown (the SQL it read, the issue it opened) |
+| Slash commands, @ mentions, drop in a file | `/reconcile` `/explain` `/draft-tickets` `/approve` `/rules` `/close-month` `/export`, `@F3` for an issue, `@setl_…` for a payout, attach an Excel or CSV |
+| A permission prompt showing the diff | A change card: before → after, the ₹ impact, the rows it touches and the checks it passed, with **Allow once**, **Always allow** (only for low-risk kinds) or **Reject** |
+| Ask-before-edit vs auto-accept mode | **Settings → Approval policy**: ask before every change, auto-accept low-risk, or read-only; per kind of change, ask / auto-allow up to ₹X / never; locked kinds always ask; optional two-person approval |
+| Checkpoints and undo | **Undo** any confirmed change from the audit trail; the bridge is rebuilt and goes back to ₹0 |
+| Its memory of how you work | "What Settle remembers": your rules and the matches people made, plus suggested rules from this month |
+| Stop | A Stop button while it's working |
+
+The model prepares; code checks; a named person decides. Every proposal and every decision is in
+the audit trail with who, when and what changed.
+
 ## How it works
 
 ![architecture](docs/architecture.svg)
