@@ -69,3 +69,14 @@ def test_identifiers_and_values_cannot_inject():
                           filters=[transform.Filter(column=headers[0], op="equals", value="1' OR '1'='1")])  # fmt: skip
     _cols, rows = transform.run_plan(con, plan)
     assert rows == [] and con.execute("SELECT count(*) FROM sheet").fetchone()[0] == 1
+
+
+def test_a_sheet_with_headers_but_no_rows_is_refused():
+    """QA: a header-only CSV got a 'use as orders' card that would reconcile an empty month."""
+    import pytest
+
+    from app.transform import read_sheet
+
+    for data in (b"order_no,order_date,amount\n", b"order_no,order_date,amount\n,,\n", b""):
+        with pytest.raises(ValueError, match="no data rows"):
+            read_sheet(data, "orders.csv")

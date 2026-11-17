@@ -92,8 +92,8 @@ def read_sheet(data: bytes, filename: str) -> tuple[list[str], list[list[str]]]:
         text = data.decode("utf-8-sig", "replace")
         rows = list(csv.reader(text.splitlines()))
     rows = [r for r in rows if any(c.strip() for c in r)]
-    if not rows:
-        raise ValueError("the file has no rows")
+    if len(rows) < 2:  # headers alone would reconcile an empty month
+        raise ValueError("the file has no data rows under its headers")
     headers = [h.strip() or f"column {i + 1}" for i, h in enumerate(rows[0])]
     if len(set(headers)) != len(headers):
         raise ValueError("two columns have the same header; rename one and upload again")
