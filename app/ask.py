@@ -311,11 +311,18 @@ def _trace(step: int, tool: str, arg: str, out: str, start: float) -> dict:
 
 def _valid(con, result: Result, cites: list[Citation], answer: str = "") -> list[Citation]:
     """Drop citations that point at rows or findings that don't exist; add any finding the
-    answer names (F3) but forgot to cite."""
+    answer names but forgot to cite: by its id (F3), one of its references (setl_, UTR, order
+    no) or its exact rupee amount."""
     ids = {f.id for f in result.findings}
     keep = []
-    cites = cites + [Citation(source="finding", ref=i) for i in dict.fromkeys(re.findall(r"\bF\d+\b", answer))
-                     if i in ids and not any(c.source == "finding" and c.ref == i for c in cites)]  # fmt: skip
+    named = [
+        f.id for f in result.findings
+        if re.search(rf"\b{f.id}\b", answer)
+        or any(len(r) >= 6 and r in answer for r in f.refs[:50])
+        or rupees(abs(f.amount)) in answer
+    ]  # fmt: skip
+    cites = cites + [Citation(source="finding", ref=i) for i in named
+                     if not any(c.source == "finding" and c.ref == i for c in cites)]  # fmt: skip
     for c in cites:
         if c.source == "finding" and c.ref in ids:
             keep.append(c)

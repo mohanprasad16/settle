@@ -146,3 +146,18 @@ def test_rupee_float_from_sql_verifies():
         [("run_sql", '{"columns": ["total"], "rows": [[2598.0]], "text_columns": []}')]
     )
     assert "2598" in ok
+
+
+def test_finding_named_by_reference_or_amount_is_cited(data):
+    """An answer that names a settlement id or a finding's exact amount, but not F1, still
+    shows the finding as proof (seen in the browser test: 'What should I do first?')."""
+    from app.ask import _valid
+
+    con, result = data
+    missing = next(f for f in result.findings if f.check == "settlement_missing")
+    spike = next(f for f in result.findings if f.check == "refund_spike")
+    by_ref = _valid(con, result, [], f"Chase {missing.refs[0]} with your bank.")
+    by_amount = _valid(con, result, [], f"12 Oct had 28 refunds, {rupees(spike.amount)} in all.")
+    assert [c.ref for c in by_ref] == [missing.id]
+    assert spike.id in [c.ref for c in by_amount]
+    assert _valid(con, result, [], "Nothing here names a problem.") == []
