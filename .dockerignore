@@ -1,0 +1,12 @@
+.env
+.venv
+.git
+**/__pycache__
+.pytest_cache
+.ruff_cache
+*.duckdb
+reports
+e2e
+evals
+tests
+docs
