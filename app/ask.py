@@ -101,6 +101,7 @@ class Asked:
     steps: list[dict] = field(default_factory=list)
     usage: Usage = field(default_factory=Usage)
     trace: list[dict] = field(default_factory=list)  # step, tool, input, rows_returned, ms
+    plan: list[dict] = field(default_factory=list)  # Copilot only: [{text, done}]
 
 
 def run_sql(con: duckdb.DuckDBPyConnection, query: str) -> str:
@@ -239,16 +240,20 @@ def ask(
     question: str,
     llm: LLM,
     explanations: dict[str, Explained] | None = None,
+    tools: list[ToolSpec] = TOOLS,
+    dispatch=None,  # (tool name, args) -> output for tools beyond run_sql / get_finding
+    extra: str = "",  # more system prompt (the Copilot's page, selection and rules)
+    max_calls: int = MAX_CALLS,
 ) -> Asked:
-    system = system_prompt(result, explanations)
+    system = system_prompt(result, explanations) + extra
     usage = Usage()
     history: list[dict] = [{"role": "user", "text": question}]
     steps: list[dict] = []
     outputs: list[tuple[str, str]] = []  # untruncated, for the number guard
     trace: list[dict] = []
-    for _ in range(MAX_CALLS):
+    for _ in range(max_calls):
         try:
-            reply = llm.agent_step(system, history, TOOLS, usage=usage)
+            reply = llm.agent_step(system, history, tools, usage=usage)
         except LLMError as e:
             log.warning("ask agent step failed: %s", e)
             break
@@ -256,7 +261,7 @@ def ask(
         if not reply.calls:
             break
         results = []
-        for call in reply.calls[: MAX_CALLS - len(steps)]:
+        for call in reply.calls[: max_calls - len(steps)]:
             start = time.perf_counter()
             if call.name == "run_sql":
                 arg = str(call.args.get("query", ""))
@@ -264,6 +269,9 @@ def ask(
             elif call.name == "get_finding":
                 arg = str(call.args.get("id", ""))
                 out = get_finding(con, result, arg)
+            elif dispatch and any(t.name == call.name for t in tools):
+                arg = json.dumps(call.args, default=str)[:400]
+                out = dispatch(call.name, call.args)
             else:
                 arg, out = "", f"error: unknown tool {call.name}"
             steps.append({"tool": call.name, "args": call.args, "output": out[:4000]})
@@ -271,7 +279,7 @@ def ask(
             trace.append(_trace(len(trace) + 1, call.name, arg, out, start))
             results.append((call, out))
         history.append({"role": "tool", "results": results})
-        if len(steps) >= MAX_CALLS:
+        if len(steps) >= max_calls:
             break
 
     research = "\n\n".join(f"{s['tool']}({json.dumps(s['args'])}) ->\n{s['output']}" for s in steps)

@@ -10,6 +10,7 @@ Every error leaves as {"error": plain English, "hint": what to do next}; never a
 
 import csv
 import io
+import json
 import logging
 import os
 import random
@@ -31,21 +32,23 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from app import copilot as copilot_mod
 from app import drafts as drafts_mod
 from app import explain as explain_mod
-from app import journal, sample
+from app import journal, sample, transform
 from app.actions import propose_all
 from app.ask import ask
 from app.audit import DecisionLog, pack, render
 from app.config import settings
-from app.engine import KINDS, SETTLEMENT_STATUS, Result, brs, run, settlements
-from app.gate import Gate
+from app.engine import KINDS, SETTLEMENT_STATUS, Result, brs, check_manual, run, settlements
+from app.gate import HARD_CAP, LOCKED, MODES, Gate, Policy
+from app.gate import KINDS as POLICY_KINDS
 from app.llm import GeminiLLM, Usage
 from app.load import REQUIRED, LoadError, load
 from app.money import to_paise
 from app.pdf_bank import PdfLocked, check, extract, pages, write_csv
 from app.roi import roi
-from app.rules import Rule
+from app.rules import ManualMatch, Rule, suggest_rules
 from app.trace import trace
 
 log = logging.getLogger(__name__)
@@ -93,6 +96,13 @@ class Session:
     usages: list[Usage] = field(default_factory=list)
     truth: dict | None = None
     pending_pdf: dict | None = None  # extraction waiting for the person to confirm
+    manual: list[ManualMatch] = field(default_factory=list)  # a person's confirmed matches
+    proposals: dict = field(default_factory=dict)  # Copilot / form change cards, id -> Proposal
+    sheets: dict = field(default_factory=dict)  # files attached in the Copilot, id -> sheet
+    policy: Policy = field(default_factory=Policy)  # the approval policy; only a person edits it
+    ai_times: deque = field(
+        default_factory=deque
+    )  # this session's model calls, for its hourly limit
     seen: float = field(default_factory=time.time)
 
 
@@ -192,7 +202,20 @@ def _ai_allowed(request: Request) -> None:
     hits.append(now)
 
 
-def _llm() -> GeminiLLM:
+def _llm(s: "Session | None" = None) -> GeminiLLM:
+    if s is not None and not s.policy.ai_enabled:
+        raise Oops(
+            503,
+            "The AI is switched off in Settings.",
+            "Turn it on in Settings → Approval policy; everything else still works.",
+        )
+    if s is not None:
+        now = time.time()
+        while s.ai_times and now - s.ai_times[0] > 3600:
+            s.ai_times.popleft()
+        if len(s.ai_times) >= s.policy.ai_calls_per_hour:
+            raise Oops(429, "This session reached its AI limit for the hour (set in Settings).", "Raise it in Settings, or try again later.")  # fmt: skip
+        s.ai_times.append(now)
     if not settings.gemini_api_key:
         raise Oops(
             503,
@@ -205,8 +228,17 @@ def _llm() -> GeminiLLM:
 # --- the pipeline ----------------------------------------------------------------------------
 
 
-def _reconcile(s: Session) -> None:
-    """Load the session's three files, run the engine, and rebuild everything downstream."""
+def _akey(a) -> str:
+    """An action's identity across re-runs (finding ids renumber when an issue is resolved)."""
+    return json.dumps([a.type, a.amount, a.payload], sort_keys=True, default=str)
+
+
+def _reconcile(s: Session, keep: bool = False, why: str = "") -> None:
+    """Load the session's three files, run the engine, and rebuild everything downstream.
+    keep: a person changed something on this same month (a rule, a match, a sheet); their
+    decision log and the actions they already decided carry over instead of starting again."""
+    old_log = s.log if keep else None
+    decided = {_akey(a): a for a in s.gate.actions.values()} if keep and s.gate else {}
     con = duckdb.connect()
     try:
         period = load(con, s.files["razorpay"], s.files["bank"], s.files["orders"])
@@ -224,7 +256,7 @@ def _reconcile(s: Session) -> None:
             "The Razorpay report has no transactions.",
             "Download the settlement report for the same month as the bank statement.",
         )
-    result = run(con, period, rules=s.rules)
+    result = run(con, period, rules=s.rules, manual=s.manual)
     exp_cache = explain_mod.load_cache(explain_mod.SAMPLE_CACHE)
     draft_cache = drafts_mod.load_cache(drafts_mod.SAMPLE_CACHE)
     exp_cache |= (
@@ -233,14 +265,26 @@ def _reconcile(s: Session) -> None:
     s.con, s.result = con, result
     s.explanations = explain_mod.explain_all(result, None, exp_cache)
     s.drafts = drafts_mod.draft_all(result, None, draft_cache)
-    s.log = DecisionLog()
-    s.log.record_run(result, s.files)
-    s.log.record_ai(s.explanations, s.drafts)
-    for r in s.rules:
-        s.log.log("human", "added rule", f"{r.check}: {r.note}")
-    s.gate = Gate({f.id: f for f in result.findings}, log=s.log)
+    if old_log is None:
+        s.log = DecisionLog()
+        s.log.record_run(result, s.files)
+        s.log.record_ai(s.explanations, s.drafts)
+        for r in s.rules:
+            s.log.log("human", "added rule", f"{r.check}: {r.note}")
+    else:
+        s.log = old_log
+        s.log.log("engine", "reconciled again", f"{why}: {len(result.findings)} issues, unexplained {result.totals['unexplained']} paise")  # fmt: skip
+    s.gate = Gate({f.id: f for f in result.findings}, s.policy)
     s.journals = journal.entries(con, result)
     propose_all(s.gate, result, s.journals, s.drafts)
+    for a in s.gate.actions.values():  # carry a person's earlier decisions over by identity
+        b = decided.get(_akey(a))
+        if b and b.status in ("approved", "executed", "rejected"):
+            a.status, a.approved_by, a.sent, a.reason = b.status, b.approved_by, b.sent, b.reason
+    s.gate.log = s.log
+    if old_log is None:
+        for a in s.gate.actions.values():
+            s.gate._record(a.proposed_by, "proposed", a)
 
 
 def _load_hint(msg: str) -> str:
@@ -352,7 +396,19 @@ def _view(s: Session) -> dict:
         },
         "chaos": _compare(r, s.truth) if s.truth else None,
         "seed": s.truth.get("seed") if s.truth else None,
-        "rules": [{"check": x.check, "note": x.note, "ref": x.ref} for x in s.rules],
+        "rules": [
+            {"check": x.check, "note": x.note, "ref": x.ref, "max_amount": x.max_amount}
+            for x in s.rules
+        ],
+        "suggested_rules": [
+            x
+            for x in suggest_rules(r.findings)
+            if not any(y.check == x["check"] and y.ref is None for y in s.rules)
+        ],
+        "manual": [
+            {"note": m.note, "by": m.by, "bank_rows": m.bank_rows, "settlement_id": m.settlement_id}
+            for m in s.manual
+        ],
         "demo_mode": settings.demo_mode,
         # [day, refunds, paise] for the refunds-per-day chart on Patterns.
         "refunds_by_day": s.con.execute(
@@ -388,6 +444,7 @@ def load_sample(request: Request):
         )
     }
     s.source, s.truth, s.rules, s.ai_explained = "sample", None, [], {}
+    s.manual, s.proposals = [], {}
     _reconcile(s)
     return _respond(sid, _view(s))
 
@@ -405,6 +462,7 @@ def load_chaos(request: Request, body: ChaosIn | None = None):
     paths, truth = sample.chaos(seed)
     s.files = {"razorpay": paths["rp"], "bank": paths["bank"], "orders": paths["orders"]}
     s.source, s.truth, s.rules, s.ai_explained = "chaos", truth | {"seed": seed}, [], {}
+    s.manual, s.proposals = [], {}
     _reconcile(s)
     return _respond(sid, _view(s))
 
@@ -463,6 +521,7 @@ async def upload(
                 )
 
     s.source, s.truth, s.rules, s.ai_explained, s.pending_pdf = "upload", None, [], {}, None
+    s.manual, s.proposals = [], {}
     if raw["bank"][:5] == b"%PDF-":
         try:
             pages(raw["bank"], password or None)  # cheap: unlock first, before any model call
@@ -771,7 +830,7 @@ def add_rule(request: Request, body: RuleIn):
         max_amount=abs(f.amount) if body.scope == "similar" else None,
     )
     s.rules.append(rule)
-    _reconcile(s)
+    _reconcile(s, keep=True, why=f"rule added: {rule.note}")
     return _respond(sid, _view(s))
 
 
@@ -792,6 +851,8 @@ def approve(request: Request, aid: str, body: ApproveIn):
     try:
         if a.status == "needs_approval":
             s.gate.approve(aid, body.approver)
+        if a.status == "needs_approval":  # two-person rule: first approval recorded, still waiting
+            return JSONResponse(jsonable_encoder({"action": _action(a), "needs_second": True, "demo_mode": settings.demo_mode}))  # fmt: skip
         s.gate.execute(aid)
     except PermissionError as e:
         raise Oops(403, f"This action can't run: {e}.", "Nothing was sent.") from e
@@ -927,3 +988,379 @@ def export(request: Request):
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{name}"'},
     )
+
+
+# --- Copilot and change cards ----------------------------------------------------------------
+
+def _ctx(s: Session) -> copilot_mod.Ctx:
+    return copilot_mod.Ctx(s.con, s.result, s.gate, s.sheets, s.proposals, s.log)
+
+
+def _card(p, policy: Policy | None = None) -> dict:
+    return {"id": p.id, "type": p.type, "title": p.title, "changes": p.changes, "checks": p.checks,
+            "status": p.status, "decided_by": p.decided_by, "proposed_by": p.proposed_by,
+            "kind": p.kind, "amount": p.amount, "approvals": p.approvals,
+            "always_allow": copilot_mod.can_always_allow(policy, p) is None if policy else False,
+            "preview": p.payload.get("preview"), "result": p.result}  # fmt: skip
+
+
+class Selection(BaseModel):
+    settlements: list[str] = []
+    bank_rows: list[int] = []
+    findings: list[str] = []
+    actions: list[str] = []
+
+
+class CopilotIn(BaseModel):
+    message: str
+    page: str = "overview"
+    focus: str = ""
+    selection: Selection = Selection()
+
+
+@app.post("/api/copilot")
+def copilot_chat(request: Request, body: CopilotIn):
+    s = _loaded(request)
+    q = body.message.strip()
+    if not q:
+        raise Oops(400, "Type what you need first.", "For example: what should I do first?")
+    if len(q) > 800:
+        raise Oops(400, "That message is too long.", "Keep it under 800 characters.")
+    llm = _llm(s)
+    _ai_allowed(request)
+    out, made = copilot_mod.copilot(_ctx(s), q, llm, s.explanations, body.page[:30], body.focus[:40],
+                                    body.selection.model_dump())  # fmt: skip
+    s.usages.append(out.usage)
+    s.log.log("ai", "copilot", ("verified" if out.verified else "not verified") + f": {q[:80]}")
+    for p in made:  # a granted kind, or auto-accept mode within the policy: code applies it
+        if copilot_mod.auto_applies(s.policy, p):
+            _apply(s, p, "auto-accept (your approval policy)")
+    sid, _ = _session(request)
+    return _respond(sid, {
+        "answer": out.answer, "verified": out.verified,
+        "citations": [c.model_dump() for c in out.citations], "trace": out.trace,
+        "plan": out.plan, "proposals": [_card(p, s.policy) for p in made],
+        "view": _view(s) | {"loaded": True}})  # fmt: skip
+
+
+@app.post("/api/copilot/file")
+async def copilot_file(request: Request, file: Annotated[UploadFile, File()]):
+    """Attach a spreadsheet to the Copilot. Code reads it (values only) and suggests a plan
+    straight away, so this works with the AI off too; the model can refine it in chat."""
+    s = _loaded(request)
+    name = (file.filename or "sheet").rsplit("/", 1)[-1][:80]
+    if not name.lower().endswith((".csv", ".xlsx", ".xlsm")):
+        raise Oops(422, "Attach a .csv or .xlsx file.", "Save the sheet as Excel (.xlsx) or CSV and try again.")  # fmt: skip
+    cap = min(s.policy.max_file_mb, 15) * 1024 * 1024
+    data = await file.read(cap + 1)
+    if len(data) > cap:
+        raise Oops(413, f"{name} is larger than {cap // (1024 * 1024)} MB.", "Attach one month at a time, or raise the limit in Settings.")  # fmt: skip
+    try:
+        headers, rows = transform.read_sheet(data, name)
+    except Exception as e:  # a corrupt workbook, a non-sheet file: say so, never crash
+        raise Oops(422, f"Couldn't read {name}: {str(e)[:120]}.", "Open it in Excel, save as .xlsx or CSV, and attach it again.") from e  # fmt: skip
+    fid = f"S{len(s.sheets) + 1}"
+    s.sheets[fid] = {"name": name, "headers": headers, "rows": rows}
+    s.log.log("human", "attached a file", f"{fid} {name}: {len(rows)} rows")
+    plan = transform.suggest(headers)
+    card = None
+    try:
+        card = _card(
+            copilot_mod.propose_transform(_ctx(s), fid, plan, plan.target, by="engine"), s.policy
+        )
+    except copilot_mod.Refused as e:
+        reason = str(e)
+    else:
+        reason = ""
+    return JSONResponse(jsonable_encoder({"file_id": fid, "name": name, "headers": headers,
+                                          "rows": len(rows), "proposal": card, "why_not": reason}))  # fmt: skip
+
+
+class ManualIn(BaseModel):
+    bank_rows: list[int]
+    note: str
+    settlement_id: str | None = None
+    by_name: str = ""
+
+
+@app.post("/api/proposals/manual")
+def propose_manual(request: Request, body: ManualIn):
+    s = _loaded(request)
+    try:
+        p = copilot_mod.propose_manual_match(_ctx(s), body.bank_rows, body.note, body.settlement_id or None, by="human")  # fmt: skip
+        p.proposer = body.by_name.strip()[:60]
+    except copilot_mod.Refused as e:
+        raise Oops(422, f"Can't match that: {e}.", "Pick bank lines that add up exactly to the settlement, or leave the settlement empty to explain them.") from e  # fmt: skip
+    return JSONResponse(jsonable_encoder({"proposal": _card(p, s.policy)}))
+
+
+class RuleProposalIn(BaseModel):
+    check: str
+    note: str
+    max_amount: int | None = None
+
+
+@app.post("/api/proposals/rule")
+def propose_rule(request: Request, body: RuleProposalIn):
+    s = _loaded(request)
+    try:
+        p = copilot_mod.propose_rule(_ctx(s), body.check, body.note, body.max_amount, by="human")
+    except copilot_mod.Refused as e:
+        raise Oops(422, f"Can't make that rule: {e}.", "Pick a suggested rule, or mark single issues as expected from their Fix tab.") from e  # fmt: skip
+    return JSONResponse(jsonable_encoder({"proposal": _card(p, s.policy)}))
+
+
+def _proposal(s: Session, pid: str):
+    p = s.proposals.get(pid)
+    if p is None:
+        raise Oops(404, "That change card no longer exists.", "Ask the Copilot again.")
+    if p.status != "pending":
+        raise Oops(409, f"That change was already {p.status}.", "Nothing changed.")
+    return p
+
+
+def _apply(s: Session, p, who: str) -> None:
+    """Apply a confirmed change card. Code does it; every path re-checks before changing."""
+    d = p.payload
+    if p.type == "manual_match":
+        why = check_manual(s.con, s.result, d["settlement_id"], d["bank_rows"])
+        if why:
+            raise Oops(409, f"This match no longer fits: {why}.", "Ask the Copilot to look again.")
+        m = ManualMatch(d["note"], who, d["bank_rows"], d["settlement_id"])
+        s.manual.append(m)
+        _reconcile(s, keep=True, why=f"manual match confirmed by {who}")
+        p.result = {"done": p.title}
+    elif p.type == "rule":
+        s.rules.append(Rule(d["check"], d["note"], ref=d["ref"], max_amount=d["max_amount"]))
+        _reconcile(s, keep=True, why=f"rule confirmed by {who}: {d['note']}")
+        p.result = {"done": p.title}
+    elif p.type == "actions":
+        done, blocked, before = [], [], {}
+        by_key = {_akey(a): a for a in s.gate.actions.values()}
+        for key in d["keys"]:
+            a = by_key.get(key)  # by identity: ids renumber when the month is reconciled again
+            if a is None or a.status not in ("needs_approval", "auto"):
+                blocked.append(f"{a.id if a else 'an action'}: not waiting any more")
+                continue
+            before[key] = a.status
+            try:
+                if d["decision"] == "reject":
+                    a.status, a.reason = "rejected", f"rejected by {who}"
+                    s.log.log("human", "rejected", f"{a.id} {a.type}", a.finding_id)
+                else:
+                    if a.status == "needs_approval":
+                        s.gate.approve(a.id, who)
+                    if a.status in ("auto", "approved"):
+                        s.gate.execute(a.id)
+                done.append(a.id)
+            except PermissionError as e:
+                blocked.append(f"{a.id}: {e}")
+        p.result = {"done": done, "blocked": blocked, "before": before}
+    elif p.type == "transform":
+        sheet = s.sheets.get(d["file_id"])
+        if sheet is None:
+            raise Oops(409, "The attached file is gone.", "Attach it again.")
+        con = duckdb.connect()
+        transform.to_table(con, sheet["headers"], sheet["rows"])
+        cols, rows = transform.run_plan(con, transform.Plan.model_validate(d["plan"]))
+        out = s.dir / f"sheet_{p.id}.csv"
+        transform.write(cols, rows, out)
+        p.result = {"download": f"/api/proposals/{p.id}/sheet.csv", "rows": len(rows)}
+        if d["use_as"]:
+            before = dict(s.files)
+            s.files = {**s.files, d["use_as"]: out}
+            try:
+                _reconcile(
+                    s, keep=True, why=f"{sheet['name']} used as the {d['use_as']} input by {who}"
+                )
+            except Oops:
+                s.files = before
+                _reconcile(s, keep=True, why="the sheet didn't load; kept the previous files")
+                raise
+            s.source, s.truth = "upload", None
+            p.result["previous"] = str(before[d["use_as"]])
+    p.status, p.decided_by = "confirmed", who
+    s.log.log("human" if not who.startswith("auto-accept") else "rule", "confirmed", f"{p.id} {p.type}: {p.title}")  # fmt: skip
+
+
+class ConfirmIn(BaseModel):
+    approver: str
+    always: bool = False  # "Always allow this kind": a grant in the approval policy
+
+
+@app.post("/api/proposals/{pid}/confirm")
+def confirm_proposal(request: Request, pid: str, body: ConfirmIn):
+    """The only way a change card is applied: a named person confirms, and code does it."""
+    s = _loaded(request)
+    sid, _ = _session(request)
+    who = body.approver.strip()[:60]
+    if not who:
+        raise Oops(
+            400, "Type your name to confirm.", "Every change is recorded with who confirmed it."
+        )
+    p = _proposal(s, pid)
+    mc = s.policy.maker_checker_over
+    if mc is not None and p.amount > mc:
+        if p.proposer and p.proposer.lower() == who.lower():
+            raise Oops(403, "You made this change, so someone else has to approve it.", "The two-person rule is on in Settings.")  # fmt: skip
+        if who.lower() in (x.lower() for x in p.approvals):
+            raise Oops(403, "You already approved this.", "A second, different person has to confirm it.")  # fmt: skip
+        p.approvals.append(who)
+        if len(p.approvals) < 2:
+            s.log.log("human", "first approval", f"{p.id} {p.type}: {p.title} by {who}")
+            return _respond(sid, {"proposal": _card(p, s.policy), "needs_second": True, "view": _view(s) | {"loaded": True}})  # fmt: skip
+        who = " and ".join(p.approvals)
+    if body.always:
+        try:
+            g = copilot_mod.grant(s.policy, p, who)
+        except copilot_mod.Refused as e:
+            raise Oops(403, str(e).capitalize() + ".", "Allow it once instead.") from e
+        s.log.log("human", "always allow", f"{g['kind']} up to {g['max']} paise, granted by {who}")
+    _apply(s, p, who)
+    return _respond(sid, {"proposal": _card(p, s.policy), "view": _view(s) | {"loaded": True}})
+
+
+@app.post("/api/proposals/{pid}/undo")
+def undo_proposal(request: Request, pid: str, body: ApproveIn):
+    """Reverse a confirmed change, like a checkpoint. Code reverses it; it's a new log entry."""
+    s = _loaded(request)
+    sid, _ = _session(request)
+    who = body.approver.strip()[:60] or "a reviewer"
+    p = s.proposals.get(pid)
+    if p is None or p.status != "confirmed":
+        raise Oops(409, "Only a confirmed change can be undone.", "Nothing changed.")
+    d = p.payload
+    if p.type == "manual_match":
+        s.manual = [m for m in s.manual if not (m.bank_rows == d["bank_rows"] and m.settlement_id == d["settlement_id"])]  # fmt: skip
+    elif p.type == "rule":
+        s.rules = [r for r in s.rules if not (r.check == d["check"] and r.note == d["note"] and r.ref == d["ref"])]  # fmt: skip
+    elif p.type == "actions":
+        by_key = {_akey(a): a for a in s.gate.actions.values()}
+        for key, status in p.result.get("before", {}).items():
+            a = by_key.get(key)
+            if a is not None:
+                a.status, a.approved_by, a.sent, a.reason = status, "", None, f"undone by {who}"
+    elif p.type == "transform" and p.result.get("previous"):
+        s.files = {**s.files, d["use_as"]: Path(p.result["previous"])}
+    if p.type in ("manual_match", "rule") or (p.type == "transform" and p.result.get("previous")):
+        _reconcile(s, keep=True, why=f"undo of {p.id} by {who}")
+    p.status, p.decided_by = "undone", who
+    s.log.log("human", "undid", f"{p.id} {p.type}: {p.title}")
+    return _respond(sid, {"proposal": _card(p, s.policy), "view": _view(s) | {"loaded": True}})
+
+
+@app.post("/api/proposals/{pid}/reject")
+def reject_proposal(request: Request, pid: str, body: ApproveIn):
+    s = _loaded(request)
+    p = _proposal(s, pid)
+    p.status, p.decided_by = "rejected", body.approver.strip()[:60] or "a reviewer"
+    s.log.log("human", "rejected", f"{p.id} {p.type}: {p.title}")
+    return JSONResponse(jsonable_encoder({"proposal": _card(p, s.policy)}))
+
+
+@app.get("/api/proposals/{pid}/sheet.csv")
+def proposal_sheet(request: Request, pid: str):
+    s = _loaded(request)
+    path = s.dir / f"sheet_{pid}.csv"
+    if not path.exists():
+        raise Oops(404, "That file isn't ready.", "Confirm the change card first.")
+    return FileResponse(path, media_type="text/csv", filename=f"settle_sheet_{pid}.csv")
+
+
+# --- Settings: the approval policy ------------------------------------------------------------
+
+
+def _policy_view(s: Session) -> dict:
+    p = s.policy
+    preview = None
+    if s.gate is not None:  # what this month's proposals would do under this policy
+        probe = Gate(s.gate.findings, p)
+        auto = [a for a in s.gate.actions.values() if probe._decide(a)[0] == "auto"]
+        preview = {
+            "auto": len(auto),
+            "of": len(s.gate.actions),
+            "amount": sum(a.amount for a in auto),
+        }
+    return {
+        "copilot_mode": p.copilot_mode, "modes": list(MODES),
+        "kinds": [{"kind": k, "mode": p.kinds.get(k, "ask"), "auto_max": p.limit(k),
+                   "locked": LOCKED.get(k)} for k in POLICY_KINDS],
+        "hard_cap": p.approval_over, "hard_cap_max": HARD_CAP,
+        "maker_checker_over": p.maker_checker_over, "grants": p.grants,
+        "ai_calls_per_hour": p.ai_calls_per_hour, "max_tool_steps": p.max_tool_steps,
+        "max_file_mb": p.max_file_mb, "ai_enabled": p.ai_enabled, "preview": preview,
+    }  # fmt: skip
+
+
+@app.get("/api/policy")
+def get_policy(request: Request):
+    _, s = _session(request, create=True)
+    return JSONResponse(jsonable_encoder(_policy_view(s)))
+
+
+class PolicyIn(BaseModel):
+    approver: str
+    copilot_mode: str | None = None
+    kinds: dict[str, str] | None = None
+    auto_max: dict[str, int] | None = None
+    hard_cap: int | None = None
+    maker_checker_over: int | None = None
+    maker_checker: bool | None = None
+    ai_calls_per_hour: int | None = None
+    max_tool_steps: int | None = None
+    max_file_mb: int | None = None
+    ai_enabled: bool | None = None
+    revoke_grant: int | None = None
+
+
+@app.post("/api/policy")
+def set_policy(request: Request, body: PolicyIn):
+    """Only a person edits the policy; the model has no route here. Each edit is checked as a
+    whole (locked kinds can't be made automatic, the hard cap only goes down) and logged with the
+    person's name and the before/after."""
+    sid, s = _session(request, create=True)
+    who = body.approver.strip()[:60]
+    if not who:
+        raise Oops(400, "Type your name to change the policy.", "Policy changes are recorded with who made them.")  # fmt: skip
+    old = _policy_view(s)
+    p = Policy(**{k: (dict(v) if isinstance(v, dict) else list(v) if isinstance(v, list) else v)
+                  for k, v in vars(s.policy).items()})  # fmt: skip
+    if body.copilot_mode is not None:
+        p.copilot_mode = body.copilot_mode
+    if body.kinds:
+        p.kinds.update(body.kinds)
+    if body.auto_max:
+        p.auto_max.update(body.auto_max)
+        if "journal_post" in body.auto_max:
+            p.auto_journal_max = body.auto_max["journal_post"]
+    if body.hard_cap is not None:
+        p.approval_over = body.hard_cap
+    if body.maker_checker is not None:
+        p.maker_checker_over = (body.maker_checker_over if body.maker_checker_over is not None else 100_000) if body.maker_checker else None  # fmt: skip
+    elif body.maker_checker_over is not None:
+        p.maker_checker_over = body.maker_checker_over
+    for k in ("ai_calls_per_hour", "max_tool_steps", "max_file_mb", "ai_enabled"):
+        if getattr(body, k) is not None:
+            setattr(p, k, getattr(body, k))
+    if not 1 <= p.ai_calls_per_hour <= 500 or not 1 <= p.max_tool_steps <= 10 or not 1 <= p.max_file_mb <= 15:  # fmt: skip
+        raise Oops(422, "A limit is out of range.", "AI calls 1-500 an hour, tool steps 1-10, file size 1-15 MB.")  # fmt: skip
+    if body.revoke_grant is not None:
+        if not 0 <= body.revoke_grant < len(p.grants):
+            raise Oops(404, "That permission no longer exists.", "Reload Settings.")
+        gone = p.grants.pop(body.revoke_grant)
+        s.log.log("human", "revoked always-allow", f"{gone['kind']} up to {gone['max']} paise, by {who}")  # fmt: skip
+    errs = p.check()
+    if errs:
+        raise Oops(422, f"Can't save that: {errs[0]}.", "Locked rows stay as they are; the hard cap can only be lowered.")  # fmt: skip
+    s.policy = p
+    if s.gate is not None:  # undecided actions are decided again under the new policy
+        s.gate.policy = p
+        for aid, a in list(s.gate.actions.items()):
+            if a.status in ("needs_approval", "auto") or (a.status == "blocked" and "policy" in a.reason):  # fmt: skip
+                del s.gate.actions[aid]
+                a.status, a.reason = s.gate._decide(a)
+                s.gate.actions[aid] = a
+    new = _policy_view(s)
+    diff = {k: (old[k], new[k]) for k in new if k not in ("preview", "modes") and old[k] != new[k]}
+    s.log.log("human", "changed the approval policy", f"by {who}: " + json.dumps(diff, default=str)[:600])  # fmt: skip
+    return _respond(sid, new)
