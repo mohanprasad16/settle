@@ -1,19 +1,19 @@
 # Settle system test
 
-Run 2026-11-17 19:45 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 206/206 checks passed.
+Run 2026-11-17 19:51 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 209/209 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
 | 0 Setup | 2 | 0 |
 | 1 Landing | 21 | 0 |
 | 10 Quality | 18 | 0 |
-| 11 AI-native | 25 | 0 |
+| 11 AI-native | 27 | 0 |
 | 11 Guidance | 10 | 0 |
 | 2 Sample results | 11 | 0 |
 | 3 Finding drawers | 9 | 0 |
 | 3b Settlements | 5 | 0 |
 | 4 Actions and rules | 14 | 0 |
-| 5 Ask | 21 | 0 |
+| 5 Ask | 22 | 0 |
 | 6 Chaos | 6 | 0 |
 | 7 Upload | 40 | 0 |
 | 8 Downloads | 6 | 0 |
@@ -24,17 +24,17 @@ Run 2026-11-17 19:45 · real Chrome via Playwright · desktop 1366×900 and phon
 | Step | Seconds |
 |---|---|
 | sample (click to results) | 0.83 |
-| ask: Why did a settlement never reach my bank? | 11.15 |
-| ask: How much did I lose to chargebacks this month? | 12.99 |
-| ask: Which day had the most refunds? | 10.94 |
-| ask: What should I do first? | 7.01 |
+| ask: Why did a settlement never reach my bank? | 12.33 |
+| ask: How much did I lose to chargebacks this month? | 11.87 |
+| ask: Which day had the most refunds? | 10.41 |
+| ask: What should I do first? | 22.67 |
 | chaos month 1 | 0.84 |
-| chaos month 2 | 0.82 |
+| chaos month 2 | 0.83 |
 | chaos month 3 | 0.82 |
-| CSV upload (submit to results) | 0.87 |
-| locked PDF (submit to review) | 9.46 |
-| scanned PDF (submit to review) | 8.48 |
-| digital PDF (submit to review) | 10.50 |
+| CSV upload (submit to results) | 0.86 |
+| locked PDF (submit to review) | 7.92 |
+| scanned PDF (submit to review) | 7.44 |
+| digital PDF (submit to review) | 7.94 |
 
 ## Every check
 
@@ -113,6 +113,8 @@ Run 2026-11-17 19:45 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ locked kinds can't be changed
 - ✅ after setting manual matches to Never, they're refused
 - ✅ policy edits are logged with who and what changed
+- ✅ an attached sheet gets a mapping card with a row preview
+- ✅ the sheet, used as orders, reconciles to the same issues
 - ✅ Approvals offers bulk Copilot prompts
 - ✅ decision log filters by who
 
@@ -198,6 +200,7 @@ Run 2026-11-17 19:45 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ 'What should I do first?' answered
 - ✅ 'What should I do first?' answer has ₹ figures
 - ✅ 'What should I do first?' answer cites proof
+- ✅ 'What should I do first?' trace timeline opens
 - ✅ injection in Ask doesn't claim to approve anything
 - ✅ injection in Ask changes no action
 - ✅ 600-character question refused politely
@@ -206,12 +209,12 @@ Run 2026-11-17 19:45 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #584792: every hidden problem found, nothing extra
-- ✅ Random month #584792: unexplained ₹0.00 on both bridges
-- ✅ Random month #536012: every hidden problem found, nothing extra
-- ✅ Random month #536012: unexplained ₹0.00 on both bridges
-- ✅ Random month #986568: every hidden problem found, nothing extra
-- ✅ Random month #986568: unexplained ₹0.00 on both bridges
+- ✅ Random month #600123: every hidden problem found, nothing extra
+- ✅ Random month #600123: unexplained ₹0.00 on both bridges
+- ✅ Random month #366858: every hidden problem found, nothing extra
+- ✅ Random month #366858: unexplained ₹0.00 on both bridges
+- ✅ Random month #752549: every hidden problem found, nothing extra
+- ✅ Random month #752549: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
@@ -325,12 +328,13 @@ Run 2026-11-17 19:45 · real Chrome via Playwright · desktop 1366×900 and phon
 - `e2e/screenshots/35_change_card_after_confirm.png`
 - `e2e/screenshots/36_suggested_rules.png`
 - `e2e/screenshots/37_settings_policy.png`
-- `e2e/screenshots/38_approvals_bulk.png`
-- `e2e/screenshots/39_landing_phone.png`
-- `e2e/screenshots/40_phone_header.png`
-- `e2e/screenshots/41_results_phone.png`
-- `e2e/screenshots/42_results_phone_full.png`
-- `e2e/screenshots/43_finding_drawer_phone.png`
+- `e2e/screenshots/38_excel_transform_preview.png`
+- `e2e/screenshots/39_approvals_bulk.png`
+- `e2e/screenshots/40_landing_phone.png`
+- `e2e/screenshots/41_phone_header.png`
+- `e2e/screenshots/42_results_phone.png`
+- `e2e/screenshots/43_results_phone_full.png`
+- `e2e/screenshots/44_finding_drawer_phone.png`
 
 ## Bugs the system test found
 

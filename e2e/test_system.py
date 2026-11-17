@@ -1207,6 +1207,35 @@ def native(page, ctx):
     log = httpx.get(base("A") + "/api/audit", cookies={c["name"]: c["value"] for c in page.context.cookies()}).json()["log"]  # fmt: skip
     check(A, "policy edits are logged with who and what changed", any(e["action"] == "changed the approval policy" and "Priya" in e["detail"] and "Manual match: ask → never" in e["detail"] for e in log))  # fmt: skip
 
+    # Excel in the chat: a messy orders workbook → preview card → used as orders → same result.
+    from openpyxl import Workbook  # dev dependency already in the project
+
+    rows = list(csv.DictReader((SAMPLE / "orders.csv").read_text().splitlines()))
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Invoice No", "Txn Date", "Customer Name", "Net Amount (₹)", "Paid Via", "Order Status", "Refund (₹)", "Refund Date"])  # fmt: skip
+    for r in rows:
+        ws.append([r["order_no"], r["order_date"], r["customer"], f"₹{float(r['amount']):,.2f}", r["payment_method"],
+                   r["status"], r["refund_amount"], r["refund_date"]])  # fmt: skip
+    xlsx = Path(tempfile.gettempdir()) / "my_orders.xlsx"
+    wb.save(xlsx)
+    before = sorted((f["check"], f["amount"]) for f in page.evaluate("state.view").get("findings"))
+    page.evaluate("go('overview')")
+    page.click("#cp-launch")
+    n_cards = page.locator("#cp-log .change").count()
+    page.set_input_files("#cp-file", str(xlsx))
+    page.wait_for_function("n => document.querySelectorAll('#cp-log .change').length > n", arg=n_cards, timeout=30_000)  # fmt: skip
+    sheet = page.locator("#cp-log .change").last
+    check(A, "an attached sheet gets a mapping card with a row preview", sheet.locator("details summary", has_text="Preview").count() == 1)  # fmt: skip
+    sheet.locator("details summary").click()
+    shot(page, "excel_transform_preview")
+    sheet.locator(".cc-name").fill("Priya")
+    sheet.locator("button", has_text="Allow once").click()
+    page.locator("#cp-log .change .banner.okb").last.wait_for(timeout=30_000)
+    after = sorted((f["check"], f["amount"]) for f in page.evaluate("state.view").get("findings"))
+    check(A, "the sheet, used as orders, reconciles to the same issues", after == before and page.evaluate("state.view.totals.unexplained") == 0)  # fmt: skip
+    page.locator("#copilot header button[aria-label='Close Copilot']").click()
+
     # Approvals: bulk prompts and log filter.
     page.evaluate("go('audit')")
     page.wait_for_selector("#log-body tr")
