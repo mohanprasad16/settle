@@ -23,7 +23,9 @@ def test_random_month(seed):
             f.check == p["check"] and f.amount == p["amount"] and p["refs"][0] in f.refs
             for f in result.findings
         ), p
-    assert result.totals["unexplained"] == 0
+    assert result.totals["unexplained"] == 0 and not result.exceptions
+    got = dict(con.execute("SELECT settlement_id, matched_by FROM settlement_bank").fetchall())
+    assert {s: got[s] for s in truth["matched_by"]} == truth["matched_by"]
     for bridge in (result.books_to_razorpay, result.razorpay_to_bank):
         assert next(s for s in bridge if s.kind == "residual").amount == 0
 

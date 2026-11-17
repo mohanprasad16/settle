@@ -37,9 +37,10 @@ SCHEMA = """Tables (DuckDB). Money columns are integer paise: divide by 100 for 
 - orders: the merchant's books. row_no, order_no, order_date, customer, amount,
   payment_method (razorpay|cod), status (paid|refunded|partially_refunded|cancelled|pending|failed),
   refund_amount, refund_date.
-- settlement_bank (view): one row per settlement. settlement_id, utr, settled_at, net,
-  received (credited in the bank), n_credits, in_transit.
-- findings: problems the engine found. id, check_name, kind (loss|customer|books), title,
+- settlement_bank: one row per settlement. settlement_id, utr, settled_at, net,
+  received (credited in the bank), n_credits, in_transit, matched_by (utr|amount_date|split),
+  unmatched_reason (why it couldn't be matched automatically).
+- findings: problems the engine found. id, check_name, kind (loss|customer|books|risk), title,
   amount_paise, refs (list of ids), facts (JSON)."""
 
 SYSTEM = """You answer a merchant's question about their Razorpay settlements, bank and books.
@@ -228,10 +229,12 @@ def ask(
             return Asked("I couldn't answer that just now. Please try again.", [], False, steps, usage, trace)  # fmt: skip
         bad = unsupported(ans.answer, allowed)
         if not bad:
-            return Asked(ans.answer, _valid(con, result, ans.citations), True, steps, usage, trace)  # fmt: skip
+            return Asked(ans.answer, _valid(con, result, ans.citations, ans.answer), True, steps, usage, trace)  # fmt: skip
         log.info("ask attempt %d unsupported numbers %s", attempt, bad)
         prompt += f"\n\nFix these figures in your last answer: {', '.join(bad)}. Use only figures from the research, written with ₹ for money, or say they weren't found."  # fmt: skip
-    return Asked(ans.answer, _valid(con, result, ans.citations), False, steps, usage, trace)
+    return Asked(
+        ans.answer, _valid(con, result, ans.citations, ans.answer), False, steps, usage, trace
+    )
 
 
 def _trace(step: int, tool: str, arg: str, out: str, start: float) -> dict:
@@ -246,10 +249,13 @@ def _trace(step: int, tool: str, arg: str, out: str, start: float) -> dict:
     return t
 
 
-def _valid(con, result: Result, cites: list[Citation]) -> list[Citation]:
-    """Drop citations that point at rows or findings that don't exist."""
+def _valid(con, result: Result, cites: list[Citation], answer: str = "") -> list[Citation]:
+    """Drop citations that point at rows or findings that don't exist; add any finding the
+    answer names (F3) but forgot to cite."""
     ids = {f.id for f in result.findings}
     keep = []
+    cites = cites + [Citation(source="finding", ref=i) for i in dict.fromkeys(re.findall(r"\bF\d+\b", answer))
+                     if i in ids and not any(c.source == "finding" and c.ref == i for c in cites)]  # fmt: skip
     for c in cites:
         if c.source == "finding" and c.ref in ids:
             keep.append(c)

@@ -48,47 +48,38 @@
         "pay_1RqqDsaWYCwnXt",
         "pay_2S8MRRxkGFKROZ",
         "pay_3pSvqzImJ0uxAL",
-        "pay_6QdfT7BCbZI45L",
         "pay_87bA0DjHcoG3Tq",
         "pay_90WkRmjcwunBfX",
-        "pay_AXbuVJuUKEhiMA",
-        "pay_EeTq6CyCVXCqia",
         "pay_GWIygOYWoWY6HE",
-        "pay_IOjk25XGT3Gzta",
-        "pay_JLXgcXhg1HrZD5",
-        "pay_JwE76usPRpExSX",
-        "pay_K1XGYbyslcCzIp",
-        "pay_LQ4pCqIHmX1m9x",
         "pay_LQQI4pOLT4fsIK",
         "pay_Mvx0Z0KWE1JlRi",
-        "pay_NyymDaAaPIEJ5h",
         "pay_PHUVsANsipAJ3K",
-        "pay_QG1tKg6ZYbBOnN",
-        "pay_R8CLpwTFC2CaT7",
-        "pay_TAjzEjXMFSWqL9",
-        "pay_UIFFsGulqOnm5B",
-        "pay_Vhshbhvw98Vsdq",
-        "pay_ZuqwZOyxCdWsIA",
         "pay_anRB5StMEn3tT2",
-        "pay_cITn8Wc5n596JW",
         "pay_drJgigyoVmtpuW",
         "pay_fwYdQV0Fbij9PZ",
-        "pay_hzJaMXB6PdY60W",
         "pay_j9Zp5ZxH41RZ34",
         "pay_jHt8UltZ1ybRRU",
-        "pay_jk3uj2z1Ncb69I",
         "pay_kEM41FTPvru9Pu",
         "pay_mKfJbnUwJHxpwK",
-        "pay_opJ8HMy0C8B8G9",
-        "pay_qSieHZuKrzq2JC",
-        "pay_r5YJ6x8ePlA1vc",
-        "pay_rcY1ARsAwcWrZS",
-        "pay_uBltVxg67BdWSH",
-        "pay_yeBMcc5cosLyag",
-        "pay_z1MlxdLfg3jD9F",
-        "pay_zXQls4ObynR3Wh"
+        "pay_yeBMcc5cosLyag"
       ],
-      "amount": 32116
+      "amount": 16954
+    },
+    {
+      "check": "rate_misclassified",
+      "refs": [
+        "pay_DEG90xdmYSGTmD",
+        "pay_DLIu10hh0xfVaG",
+        "pay_ECPukCgmXbZQ3Q",
+        "pay_EtRTYBVyjLdj9v",
+        "pay_d9V4xBj4G3kk1r",
+        "pay_kBDe9pL5aVJ7Tk",
+        "pay_lhJUv5bzLiyMAP",
+        "pay_m6RxXpYRi2SCXD",
+        "pay_pj09PttiXMpLZg",
+        "pay_qpNwszQ5Vi4fcR"
+      ],
+      "amount": 17456
     },
     {
       "check": "duplicate_refund",
@@ -176,25 +167,42 @@
     {
       "check": "ghost_success",
       "refs": [
-        "KK-10594",
-        "pay_rcY3WHJfPrYfmq"
+        "KK-11306",
+        "pay_XM0PKWHktRu4ST"
       ],
       "amount": 499800
     },
     {
       "check": "ghost_success",
       "refs": [
-        "KK-10702",
-        "pay_Qr5xKwC0L30e36"
+        "KK-11606",
+        "pay_chQHGhYPOcncsK"
       ],
-      "amount": 49900
+      "amount": 69800
+    },
+    {
+      "check": "refund_spike",
+      "refs": [
+        "2026-10-12"
+      ],
+      "amount": 4100800
+    },
+    {
+      "check": "repeat_refunder",
+      "refs": [
+        "Ritu Srinivasan",
+        "KK-10499",
+        "KK-10712",
+        "KK-11598"
+      ],
+      "amount": 234700
     },
     {
       "check": "settlement_missing",
       "refs": [
         "setl_6ODkowvxYxMciS"
       ],
-      "amount": 5365747
+      "amount": 2119639
     },
     {
       "check": "settlement_short",
@@ -203,5 +211,10 @@
       ],
       "amount": 200000
     }
-  ]
+  ],
+  "matched_by": {
+    "setl_LEDjhKChBSSDyw": "amount_date",
+    "setl_r4ISQBRlHONslg": "amount_date",
+    "setl_RcMMH6dbSgiYw2": "split"
+  }
 }

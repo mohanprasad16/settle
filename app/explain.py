@@ -5,7 +5,7 @@ repeat figures from it: a guard checks every number it writes, retries once nami
 offenders, then falls back to a fixed template. The sample's explanations are cached so the
 demo loads instantly with no model calls.
 
-    uv run python -m app.explain     # regenerate data/sample/explanations.json
+    uv run python -m app.explain     # refresh data/sample/explanations.json (changed findings only)
 """
 
 import hashlib
@@ -26,8 +26,9 @@ from app.money import rupees
 log = logging.getLogger(__name__)
 
 MONEY = {"order_amount", "captured", "difference", "books_refund", "razorpay_refunds", "amount",
-         "net_settled", "bank_received"}  # fmt: skip
-PCT = {"agreed_rate_pct", "charged_rate_pct", "gst_pct"}
+         "net_settled", "bank_received", "total_refunded"}  # fmt: skip
+PCT = {"agreed_rate_pct", "charged_rate_pct", "gst_pct", "contract_rate_pct", "refund_rate_pct",
+       "others_rate_pct"}  # fmt: skip
 SAMPLE_CACHE = Path(__file__).resolve().parent.parent / "data" / "sample" / "explanations.json"
 
 SYSTEM = """You explain one reconciliation finding to a small-business owner in India.
@@ -118,6 +119,36 @@ def template(f: Finding) -> Explained:
             "Most likely part of the transfer was held or reversed by the bank.",
             ["Ask your bank for the full credit details of the UTR.", "Share the gap with Razorpay support."],
             "your bank"),
+        "settlement_over": (
+            f"Bank credited {g('impact')} more than settlement {g('settlement_id')}.",
+            f"Razorpay settled {g('net_settled')} under UTR {g('utr')}, but your bank shows {g('bank_received')} against it.",
+            "Most likely the bank posted the same credit twice and may reverse it later.",
+            ["Don't spend the extra; ask your bank whether the credit was posted twice."],
+            "your bank"),
+        "rate_misclassified": (
+            f"{g('payments')} debit-card payments were charged the credit-card rate.",
+            f"Your contract charges debit cards {g('contract_rate_pct')}, but these payments were charged {g('charged_rate_pct')}, the credit-card rate, costing you {g('impact')} extra including GST.",
+            "Most likely the cards were classified as credit cards when the fee was worked out.",
+            ["Ask Razorpay support to reclassify these payments and refund the difference."],
+            "Razorpay support"),
+        "refund_spike": (
+            f"{g('refunds')} refunds on {g('date')}, far above a normal day.",
+            f"Refunds on {g('date')} came to {g('total_refunded')} across {g('refunds')} refunds; a normal day has about {g('usual_per_day')}.",
+            "Most likely a batch of orders went wrong (stock, quality or delivery), or refunds are being misused.",
+            ["Check which products and orders were refunded that day.", "Confirm each refund was approved by your team."],
+            "your store/ops team"),
+        "repeat_refunder": (
+            f"{g('customer')} was refunded on {g('refunds')} different orders.",
+            f"{g('customer')} got {g('total_refunded')} back across {g('refunds')} orders ({g('orders')}).",
+            "Most likely the return policy is being misused, or this customer keeps getting bad deliveries.",
+            ["Review this customer's orders and delivery proof before the next refund."],
+            "your store/ops team"),
+        "method_refund_rate": (
+            f"{g('method')} payments are refunded far more than the rest.",
+            f"{g('refund_rate_pct')} of {g('method')} payments were refunded ({g('refunds')} of {g('payments')}), against {g('others_rate_pct')} for other methods; {g('total_refunded')} in all.",
+            "Most likely a problem specific to that payment method, such as failed confirmations or misuse.",
+            ["Look at a few of these refunds to find what they have in common."],
+            "your store/ops team"),
         "paid_order_no_payment": (
             f"Order {g('order_no')} is marked paid but no payment came in.",
             f"Your books show {g('order_no')} as paid for {g('order_amount')} on {g('order_date')}, but Razorpay has no payment for it.",
@@ -207,7 +238,9 @@ def explain(f: Finding, llm: LLM | None) -> Explained:
     if llm is None:
         return template(f)
     sheet = fact_sheet(f)
-    prompt = "Fact sheet:\n" + "\n".join(f"- {k.replace('_', ' ')}: {v}" for k, v in sheet.items())
+    prompt = "Fact sheet:\n" + "\n".join(
+        f"- {k.removesuffix('_pct').replace('_', ' ')}: {v}" for k, v in sheet.items()
+    )
     for attempt in range(2):
         try:
             exp = llm.json(SYSTEM, prompt, Explanation)
@@ -258,8 +291,9 @@ if __name__ == "__main__":
     d = SAMPLE_CACHE.parent
     con = duckdb.connect()
     result = run(con, load(con, d / "razorpay_settlements.csv", d / "bank_statement.csv", d / "orders.csv"))  # fmt: skip
-    cache: dict[str, Explained] = {}
+    cache = load_cache(SAMPLE_CACHE)  # only findings whose facts changed go to the model
+    hits = sum(cache_key(f) in cache for f in result.findings)
     out = explain_all(result, GeminiLLM(), cache)
-    save_cache(SAMPLE_CACHE, cache)
+    save_cache(SAMPLE_CACHE, {cache_key(f): cache[cache_key(f)] for f in result.findings})
     sources = [e.source for e in out.values()]
-    print(f"{sources.count('model')} model, {sources.count('template')} template")
+    print(f"{hits} cached, {sources.count('model')} model, {sources.count('template')} template")

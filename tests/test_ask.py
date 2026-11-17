@@ -8,6 +8,7 @@ from app.ask import MAX_CALLS, Answer, Citation, ask, run_sql
 from app.engine import run
 from app.llm import AgentReply, ToolCall
 from app.load import load
+from app.money import rupees
 
 
 @pytest.fixture(scope="module")
@@ -74,12 +75,12 @@ def test_answer_with_citations(data):
     missing = next(f for f in result.findings if f.check == "settlement_missing")
     llm = FakeLLM(
         [_sql("SELECT settlement_id, net, received FROM settlement_bank WHERE received = 0 AND NOT in_transit")],
-        [Answer(answer="Settlement of ₹53,657.47 never reached your bank.",
+        [Answer(answer=f"Settlement of {rupees(missing.amount)} never reached your bank.",
                 citations=[Citation(source="finding", ref=missing.id),
                            Citation(source="rp", ref="999999")])],
     )  # fmt: skip
     a = ask(con, result, "Why is a settlement missing?", llm)
-    assert a.verified and "₹53,657.47" in a.answer
+    assert a.verified and rupees(missing.amount) in a.answer
     assert [(c.source, c.ref) for c in a.citations] == [("finding", missing.id)]  # bad row dropped
     assert a.steps[0]["tool"] == "run_sql"
 
@@ -122,11 +123,11 @@ def test_trace_records_each_tool_call(data):
 def test_money_without_rupee_sign_is_sent_back(data):
     con, result = data
     missing = next(f for f in result.findings if f.check == "settlement_missing")
-    llm = FakeLLM([], [Answer(answer="It was 53,657.47.", citations=[]),
-                       Answer(answer="It was ₹53,657.47.", citations=[])])  # fmt: skip
+    amount = rupees(missing.amount)
+    llm = FakeLLM([], [Answer(answer=f"It was {amount[1:]}.", citations=[]),
+                       Answer(answer=f"It was {amount}.", citations=[])])  # fmt: skip
     a = ask(con, result, "How much was the missing settlement?", llm)
-    assert a.verified and a.answer == "It was ₹53,657.47." and llm.json_calls == 2
-    assert missing.amount == 5365747
+    assert a.verified and a.answer == f"It was {amount}." and llm.json_calls == 2
 
 
 def test_findings_and_contacts_are_given_up_front(data):

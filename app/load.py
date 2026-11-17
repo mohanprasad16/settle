@@ -43,6 +43,15 @@ def _paise(col: str) -> str:
     return f"COALESCE(CAST(round(CAST({clean} AS DECIMAL(18, 2)) * 100) AS BIGINT), 0)"
 
 
+def _network(col: str) -> str:
+    """Card networks as the rate card names them, whatever the export calls them."""
+    n = f"upper(trim({col}))"
+    return f"""CASE WHEN {n} IN ('AMEX', 'AMERICAN EXPRESS') THEN 'American Express'
+        WHEN {n} LIKE '%DINERS%' THEN 'Diners Club' WHEN {n} = 'RUPAY' THEN 'RuPay'
+        WHEN {n} = 'VISA' THEN 'Visa' WHEN {n} IN ('MASTERCARD', 'MASTER CARD', 'MC') THEN 'MasterCard'
+        ELSE NULLIF(trim({col}), '') END"""
+
+
 def _int(col: str) -> str:
     return f"COALESCE(CAST(NULLIF(trim({col}), '') AS BIGINT), 0)"
 
@@ -84,10 +93,11 @@ def load(con: duckdb.DuckDBPyConnection, rp: Path, bank: Path, orders: Path) -> 
                 {_int("fee")} AS fee, {_int("tax")} AS tax,
                 {_ist("created_at")} AS created_at, {_ist("settled_at")} AS settled_at,
                 trim(settlement_id) AS settlement_id, NULLIF(trim(settlement_utr), '') AS utr,
-                NULLIF(trim(order_receipt), '') AS order_receipt,
+                NULLIF(upper(trim(order_receipt)), '') AS order_receipt,
                 NULLIF(trim(payment_id), '') AS payment_id, NULLIF(trim(order_id), '') AS order_id,
                 NULLIF(trim(description), '') AS description, lower(trim(method)) AS method,
-                NULLIF(trim(card_network), '') AS card_network, NULLIF(trim(dispute_id), '') AS dispute_id
+                {_network("card_network")} AS card_network, lower(NULLIF(trim(card_type), '')) AS card_type,
+                NULLIF(trim(dispute_id), '') AS dispute_id
             FROM raw_rp""")
         con.execute(f"""
             CREATE OR REPLACE TABLE bank AS SELECT
@@ -97,7 +107,7 @@ def load(con: duckdb.DuckDBPyConnection, rp: Path, bank: Path, orders: Path) -> 
             FROM raw_bank""")
         con.execute(f"""
             CREATE OR REPLACE TABLE orders AS SELECT
-                row_no, trim(order_no) AS order_no, {_date("order_date")} AS order_date,
+                row_no, upper(trim(order_no)) AS order_no, {_date("order_date")} AS order_date,
                 trim(customer) AS customer, {_paise("amount")} AS amount,
                 lower(trim(payment_method)) AS payment_method, lower(trim(status)) AS status,
                 {_paise("refund_amount")} AS refund_amount, {_date("refund_date")} AS refund_date

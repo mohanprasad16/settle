@@ -1,61 +1,62 @@
 {
-  "09222bf08555109e": {
-    "headline": "Settlement of \u20b953,657.47 failed to reach your bank account",
-    "what_happened": "A net settled payout of \u20b953,657.47 involving 49 items was marked as settled on 14 Oct 2026 under settlement id setl_6ODkowvxYxMciS with UTR UTIBR58302335367, but the bank received amount shows \u20b90.00.",
-    "likely_cause": "Most likely, there was a processing failure or delay between the payment gateway and your bank branch after the UTR was generated.",
+  "9aef9efdc65d2b78": {
+    "headline": "Settlement of \u20b921,196.39 missing from bank account",
+    "what_happened": "A net settled amount of \u20b921,196.39 for 73 items was processed under settlement id setl_6ODkowvxYxMciS on 14 Oct 2026 with UTR UTIBR58302335367, but your bank received \u20b90.00.",
+    "likely_cause": "Most likely the payment gateway released the payout with a valid UTR, but your bank held or misrouted the incoming transfer.",
     "what_to_do": [
-      "Provide UTR UTIBR58302335367 and settlement id setl_6ODkowvxYxMciS to trace the missing \u20b953,657.47."
-    ],
-    "who_to_contact": "Razorpay support",
-    "source": "model",
-    "verified": true
-  },
-  "3faa33d560e442f9": {
-    "headline": "Bank account received less than the total settlement amount",
-    "what_happened": "For settlement id setl_9rHmNeuxtEjEXM settled on 21 Oct 2026, the net settled amount was \u20b963,792.28 across 50 items. However, your bank received \u20b961,792.28 under UTR UTIBR59944785665, resulting in an impact of \u20b92,000.00.",
-    "likely_cause": "Most likely, the bank withheld an amount during processing, or unexpected bank fees, a chargeback, or GST on fees was deducted before crediting the final amount.",
-    "what_to_do": [
-      "Share the UTR UTIBR59944785665 and settlement id setl_9rHmNeuxtEjEXM with your bank to trace the missing \u20b92,000.00.",
-      "Check your latest bank account statement to verify if any specific charges or deductions were logged for this transfer."
+      "Share UTR UTIBR58302335367 and settlement id setl_6ODkowvxYxMciS with your bank branch to track the incoming transfer for \u20b921,196.39.",
+      "Check if your bank account details listed with your payment gateway are fully accurate and active."
     ],
     "who_to_contact": "your bank",
     "source": "model",
     "verified": true
   },
-  "a31bf0f00d90822a": {
-    "headline": "Order KK-11106 marked paid without Razorpay settlement",
-    "what_happened": "Order KK-11106 for \u20b91,499.00 on 12 Oct 2026 from customer Vihaan Iyer shows as paid in your store, but there is no corresponding payment at Razorpay.",
-    "likely_cause": "Most likely, the checkout session was marked paid by a system error or manual status update before the payment settlement was confirmed.",
+  "34c777b997dcaa8d": {
+    "headline": "Bank credited less than the net settled amount",
+    "what_happened": "For settlement setl_9rHmNeuxtEjEXM settled on 21 Oct 2026 covering 50 items, the net settled amount was \u20b964,942.62, but your bank received \u20b962,942.62 under UTR UTIBR59944785665. This leaves a difference of \u20b92,000.00.",
+    "likely_cause": "Most likely, your bank deducted bank charges, applied a chargeback, or withheld funds during the transfer.",
     "what_to_do": [
-      "Check your store backend settings to see how order KK-11106 was marked as paid.",
-      "Ask Vihaan Iyer for a screenshot or reference number of their payment confirmation.",
-      "Reach out to Razorpay support using reference id KK-11106 to verify if any payment was attempted."
+      "Check your bank statement entry for UTR UTIBR59944785665 to see if any bank charges or GST on fees were deducted.",
+      "Share settlement setl_9rHmNeuxtEjEXM and UTR UTIBR59944785665 with your bank to trace the missing \u20b92,000.00."
+    ],
+    "who_to_contact": "your bank",
+    "source": "model",
+    "verified": true
+  },
+  "6fe3813cbcdcd385": {
+    "headline": "Order KK-11106 is marked paid but no money was received at Razorpay",
+    "what_happened": "Order KK-11106 placed by Vihaan S. Iyer on 12 Oct 2026 for \u20b91,499.00 shows as paid in your store, but there is no corresponding payment at Razorpay, creating an impact of \u20b91,499.00.",
+    "likely_cause": "Most likely, the payment failed at the gateway or the customer abandoned the checkout after the order status updated.",
+    "what_to_do": [
+      "Check your store/ops team records to confirm if order KK-11106 for \u20b91,499.00 was already shipped to Vihaan S. Iyer.",
+      "Contact Razorpay support to search for payment attempts linked to reference id KK-11106."
     ],
     "who_to_contact": "Razorpay support",
     "source": "model",
     "verified": true
   },
-  "8b3b0c43250a4c98": {
-    "headline": "Order KK-10925 marked paid without payment at Razorpay",
-    "what_happened": "Order KK-10925 dated 9 Oct 2026 for \u20b9649.00 from customer Aarav Verma shows as paid in your store system, but no payment of \u20b9649.00 was recorded at Razorpay, resulting in an impact of \u20b9649.00.",
-    "likely_cause": "Most likely, the checkout session encountered a technical glitch during the settlement process, or the customer abandoned the payment page after the order status updated.",
+  "482a7138bffd531e": {
+    "headline": "Order KK-10925 shown as paid but missing from Razorpay settlement record",
+    "what_happened": "Order KK-10925 dated 9 Oct 2026 for \u20b9649.00 from Aarav B. Verma is marked as paid in the store system, but Razorpay has no record of receiving the payment amount of \u20b9649.00.",
+    "likely_cause": "Most likely, the checkout session failed or timed out before the payment settlement was completed by the payment gateway.",
     "what_to_do": [
-      "Check your store control panel to review the status of order KK-10925.",
-      "Contact Razorpay support with reference ID KK-10925 to verify if any payment attempt was received."
+      "Check your store backend for order KK-10925 to verify the exact status logged during checkout.",
+      "Reach out to Razorpay support with reference ID KK-10925 to confirm if any payment was captured."
     ],
     "who_to_contact": "Razorpay support",
     "source": "model",
     "verified": true
   },
-  "019377b012320ead": {
+  "bdb492c928f129fe": {
     "headline": "Order marked paid without Razorpay payment",
-    "what_happened": "Order no KK-11594 for order amount \u20b9499.00 from customer Tara Gupta on 20 Oct 2026 shows as paid in your system, but no payment was received at Razorpay, creating an impact of \u20b9499.00.",
-    "likely_cause": "Most likely, a technical glitch occurred during checkout or a status update failed between your store platform and the payment gateway.",
+    "what_happened": "Order KK-11594 for \u20b9499.00 placed by customer Tara D. Gupta on 20 Oct 2026 shows as paid in your system, but no payment of \u20b9499.00 was received at Razorpay.",
+    "likely_cause": "Most likely, the checkout session was marked completed due to a webhook sync issue or a failed gateway transfer.",
     "what_to_do": [
-      "Check your store platform logs for order no KK-11594 to see how the status was set to paid.",
-      "Verify with your store/ops team if any manual status updates or fulfillment actions were taken for this order."
+      "Check your store control panel to review the payment status for reference id KK-11594.",
+      "Ask your store/ops team to verify if order KK-11594 was packed or shipped before receiving settlement confirmation.",
+      "Contact Razorpay support with reference id KK-11594 to trace the transaction details."
     ],
-    "who_to_contact": "your store/ops team",
+    "who_to_contact": "Razorpay support",
     "source": "model",
     "verified": true
   },
@@ -97,13 +98,26 @@
     "source": "model",
     "verified": true
   },
-  "db114c5a0818d6f3": {
-    "headline": "Card transaction fees were charged higher than your agreed rate",
-    "what_happened": "From 16 Oct 2026 to 18 Oct 2026, a total of 45 card payments were charged a rate of 2.4% instead of your agreed rate of 2%. This resulted in a total extra fee deduction of \u20b9321.16 on transactions like pay_anRB5StMEn3tT2 and pay_3pSvqzImJ0uxAL.",
-    "likely_cause": "Most likely, a temporary system misconfiguration applied a 2.4% rate instead of your 2% agreed rate on card settlements during this period.",
+  "ae1547480344c3b9": {
+    "headline": "Higher fees deducted on card payments",
+    "what_happened": "For 20 card payments between 16 Oct 2026 and 18 Oct 2026, including reference IDs pay_anRB5StMEn3tT2, pay_3pSvqzImJ0uxAL, pay_jHt8UltZ1ybRRU, pay_1PdaNV0znk84wl, pay_PHUVsANsipAJ3K, pay_j9Zp5ZxH41RZ34, pay_fwYdQV0Fbij9PZ, pay_1RqqDsaWYCwnXt, pay_87bA0DjHcoG3Tq, and pay_Mvx0Z0KWE1JlRi, the charged rate pct was 2.4% instead of your agreed rate pct of 1.95%. This resulted in a loss of \u20b9169.54.",
+    "likely_cause": "Most likely, the payment gateway applied an incorrect fee pricing plan to your card settlements during this period.",
     "what_to_do": [
-      "Share the list of reference IDs including pay_anRB5StMEn3tT2 and pay_3pSvqzImJ0uxAL with Razorpay support.",
-      "Request a refund for the extra \u20b9321.16 deducted along with any adjusted GST on fees."
+      "Share the reference IDs pay_anRB5StMEn3tT2 and pay_3pSvqzImJ0uxAL with the gateway team to highlight the rate difference.",
+      "Request a refund of \u20b9169.54 for the extra fees and any related extra GST on fees charged during these settlements.",
+      "Ask them to set your card transaction pricing back to your agreed rate pct of 1.95% for all upcoming settlements."
+    ],
+    "who_to_contact": "Razorpay support",
+    "source": "model",
+    "verified": true
+  },
+  "dee86756151f3ae0": {
+    "headline": "Debit card payments billed at higher rate",
+    "what_happened": "Across 10 payments between 6 Oct 2026 and 7 Oct 2026, your debit card transactions were charged a rate of 1.95% instead of your contract rate of 0.9%. This affected MasterCard and Visa debit cards, resulting in a loss of \u20b9174.56. Transaction IDs include pay_kBDe9pL5aVJ7Tk, pay_pj09PttiXMpLZg, pay_DEG90xdmYSGTmD, pay_lhJUv5bzLiyMAP, pay_DLIu10hh0xfVaG, pay_EtRTYBVyjLdj9v, pay_qpNwszQ5Vi4fcR, pay_ECPukCgmXbZQ3Q, pay_d9V4xBj4G3kk1r, and pay_m6RxXpYRi2SCXD.",
+    "likely_cause": "Most likely, the payment gateway misclassified your debit card transactions as credit card payments during settlement.",
+    "what_to_do": [
+      "Share transaction details like pay_kBDe9pL5aVJ7Tk and pay_pj09PttiXMpLZg with Razorpay support to claim a refund for the excess fees and GST on fees.",
+      "Request a correction of the applied fee rate from 1.95% to your agreed contract rate of 0.9% for debit cards."
     ],
     "who_to_contact": "Razorpay support",
     "source": "model",
@@ -143,6 +157,30 @@
       "Verify the entry date of 19 Oct 2026 with your accountant to align your books with the actual processed amounts."
     ],
     "who_to_contact": "your accountant",
+    "source": "model",
+    "verified": true
+  },
+  "53423a11d7625f61": {
+    "headline": "Order KK-11306 pending in store despite payment captured",
+    "what_happened": "Razorpay captured \u20b94,998.00 for order no KK-11306 using upi on 15 Oct 2026 under payment id pay_XM0PKWHktRu4ST and razorpay order id order_am1AkIDxMhA3VE, but the books status is still pending.",
+    "likely_cause": "Most likely, the webhook notification from Razorpay failed to update your store system after the settlement or capture was completed.",
+    "what_to_do": [
+      "Check your store/ops system logs for payment id pay_XM0PKWHktRu4ST to confirm if the status update failed.",
+      "Update the books status manually for order no KK-11306 to avoid delaying the customer's books."
+    ],
+    "who_to_contact": "your store/ops team",
+    "source": "model",
+    "verified": true
+  },
+  "5125270cb07c6617": {
+    "headline": "Payment captured for pending order KK-11606",
+    "what_happened": "Your store shows order no KK-11606 status as pending for books, but payment id pay_chQHGhYPOcncsK of \u20b9698.00 was captured on 20 Oct 2026 using card. The amount involved is \u20b9698.00 under razorpay order id order_gISPoaBkWu5H5K.",
+    "likely_cause": "Most likely, a technical communication delay between Razorpay and your store update system prevented the order status from updating automatically after the card payment was captured.",
+    "what_to_do": [
+      "Check razorpay order id order_gISPoaBkWu5H5K and reference ids KK-11606 and pay_chQHGhYPOcncsK in your system to verify the payment status.",
+      "Update the status for order no KK-11606 manually in your books from pending so your team can fulfill the books order."
+    ],
+    "who_to_contact": "your store/ops team",
     "source": "model",
     "verified": true
   },
@@ -231,25 +269,25 @@
     "source": "model",
     "verified": true
   },
-  "71950fb896a55840": {
-    "headline": "Payment captured but order status remains pending",
-    "what_happened": "The customer paid \u20b94,998.00 using a card for order no KK-10594, and payment id pay_rcY3WHJfPrYfmq was captured on 3 Oct 2026 under razorpay order id order_txEjHbALGbG4xq. However, the books status for this \u20b94,998.00 transaction is still marked as pending.",
-    "likely_cause": "Most likely, a technical update between Razorpay and your website failed after the payment succeeded.",
+  "62b123bf74c8ba1f": {
+    "headline": "Unusual spike in refunds",
+    "what_happened": "On 12 Oct 2026, there were 28 refunds totaling \u20b941,008.00, compared to the usual 4 refunds per day. The total impact recorded is \u20b941,008.00.",
+    "likely_cause": "Most likely, a technical glitch in your payment setup or product issues caused an unexpected surge in customer refund requests.",
     "what_to_do": [
-      "Check your store backend using reference ids KK-10594 and pay_rcY3WHJfPrYfmq to see if the order can be manually confirmed.",
-      "Share payment id pay_rcY3WHJfPrYfmq and razorpay order id order_txEjHbALGbG4xq with technical help to fix the status."
+      "Check refund IDs such as rfnd_LvY5C8mr3XH0hd and rfnd_1sTCyYiMsQjmm7 with your store/ops team to see if there were fulfillment or technical issues on 12 Oct 2026.",
+      "Review your settlement details and GST on fees for these 28 refunds to understand the full cost impact."
     ],
     "who_to_contact": "your store/ops team",
     "source": "model",
     "verified": true
   },
-  "286c7d11f7d66f4b": {
-    "headline": "Payment captured for order KK-10702 but store status remains pending",
-    "what_happened": "The customer paid \u20b9499.00 using netbanking for order no KK-10702, which was captured on 5 Oct 2026 under payment id pay_Qr5xKwC0L30e36 and razorpay order id order_XPNk2wDbl6s6mS. However, the books status for this order still shows pending.",
-    "likely_cause": "Most likely, the automatic update confirmation between the payment system and your store system was delayed or disconnected after the netbanking transaction was completed.",
+  "c589d28e4293c372": {
+    "headline": "Multiple refunds issued to Ritu Srinivasan across three orders",
+    "what_happened": "The customer Ritu Srinivasan received 3 refunds across orders KK-10499, KK-10712, and KK-11598, with the total refunded amount reaching \u20b92,347.00.",
+    "likely_cause": "Most likely, repeated system errors or product delivery issues led to multiple refund requests for orders KK-10499, KK-10712, and KK-11598.",
     "what_to_do": [
-      "Check your store backend for order no KK-10702 to manually match it with reference id pay_Qr5xKwC0L30e36.",
-      "Update the books status from pending to paid so your team can process the order."
+      "Check the status of orders KK-10499, KK-10712, and KK-11598 with your team.",
+      "Verify the settlement records and refund details for customer Ritu Srinivasan to confirm if the total refunded amount of \u20b92,347.00 is accurate."
     ],
     "who_to_contact": "your store/ops team",
     "source": "model",

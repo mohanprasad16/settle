@@ -4,9 +4,10 @@ purpose and an answer key (truth.json) listing each one and its exact rupee impa
     uv run python -m app.sample            # writes data/sample/*.csv + truth.json
     uv run python -m app.sample 42 /tmp/x  # a random month (what "Inject chaos" serves)
 
-The Razorpay file uses the columns of Razorpay's settlement recon API (amounts in paise). Every
-"normal" thing a real month has is in here too, so the engine has to tell them apart from the
-problems: partial refunds, Amex at 3%, a settlement split into two bank credits, month-end
+The Razorpay file uses the columns of Razorpay's settlement recon API (amounts in paise). Fees
+follow the merchant's rate card (engine.RateCard). Every "normal" thing a real month has is in
+here too, so the engine has to tell them apart from the problems: partial refunds, zero-fee UPI,
+Amex at 2.95%, a settlement split into two bank credits, bank lines with no UTR, month-end
 orders that settle in November, September payments settled in October, COD orders, rent and
 salary lines in the bank, last month's settlement credited on 1 Oct, abandoned checkouts.
 
@@ -19,17 +20,21 @@ import json
 import random
 import string
 import tempfile
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+
+from app.engine import RateCard
 
 IST = timezone(timedelta(hours=5, minutes=30))
 PERIOD_START, PERIOD_END = date(2026, 10, 1), date(2026, 10, 31)
 FIRST_ORDER_DAY = date(2026, 9, 28)  # September orders settle in October: carry-in
 LAG_DAYS = 2  # T+2 settlement
-RATE_BP = {"default": 200, "premium": 300}  # 2% domestic, 3% Amex / Diners
-PREMIUM = ("American Express", "Diners Club")
-OVERCHARGE_BP = 240
+CONTRACT = RateCard()  # Kaapi Kart's contract; the engine checks fees against the same card
+PREMIUM = CONTRACT.premium_networks
+OVERCHARGE_BP = 240  # the glitch: credit cards at 2.4% instead of 1.95%
+REPEAT, REPEAT_NAME = 3, "Ritu Srinivasan"  # a name the random customers never get
 PRICES = [34900, 49900, 64900, 89900, 119900, 149900, 249900]
 DEMO_SEED = 7
 FILES = {
@@ -91,7 +96,8 @@ class Plan:
     no_payment: int = 3
     short_capture: int = 2
     short_by: int = 10000
-    glitch: tuple[int, int] | None = (16, 18)  # card fees at 2.4% on these days
+    glitch: tuple[int, int] | None = (16, 18)  # credit-card fees at 2.4% on these days
+    misclass: tuple[int, int] | None = (6, 7)  # debit cards charged the credit rate
     dup_refund: int = 1
     refund_not_in_books: int = 3
     books_refund_np: int = 2
@@ -101,8 +107,14 @@ class Plan:
     missing_days: list[int] = field(default_factory=lambda: [14])  # settlement days
     short_days: list[tuple[int, int]] = field(default_factory=lambda: [(21, 200000)])
     split_days: list[int] = field(default_factory=lambda: [9])
+    no_utr_days: list[int] = field(default_factory=lambda: [5, 23])  # bank line prints no UTR
+    split_no_utr_days: list[int] = field(default_factory=lambda: [27])  # split, no UTR either
     ghost: int = 2  # paid at Razorpay, order still pending in the store
     abandoned: int = 4  # pending / failed checkouts with no payment: normal, not a problem
+    spike_day: int | None = 12  # a burst of refunds on one day
+    spike_size: int = 24
+    repeat_refunder: bool = True  # one customer refunded on 3 orders
+    method_spike: str | None = None  # one method refunded far more than the rest
 
 
 def plan_for(seed: int) -> Plan:
@@ -110,25 +122,34 @@ def plan_for(seed: int) -> Plan:
         return Plan()
     rng = random.Random(seed * 7919 + 13)
     n = lambda: rng.randint(0, 3)
-    k_miss, k_short, k_split = n(), n(), n()
-    days = rng.sample(range(1, 31), k_miss + k_short + k_split)
-    start = rng.randint(1, 27)
+    k_miss, k_short, k_split, k_nu, k_nus = n(), n(), n(), n(), rng.randint(0, 1)
+    days = rng.sample(range(1, 31), k_miss + k_short + k_split + k_nu + k_nus)
+    start, mstart = rng.randint(1, 27), rng.randint(1, 27)
+    cut = [k_miss, k_short, k_split, k_nu, k_nus]
+    at = [sum(cut[:i]) for i in range(6)]
     return Plan(
         no_payment=n(),
         short_capture=n(),
         short_by=rng.choice([5000, 10000, 25000]),
         glitch=(start, start + rng.randint(0, 2)) if rng.random() < 0.6 else None,
+        misclass=(mstart, mstart + rng.randint(0, 2)) if rng.random() < 0.5 else None,
         dup_refund=n(),
         refund_not_in_books=n(),
         books_refund_np=n(),
         chargeback=n(),
         orphans=[(rng.randint(1, 27), rng.choice(PRICES)) for _ in range(n())],
         adjustments=[(rng.randint(1, 27), rng.randint(5, 50) * 2360) for _ in range(n())],
-        missing_days=days[:k_miss],
-        short_days=[(d, rng.randint(1, 10) * 25000) for d in days[k_miss : k_miss + k_short]],
-        split_days=days[k_miss + k_short :],
+        missing_days=days[at[0] : at[1]],
+        short_days=[(d, rng.randint(1, 10) * 25000) for d in days[at[1] : at[2]]],
+        split_days=days[at[2] : at[3]],
+        no_utr_days=days[at[3] : at[4]],
+        split_no_utr_days=days[at[4] : at[5]],
         ghost=n(),
         abandoned=n(),
+        spike_day=rng.randint(4, 24) if rng.random() < 0.5 else None,
+        spike_size=rng.randint(40, 55),
+        repeat_refunder=rng.random() < 0.5,
+        method_spike=rng.choice(["wallet", "netbanking", "card"]) if rng.random() < 0.3 else None,
     )
 
 
@@ -181,7 +202,7 @@ def _payment(rng, order: Order, created: date, *, amount=None) -> dict:
         )[0]
         issuer = rng.choice(["HDFC", "ICIC", "SBIN", "UTIB", "KKBK"])
         ctype = rng.choice(["credit", "debit"])
-    fee, tax = _fee(amount, RATE_BP["premium" if network in PREMIUM else "default"])
+    fee, tax = _fee(amount, CONTRACT.bp(method, ctype, network))
     return {
         "entity_id": _id(rng, "pay_"), "type": "payment", "debit": 0, "credit": amount - fee,
         "amount": amount, "fee": fee, "tax": tax, "created_at": _epoch(created, 9 + rng.randrange(13), rng.randrange(60)),
@@ -205,6 +226,7 @@ def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
     w = World()
     payments: dict[str, dict] = {}  # order_no -> payment row
     n = 10231
+    crng = random.Random(seed * 31 + 5)  # middle initials: ~5,000 distinct customers, not 196
 
     day = FIRST_ORDER_DAY
     while day <= PERIOD_END:
@@ -212,7 +234,7 @@ def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
             amount = rng.choice(PRICES) * rng.choices([1, 2, 3], [70, 22, 8])[0]
             amount += 4900 if amount < 49900 else 0  # shipping on small orders
             o = Order(
-                f"KK-{n}", day, f"{rng.choice(FIRST)} {rng.choice(LAST)}", amount,
+                f"KK-{n}", day, f"{rng.choice(FIRST)} {crng.choice(string.ascii_uppercase)}. {rng.choice(LAST)}", amount,
                 rng.choices(["razorpay", "cod"], [88, 12])[0],
             )  # fmt: skip
             n += 1
@@ -242,33 +264,42 @@ def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
             continue
         amount = o.amount - plan.short_by if o.no in short_capture else o.amount
         pay = _payment(rng, o, o.day, amount=amount)
-        glitch = plan.glitch and date(2026, 10, plan.glitch[0]) <= o.day <= date(2026, 10, plan.glitch[1])  # fmt: skip
-        if glitch and pay["method"] == "card" and pay["card_network"] not in PREMIUM:
+        card = pay["method"] == "card" and pay["card_network"] not in PREMIUM
+        if card and pay["card_type"] == "credit" and _within(o.day, plan.glitch):
             fee, tax = _fee(amount, OVERCHARGE_BP)
+            pay |= {"fee": fee, "tax": tax, "credit": amount - fee}
+        elif card and pay["card_type"] == "debit" and pay["card_network"] != "RuPay" and _within(o.day, plan.misclass):  # fmt: skip
+            fee, tax = _fee(amount, CONTRACT.credit)
             pay |= {"fee": fee, "tax": tax, "credit": amount - fee}
         payments[o.no] = pay
         w.items.append(Item(pay, o.day))
         if o.no in short_capture:
             plant("amount_mismatch", [o.no], o.amount - amount)
 
-    overcharged = [
-        p for p in payments.values()
-        if p["method"] == "card" and p["card_network"] not in PREMIUM
-        and p["fee"] != _fee(p["amount"], RATE_BP["default"])[0]
-    ]  # fmt: skip
-    if overcharged:
-        plant(
-            "fee_overcharge",
-            sorted(p["entity_id"] for p in overcharged),
-            sum(p["fee"] - _fee(p["amount"], RATE_BP["default"])[0] for p in overcharged),
-        )
+    def contract_fee(p):
+        return _fee(p["amount"], CONTRACT.bp(p["method"], p["card_type"], p["card_network"]))[0]
 
-    # Normal refunds: ~4% full, ~2% partial, 1-3 days after the order.
+    off = [p for p in payments.values() if p["fee"] != contract_fee(p)]
+    for check, ps in (
+        ("fee_overcharge", [p for p in off if p["card_type"] == "credit"]),
+        ("rate_misclassified", [p for p in off if p["card_type"] == "debit"]),
+    ):
+        if ps:
+            plant(
+                check,
+                sorted(p["entity_id"] for p in ps),
+                sum(p["fee"] - contract_fee(p) for p in ps),
+            )
+
+    # Normal refunds: ~4% full, ~2% partial, 1-3 days after the order. A normal customer is
+    # refunded at most twice; a third time is the repeat-refunder pattern, planted on purpose.
+    refunded = Counter()
     for o in live:
         if o.no not in payments or o.no in short_capture:
             continue
         r = rng.random()
-        if r < 0.06:
+        if r < 0.06 and refunded[o.customer] < 2:
+            refunded[o.customer] += 1
             full = r < 0.04
             o.refund_amount = o.amount if full else o.amount // 2 // 100 * 100
             o.status = "refunded" if full else "partially_refunded"
@@ -285,9 +316,14 @@ def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
     rng.shuffle(clean)
     clean = iter(clean)
 
+    def pick(refunds_it: bool = False):  # refunded plants respect the 2-per-customer cap too
+        o = next(o for o in clean if not refunds_it or refunded[o.customer] < 2)
+        refunded[o.customer] += refunds_it
+        return o
+
     # Planted: refund paid twice at Razorpay, once in the books.
     for _ in range(plan.dup_refund):
-        o = next(clean)
+        o = pick(True)
         o.status, o.refund_amount, o.refund_day = "refunded", o.amount, o.day + timedelta(days=1)
         first = _refund(rng, payments[o.no], o.amount, o.refund_day)
         second = _refund(rng, payments[o.no], o.amount, o.refund_day + timedelta(days=1))
@@ -296,20 +332,20 @@ def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
 
     # Planted: refunded at Razorpay, books still say paid.
     for _ in range(plan.refund_not_in_books):
-        o = next(clean)
+        o = pick(True)
         ref = _refund(rng, payments[o.no], o.amount, o.day + timedelta(days=2))
         w.items.append(Item(ref, o.day + timedelta(days=2)))
         plant("refund_not_in_books", [o.no, ref["entity_id"]], o.amount)
 
     # Planted: books say refunded, nothing went out at Razorpay.
     for _ in range(plan.books_refund_np):
-        o = next(clean)
+        o = pick()
         o.status, o.refund_amount, o.refund_day = "refunded", o.amount, o.day + timedelta(days=1)
         plant("books_refund_not_processed", [o.no], o.amount)
 
     # Planted: chargebacks debited, books still say paid.
     for _ in range(plan.chargeback):
-        o = next(clean)
+        o = pick()
         pay = payments[o.no]
         d = o.day + timedelta(days=4)
         row = {
@@ -347,8 +383,9 @@ def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
     used = {r for p in w.planted for r in p["refs"]}
     busy = {date(2026, 10, d) - timedelta(LAG_DAYS) for d in plan.missing_days + plan.split_days}
     busy |= {date(2026, 10, d) - timedelta(LAG_DAYS) for d, _ in plan.short_days}
-    if plan.glitch:
-        busy |= {date(2026, 10, d) for d in range(plan.glitch[0], plan.glitch[1] + 1)}
+    for span in (plan.glitch, plan.misclass):
+        if span:
+            busy |= {date(2026, 10, d) for d in range(span[0], span[1] + 1)}
     cands = [
         o for o in in_period
         if o.status == "paid" and o.no in payments and o.no not in used
@@ -362,7 +399,51 @@ def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
         o.status = "failed" if i == 0 else "pending"
         pay = payments.pop(o.no)
         w.items = [it for it in w.items if it.row is not pay]
+
+    # Refund patterns: the refunds match the books (no money missing), the pattern is the
+    # problem. Amounts are filled in by write(), from the refunds the report actually holds.
+    free = [o for o in cands if o.status == "paid"]
+    prng.shuffle(free)
+
+    free = [o for o in free if refunded[o.customer] < 2]
+
+    def refund(o, day) -> bool:
+        if refunded[o.customer] >= 2 and o.customer != REPEAT_NAME:
+            return False
+        refunded[o.customer] += 1
+        o.status, o.refund_amount, o.refund_day = "refunded", o.amount, day
+        w.items.append(Item(_refund(prng, payments[o.no], o.amount, day), day))
+        free.remove(o)
+        return True
+
+    if plan.spike_day:
+        d = date(2026, 10, plan.spike_day)
+        recent = sorted((o for o in free if d - timedelta(7) <= o.day < d), key=lambda o: o.day)
+        done = 0
+        for o in reversed(recent):  # orders from the week before, newest first
+            done += done < plan.spike_size and refund(o, d)
+        plant("refund_spike", [d.isoformat()], None)
+    if plan.repeat_refunder:
+        mine = []
+        for o in list(free):
+            if len(mine) < REPEAT and all(o.day != m.day for m in mine):
+                mine.append(o)
+        for o in mine:
+            o.customer = REPEAT_NAME
+            refund(o, o.day + timedelta(days=2))
+        plant("repeat_refunder", [REPEAT_NAME, *sorted(o.no for o in mine)], None)
+    if plan.method_spike:
+        method = [p for p in payments.values() if p["method"] == plan.method_spike]
+        mine = [o for o in free if payments[o.no]["method"] == plan.method_spike]
+        done = 0
+        for o in mine:  # about 30 more of every 100 refunded
+            done += done < max(12, len(method) // 3) and refund(o, o.day + timedelta(days=1))
+        plant("method_refund_rate", [plan.method_spike], None)
     return w
+
+
+def _within(d: date, span: tuple[int, int] | None) -> bool:
+    return bool(span) and date(2026, 10, span[0]) <= d <= date(2026, 10, span[1])
 
 
 def settle_items(rng, w: World) -> dict[date, tuple[str, str]]:
@@ -419,6 +500,10 @@ def write(out: Path, seed: int = DEMO_SEED) -> dict:
     missing = {date(2026, 10, d) for d in plan.missing_days}
     short = {date(2026, 10, d): gap for d, gap in plan.short_days}
     split = {date(2026, 10, d) for d in plan.split_days}
+    no_utr = {date(2026, 10, d) for d in plan.no_utr_days}
+    split_no_utr = {date(2026, 10, d) for d in plan.split_no_utr_days}
+    bare = "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART"  # some banks print no UTR
+    matched_by: dict[str, str] = {}
     lines = []
     for sday, (sid, utr) in sorted(batches.items()):
         if sid not in net and sday != date(2026, 9, 30):
@@ -433,7 +518,7 @@ def write(out: Path, seed: int = DEMO_SEED) -> dict:
             lines.append((PERIOD_START, narration, utr, 0, amount))
         elif sday in missing:
             w.planted.append({"check": "settlement_missing", "refs": [sid], "amount": net[sid]})
-        elif sday in short:
+        elif sday in short and net[sid] > 1:  # a short credit needs something to fall short of
             gap = min(short[sday], net[sid] // 2)
             lines.append((sday, narration, utr, 0, net[sid] - gap))
             w.planted.append({"check": "settlement_short", "refs": [sid], "amount": gap})
@@ -441,6 +526,14 @@ def write(out: Path, seed: int = DEMO_SEED) -> dict:
             part = net[sid] // 3
             lines.append((sday, narration, utr, 0, part))
             lines.append((sday, narration + " PART 2", utr, 0, net[sid] - part))
+        elif sday in no_utr:
+            lines.append((sday, bare, "", 0, net[sid]))
+            matched_by[sid] = "amount_date"
+        elif sday in split_no_utr:
+            part = net[sid] * 2 // 5
+            lines.append((sday, bare, "", 0, part))
+            lines.append((sday + timedelta(days=1), bare, "", 0, net[sid] - part))
+            matched_by[sid] = "split"
         elif sday == PERIOD_END:
             pass  # settled 23:40 on 31 Oct, reaches the bank on 1 Nov
         else:
@@ -476,9 +569,23 @@ def write(out: Path, seed: int = DEMO_SEED) -> dict:
                 o.refund_day.isoformat() if o.refund_day else "",
             ])  # fmt: skip
 
+    refunds = [it.row | {"day": it.created} for it in report if it.row["type"] == "refund"]
+    customer = {o.no: o.customer for o in w.orders}
+    for p in w.planted:
+        if p["check"] == "refund_spike":
+            mine = [r for r in refunds if r["day"].isoformat() == p["refs"][0]]
+        elif p["check"] == "repeat_refunder":
+            mine = [r for r in refunds if customer.get(r["order_receipt"]) == p["refs"][0]]
+        elif p["check"] == "method_refund_rate":
+            mine = [r for r in refunds if r["method"] == p["refs"][0] and r["day"] >= PERIOD_START]
+        else:
+            continue
+        p["amount"] = sum(r["amount"] for r in mine)
+
     truth = {
         "period": [PERIOD_START.isoformat(), PERIOD_END.isoformat()],
         "planted": w.planted,
+        "matched_by": matched_by,  # settlements whose bank line has no UTR, and how to match them
     }
     (out / "truth.json").write_text(json.dumps(truth, indent=2))
     return truth

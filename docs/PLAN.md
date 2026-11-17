@@ -41,10 +41,12 @@ residual means the engine missed something. Tests require it to be zero.
 |---|---|
 | Settlement never reached the bank | loss |
 | Bank credited less than the settlement | loss |
+| Bank credited more than the settlement (double posting the bank may reverse) | books |
 | Order marked paid but no payment at Razorpay | loss |
 | Refund paid twice | loss |
 | Chargeback debited, order still shows paid | loss |
-| Fee above the agreed rate | loss |
+| Fee above the contracted rate for that card type | loss |
+| Debit card charged at the credit-card rate (card type misclassified) | loss |
 | GST on fee not 18% | loss |
 | Adjustment debit with no reason | loss |
 | Paid at Razorpay, order still pending in the store (webhook never landed) | books |
@@ -52,11 +54,53 @@ residual means the engine missed something. Tests require it to be zero.
 | Refund at Razorpay, books still say paid | books |
 | Captured amount differs from order amount | books |
 | Books say refunded, no refund at Razorpay | customer risk |
+| A day with a burst of refunds | risk (pattern) |
+| One customer refunded on 3+ orders | risk (pattern) |
+| One payment method refunded far more than the rest | risk (pattern) |
+
+Fees are checked against the merchant's rate card (`engine.RateCard`, editable): Kaapi Kart's
+contract is UPI 0%, RuPay debit 0%, debit 0.9%, credit 1.95%, netbanking and wallets 1.9%,
+Amex / Diners / international 2.95%. UPI and RuPay debit are zero by regulation for most
+merchants; the rest is what a merchant negotiates. Card networks are normalised on load
+(AMEX, "Diners Club International"...), and order numbers match whatever their case.
+
+## Matching settlements to the bank
+
+1. UTR in the bank line's ref or narration, ignoring case and spaces.
+2. Banks that print no UTR: the one Razorpay credit of exactly the settlement amount within 2
+   days of settling.
+3. Else 2-3 credits on the day or the next that add up exactly (a split).
+
+If a settlement fits more than one way (two identical credits, two groups that both add up),
+Settle doesn't guess: it goes on the exceptions list with the reason and its own bridge line,
+"Couldn't match automatically", so unexplained stays ₹0.00 and a person decides.
+
+## Refund patterns
+
+Flags, not missing money: the refunds match the books, so they never enter the bridge.
+
+- Spike: a day's refunds above the median day + 6 robust deviations (MAD × 1.4826, never below
+  √median because a day's count is roughly Poisson), or at least 5× a normal day and 20 refunds.
+  Needs 14+ days of history.
+- Repeat refunder: one customer refunded on 3 or more different orders in the period.
+- Method: a method refunded more than 3× the other methods' median rate, with at least 10
+  refunds out of 30 payments. Its refunds are left out of the spike check, so a wave can't hide
+  a spike.
+
+Tuned on random months 100-599 (zero misses, zero false flags); the held-out eval seeds were not
+looked at.
+
+## Trace
+
+`trace(con, result, ref)` follows one rupee from any id (order no, pay_, rfnd_, disp_, setl_,
+UTR): order → payment → refunds / chargebacks → settlement → bank credit, each hop ok / missing /
+mismatch / waiting, and names the hop where the money stalled.
 
 ## What it handles without crying wolf
 
-Partial refunds that match the books, international and Amex/Diners cards at their own rate,
-one settlement arriving as two bank credits, GST rounding by a paisa, orders at month end that
+Partial refunds that match the books, zero-fee UPI and RuPay debit, Amex/Diners at their own
+rate, ₹0 mandate / authorisation payments, one settlement arriving as two bank credits, bank
+lines with no UTR, GST rounding by a paisa, orders at month end that
 settle next month, last month's payments settled this month, the last settlement still in
 transit, COD orders, non-Razorpay bank lines, Razorpay credits from outside the report period,
 pending and failed checkouts that never paid.
