@@ -127,40 +127,37 @@ def record() -> Path:
             page.goto(url)
             page.wait_for_selector("#try-sample")
 
-            # 1. Landing
-            t.cap(
-                "Your books, your payment gateway and your bank never match. Settle finds out why."
-            )
-            t.show(page.locator(".hero h1"), 3.2)
-
-            # 2. Sample
-            t.cap("")
-            # Time only the app's work: from the real click to the results, not the dot's glide.
-            t.show(page.locator("#try-sample"), 0.5)
-            page.evaluate("window.__tour.ring(null)")
+            # 1. The tour opens on the results, not on the landing page it is embedded in (a
+            # landing-in-landing frame). encode() cuts everything filmed before this point.
             start_t = time.perf_counter()
             page.locator("#try-sample").click(force=True)
             page.wait_for_selector("#results:not([hidden]) .statement")
-            secs = time.perf_counter() - start_t
+            secs = time.perf_counter() - start_t  # the app's real work, click to results
+            page.wait_for_timeout(400)
+            CUT[0] = time.perf_counter() - t.t0
+            t.cap("Your books, payments and bank never match. Settle finds out why.")
+            t.show(page.locator(".statement"), 1.6, ring=False)
             n = page.evaluate("async () => (await (await fetch('/api/result')).json()).totals.rows")
             rows = f"{n['razorpay'] + n['orders'] + n['bank']:,}"
             took = "in under a second" if secs < 1 else f"in {secs:.1f} seconds"
             t.cap(f"{rows} rows reconciled {took}")
-            t.show(page.locator(".statement"), 2.4)
+            t.show(page.locator(".statement"), 1.8)
 
             # 3. Summary
             lost = page.locator(".statement .loss .fig").inner_text()
             unexpl = page.locator(".statement .tied .fig").inner_text()
             t.cap(f"{lost} lost · Unexplained {unexpl}: every rupee lands on a named line")
-            t.show(page.locator("[data-kpi=unexplained]"), 2.6)
+            t.show(page.locator("[data-kpi=unexplained]"), 0.6)
+            CUT[1] = time.perf_counter() - t.t0  # poster: Money lost + Unexplained ₹0.00 on screen
+            t.wait(1.4)
 
             # 4. The bridge
             t.cap("Books → payment gateway → bank, closed to the paisa")
-            t.show(page.locator("section[aria-labelledby=wf-h]"), 3.2)
+            t.show(page.locator("section[aria-labelledby=wf-h]"), 2.4)
 
             # 5. Guidance
             t.cap("A first-time user knows what to do: three steps, ticked off as you go")
-            t.show(page.locator("#start-here"), 2.8)
+            t.show(page.locator("#start-here"), 2.0)
 
             # 5b. Settlements, payout by payout
             value = page.locator("[data-kpi=value] .fig").inner_text()
@@ -170,10 +167,10 @@ def record() -> Path:
             missing = page.locator("#set-filters .chip[data-status=missing] .n")
             gone = f" · {missing.inner_text()} never reached the bank" if missing.count() else ""
             t.cap(f"Every payout against your bank: {value} reconciled by value{gone}")
-            t.show(page.locator("#settlement-list"), 1.4, ring=False)
+            t.show(page.locator("#settlement-list"), 1.0, ring=False)
             row = page.locator("#settlement-rows tr[data-status=missing]")
             if row.count():
-                t.show(row.first, 2.0)
+                t.show(row.first, 1.6)
             t.click(page.locator("#nav-overview"), 0.4)
 
             # 6. The biggest issue
@@ -181,11 +178,11 @@ def record() -> Path:
             t.click(page.locator("#page-overview .page-head .btn.primary"), 1.0)
             page.wait_for_selector("#tab-summary h3")
             t.cap("Plain-English reason, proof rows, and where the money stopped")
-            t.show(page.locator("#tab-summary h3").first, 1.8)
+            t.show(page.locator("#tab-summary h3").first, 1.4)
             t.click(page.locator("#t-trace"), 0.3)
-            t.show(page.locator("#tab-trace ol.chain"), 1.8)
+            t.show(page.locator("#tab-trace ol.chain"), 1.4)
             t.click(page.locator("#t-evidence"), 0.3)
-            t.show(page.locator("#tab-evidence table.ev").first, 1.6)
+            t.show(page.locator("#tab-evidence table.ev").first, 1.2)
 
             # 7. Approve a fix with a name
             t.click(page.locator("#t-fix"), 0.3)
@@ -195,7 +192,7 @@ def record() -> Path:
             page.locator("#approver").fill("")
             t.click(page.locator("#approver"), 0.2)
             page.locator("#approver").type("Priya, Finance", delay=70)
-            t.click(card.locator("button.btn.ok"), 2.6)
+            t.click(card.locator("button.btn.ok"), 2.0)
             page.keyboard.press("Escape")
             t.wait(0.6)
 
@@ -206,7 +203,7 @@ def record() -> Path:
             t.click(page.locator("#page-ask .suggest button", has_text="Why did a settlement never reach my bank?"), 0)  # fmt: skip
             t.ai_wait(lambda: page.locator("#chat > .answer:not(.pending)").first.wait_for(timeout=90_000))  # fmt: skip
             t.cap("Ask anything. Every figure is checked against your files.")
-            t.show(page.locator("#chat > .answer:not(.pending)").first, 3.4)
+            t.show(page.locator("#chat > .answer:not(.pending)").first, 2.8)
 
             # 8b. Copilot: select the line nothing matches, reconcile it with AI, a person confirms
             t.cap("")
@@ -223,13 +220,13 @@ def record() -> Path:
                     t.cap(
                         "Copilot prepares the change; nothing happens until a named person allows it"
                     )
-                    t.show(card, 2.6)
+                    t.show(card, 2.2)
                     card.locator(".cc-name").fill("")
                     card.locator(".cc-name").type("Priya, Finance", delay=60)
                     t.click(card.locator("button", has_text="Allow once"), 0)
                     page.locator("#cp-log .change .banner.okb").last.wait_for(timeout=60_000)
                     t.cap("Allowed: code applies it, the month re-reconciles, and it can be undone")
-                    t.show(page.locator("#cp-log .change").last, 2.6)
+                    t.show(page.locator("#cp-log .change").last, 2.0)
                 page.locator("#copilot header button[aria-label='Close Copilot']").click()
                 t.wait(0.3)
 
@@ -244,7 +241,7 @@ def record() -> Path:
             t.click(page.locator("#upload-form button[type=submit]"), 0)
             t.ai_wait(lambda: page.wait_for_selector("#review-summary .banner", timeout=120_000))
             t.cap("Scanned or locked bank PDFs: read by AI, verified by the balance chain")
-            t.show(page.locator("#review-summary"), 2.6)
+            t.show(page.locator("#review-summary"), 2.0)
             t.cap("")
             t.click(page.locator("#review-go"), 0)
             page.wait_for_selector("#results:not([hidden]) .statement", timeout=60_000)
@@ -257,21 +254,21 @@ def record() -> Path:
             t.cap(f"A brand-new random month. {key.locator('p b').first.inner_text()}.")
             t.show(key.locator("h2"), 0.8)
             page.mouse.wheel(0, 300)
-            t.wait(2.4)
+            t.wait(2.0)
 
             # 11. Audit report + end card
             t.cap("")
             page.goto(f"{url}/api/report")
             page.wait_for_load_state()
             t.cap("Audit-ready report, Tally journal, Excel pack")
-            t.wait(1.2)
+            t.wait(1.0)
             page.mouse.wheel(0, 500)
-            t.wait(2.2)
+            t.wait(1.8)
             t.cap("")
             page.evaluate(
                 "window.__tour.end('Settle', 'Account for every rupee · github.com/mohanprasad16/settle')"
             )
-            t.wait(3.0)
+            t.wait(2.5)
 
             FAST.extend(t.fast)
             video = page.video.path()
@@ -283,9 +280,10 @@ def record() -> Path:
 
 
 FAST: list[tuple[float, float]] = []
+CUT = [TRIM, 8.0]  # [where the film starts, where the poster frame is], seconds into the recording
 
 
-def speedup_filter(fast: list[tuple[float, float]], trim: float = TRIM) -> str:
+def speedup_filter(fast: list[tuple[float, float]], trim: float) -> str:
     """ffmpeg filter that plays the recording at normal speed except the AI waits, each squeezed
     to about SPED seconds. Times are seconds into the raw recording."""
     parts, at = [], trim
@@ -303,13 +301,14 @@ def encode(webm: Path) -> None:
     if not shutil.which("ffmpeg"):
         raise SystemExit(f"ffmpeg not found; the raw recording is at {webm}")
     ff = ["ffmpeg", "-y", "-loglevel", "error"]
-    subprocess.run([*ff, "-ss", str(TRIM), "-i", str(webm), "-filter_complex", speedup_filter(FAST), "-map", "[out]",
+    subprocess.run([*ff, "-ss", f"{CUT[0]:.2f}", "-i", str(webm), "-filter_complex", speedup_filter(FAST, CUT[0]), "-map", "[out]",
                     "-c:v", "libx264", "-preset", "slow", "-crf", "28",
                     "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", str(STATIC / "tour.mp4")], check=True)  # fmt: skip
-    subprocess.run([*ff, "-ss", "8", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(STATIC / "tour.jpg")], check=True)  # fmt: skip
+    # The poster is filmed before the first AI wait, so its offset is not changed by the speed-ups.
+    subprocess.run([*ff, "-ss", f"{CUT[1] - CUT[0]:.2f}", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(STATIC / "tour.jpg")], check=True)  # fmt: skip
     gif = ROOT / "docs" / "tour.gif"
     vf = "fps=8,scale=760:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer"
-    subprocess.run([*ff, "-ss", "3", "-t", "15", "-i", str(STATIC / "tour.mp4"), "-vf", vf, str(gif)], check=True)  # fmt: skip
+    subprocess.run([*ff, "-ss", "0", "-t", "15", "-i", str(STATIC / "tour.mp4"), "-vf", vf, str(gif)], check=True)  # fmt: skip
 
 
 if __name__ == "__main__":
