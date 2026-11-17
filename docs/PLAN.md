@@ -47,6 +47,7 @@ residual means the engine missed something. Tests require it to be zero.
 | Fee above the agreed rate | loss |
 | GST on fee not 18% | loss |
 | Adjustment debit with no reason | loss |
+| Paid at Razorpay, order still pending in the store (webhook never landed) | books |
 | Payment with no order in the books (unrecorded sale) | books |
 | Refund at Razorpay, books still say paid | books |
 | Captured amount differs from order amount | books |
@@ -57,7 +58,28 @@ residual means the engine missed something. Tests require it to be zero.
 Partial refunds that match the books, international and Amex/Diners cards at their own rate,
 one settlement arriving as two bank credits, GST rounding by a paisa, orders at month end that
 settle next month, last month's payments settled this month, the last settlement still in
-transit, COD orders, non-Razorpay bank lines, Razorpay credits from outside the report period.
+transit, COD orders, non-Razorpay bank lines, Razorpay credits from outside the report period,
+pending and failed checkouts that never paid.
+
+## Chaos mode
+
+Seed 7 is the curated demo month. Any other seed draws a random month: which problems, how many
+of each (0 to 3), on which days, for how much. "Inject chaos" serves one and shows the answer key
+next to what the engine found. The tests run 25 seeds and require an exact match and zero
+unexplained on both bridges every time, so the demo can't be tuned to one dataset.
+
+## Rules
+
+When a finding is expected ("coupon at checkout", "₹2 rounding is fine"), the user marks it and
+Settle saves a rule: the check, an optional ref pattern or amount cap, and a note. Next run the
+matching findings move to "Resolved by your rules" and keep their own line in the bridge, so the
+unexplained line stays at ₹0.00. In the demo rules live for the session.
+
+## Actions
+
+A ghost success (money captured, order still pending) gets a one-click webhook replay: the
+`payment.captured` event signed with `X-Razorpay-Signature` (HMAC-SHA256 of the body with the
+webhook secret; the demo uses a demo secret). Nothing is sent without the user clicking.
 
 ## Build order
 
