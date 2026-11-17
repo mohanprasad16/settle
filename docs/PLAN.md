@@ -113,3 +113,25 @@ books via Shopify/Tally. No real key entry in the public demo.
 ## Stack
 
 Python 3.13, FastAPI, DuckDB, Gemini (same client as meeting-intel), plain HTML/JS, Docker.
+
+## How we measure
+
+`uv run python -m evals.run_eval` writes `evals/results.md`. Nothing in it tunes the engine; a
+failure is reported as a failure.
+
+- **Held-out months**: seeds 1000-1049, never used while building (development used seed 7 and
+  seeds 100-124). Each is a random month with its own answer key.
+- **Edge cases** (`evals/edge_cases.py`): the demo month with one real-world twist each: one
+  paisa off, crossed receipts, refunds on the last day, a refunds-only settlement, a UTR only in
+  the narration or lowercased, the bank posting a credit twice, order numbers with spaces or in
+  lowercase, "AMEX" spelled differently, a ₹0 mandate payment, Excel's BOM and CRLF, DD-MM-YYYY
+  dates. Each case states what a correct reconciler should report, decided from the domain.
+- **Scoring**: a finding is right when its check and its amount to the paisa match. Precision,
+  recall and F1 per check; false alarms cost the rupees wrongly flagged plus 15 analyst minutes
+  each; misses cost the rupees missed. Also: share of months whose bridges close to ₹0, crashes,
+  rows per second.
+- **AI**: share of explanations that pass the number guard without the template, a golden set of
+  Ask questions graded on the right ₹ figures or order numbers, unverified and "couldn't answer"
+  counts, and the real token cost in rupees.
+- **What it misses** is listed in the report as it is: today, matching is exact on case, so a
+  lowercased UTR or order number and network names outside the configured list are false alarms.
