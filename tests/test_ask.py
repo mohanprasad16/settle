@@ -171,3 +171,15 @@ def test_finding_named_by_reference_or_amount_is_cited(data):
     assert [c.ref for c in by_ref] == [missing.id]
     assert spike.id in [c.ref for c in by_amount]
     assert _valid(con, result, [], "Nothing here names a problem.") == []
+
+
+def test_sql_sandbox_runs_single_threaded_so_ties_order_the_same_every_run():
+    # Parallel DuckDB returned tied rows of ORDER BY ... LIMIT in a different order per process,
+    # so the same question saw different evidence (and a recorded answer stopped replaying).
+    import duckdb
+
+    from app.ask import run_sql
+
+    con = duckdb.connect()
+    run_sql(con, "SELECT 1")
+    assert con.execute("SELECT current_setting('threads')").fetchone()[0] == 1

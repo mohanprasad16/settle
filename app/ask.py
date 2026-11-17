@@ -113,6 +113,10 @@ def run_sql(con: duckdb.DuckDBPyConnection, query: str) -> str:
     if len(stmts) != 1 or stmts[0].type != duckdb.StatementType.SELECT:
         return "error: only a single SELECT statement is allowed"
     con.execute("SET enable_external_access = false")  # no files, no network, can't be undone
+    # One thread: ties in an ORDER BY ... LIMIT come back in the same order every run, so the
+    # same question sees the same rows (and a recorded answer replays). ponytail: months are a few
+    # thousand rows; revisit if a month ever makes the sandbox slow.
+    con.execute("SET threads = 1")
     timer = threading.Timer(QUERY_SECONDS, con.interrupt)
     timer.start()
     try:
