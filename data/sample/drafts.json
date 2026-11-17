@@ -1,26 +1,8 @@
 {
-  "09222bf08555109e:ticket": {
-    "subject": "Missing settlement setl_6ODkowvxYxMciS with UTR UTIBR58302335367",
-    "body": "Our settlement setl_6ODkowvxYxMciS for 49 items, settled on 14 Oct 2026, has not reached our bank account. The net settled amount on the dashboard is ₹53,657.47, but the bank received amount is ₹0.00. The UTR associated with this transfer is UTIBR58302335367. Please trace reference ids setl_6ODkowvxYxMciS and UTIBR58302335367 to credit the net settled amount of ₹53,657.47 to our account.",
-    "kind": "ticket",
-    "source": "model"
-  },
-  "3faa33d560e442f9:ticket": {
-    "subject": "Discrepancy in settlement setl_9rHmNeuxtEjEXM UTR UTIBR59944785665",
-    "body": "Regarding settlement id \"setl_9rHmNeuxtEjEXM\" with utr \"UTIBR59944785665\" settled on 21 Oct 2026 for 50 items. The net settled amount is ₹63,792.28, but the bank received amount is ₹61,792.28. This results in a loss of ₹2,000.00 as the bank credited less than the settlement. Please investigate this discrepancy and credit the remaining ₹2,000.00 to our bank account.",
-    "kind": "ticket",
-    "source": "model"
-  },
   "c0626c139d9ac8aa:ticket": {
     "subject": "Duplicate refund issued for order KK-11264",
     "body": "We noticed a refund paid out twice for order no \"KK-11264\", resulting in a loss of \"₹2,697.00\". Our books status shows \"refunded\" for \"₹2,697.00\", but razorpay refunds total \"₹5,394.00\" across a refund count of \"2\". The two generated refund ids are \"rfnd_AVuPqcAqAh9zkB\" and \"rfnd_TZedo1Qqr14Wa2\". Please reverse the duplicate refund of \"₹2,697.00\" associated with reference ids \"KK-11264\", \"rfnd_AVuPqcAqAh9zkB\", and \"rfnd_TZedo1Qqr14Wa2\" back to our merchant account.",
     "kind": "ticket",
-    "source": "model"
-  },
-  "c0626c139d9ac8aa:note": {
-    "subject": "Update regarding your order KK-11264",
-    "body": "We are reaching out regarding your order \"KK-11264\". Our records show a refund of ₹2,697.00 for your order, but a total of ₹5,394.00 was paid out across 2 refunds under ID rfnd_AVuPqcAqAh9zkB and ID rfnd_TZedo1Qqr14Wa2. We wanted to keep you informed about this issue with refund ID rfnd_AVuPqcAqAh9zkB and ID rfnd_TZedo1Qqr14Wa2. Thank you for your understanding.",
-    "kind": "note",
     "source": "model"
   },
   "98799d702b82b43d:ticket": {
@@ -32,12 +14,6 @@
   "ea9aef068ef1b69b:ticket": {
     "subject": "Dispute disp_jbgbTW0nFS4v7H debited while order KK-10427 shows paid",
     "body": "A chargeback of ₹1,499.00 was debited on 7 Oct 2026 for dispute id \"disp_jbgbTW0nFS4v7H\" linked to payment id \"pay_Lvl5VJbsAfDDmG\" due to Chargeback: item not received. However, order no \"KK-10427\" still shows as paid, resulting in a loss of ₹1,499.00. Please review the references \"KK-10427\" and \"disp_jbgbTW0nFS4v7H\" to clarify the status and process the appropriate refund or update for this transaction.",
-    "kind": "ticket",
-    "source": "model"
-  },
-  "db114c5a0818d6f3:ticket": {
-    "subject": "Incorrect fee rate charged on card payments",
-    "body": "Our account was charged an incorrect rate pct of 2.4% instead of our agreed rate pct of 2% on card methods between 16 Oct 2026 and 18 Oct 2026. This resulted in a loss impact of ₹321.16 across 45 payments. Affected reference ids include pay_anRB5StMEn3tT2, pay_3pSvqzImJ0uxAL, pay_jHt8UltZ1ybRRU, pay_1PdaNV0znk84wl, pay_PHUVsANsipAJ3K, pay_j9Zp5ZxH41RZ34, pay_AXbuVJuUKEhiMA, pay_R8CLpwTFC2CaT7, pay_fwYdQV0Fbij9PZ, and pay_1RqqDsaWYCwnXt (+35 more). Please refund the excess fees charged above our agreed rate.",
     "kind": "ticket",
     "source": "model"
   },
@@ -57,6 +33,36 @@
     "subject": "Update regarding your order KK-11513",
     "body": "Thank you for reaching out to us. We are writing to update you about your order KK-11513. Although your books status shows refunded for the amount of ₹1,499.00 on 19 Oct 2026, our records confirm that razorpay refunds show ₹0.00 with a refund count of 0. We sincerely apologize for this issue regarding the ₹1,499.00 impact and are working to resolve it for you right away.",
     "kind": "note",
+    "source": "model"
+  },
+  "9aef9efdc65d2b78:ticket": {
+    "subject": "Missing settlement setl_6ODkowvxYxMciS with UTR UTIBR58302335367",
+    "body": "Our settlement setl_6ODkowvxYxMciS dated 14 Oct 2026 for net settled amount ₹21,196.39 covering 73 items has not reached our bank account. The system shows net settled as ₹21,196.39 with UTR UTIBR58302335367, but the bank received amount is ₹0.00, resulting in a loss impact of ₹21,196.39. Please trace this transaction using reference ids \"setl_6ODkowvxYxMciS\" and \"UTIBR58302335367\" and credit the pending funds to our bank account immediately.",
+    "kind": "ticket",
+    "source": "model"
+  },
+  "34c777b997dcaa8d:ticket": {
+    "subject": "Discrepancy in settlement setl_9rHmNeuxtEjEXM",
+    "body": "We noticed a discrepancy in settlement id \"setl_9rHmNeuxtEjEXM\" settled on 21 Oct 2026 covering 50 items. The net settled amount was ₹64,942.62 under utr \"UTIBR59944785665\", but the bank received ₹62,942.62, resulting in a loss and bank credited less than the settlement by an impact of ₹2,000.00. Please investigate this missing amount of ₹2,000.00 and credit the remaining balance to our bank account.",
+    "kind": "ticket",
+    "source": "model"
+  },
+  "c0626c139d9ac8aa:note": {
+    "subject": "Important update regarding order KK-11264",
+    "body": "Your order \"KK-11264\" was refunded twice by mistake. Please return the extra refund of ₹2,697.00 to us. We truly appreciate your understanding and support.",
+    "kind": "note",
+    "source": "model"
+  },
+  "ae1547480344c3b9:ticket": {
+    "subject": "Incorrect fee charged on 20 card payments",
+    "body": "We noticed fees above your agreed rate for 20 card payments from 16 Oct 2026 to 18 Oct 2026. Our agreed rate is 1.95%, but we were charged a rate of 2.4%, resulting in a loss impact of ₹169.54. The reference ids involved are \"pay_anRB5StMEn3tT2\", \"pay_3pSvqzImJ0uxAL\", \"pay_jHt8UltZ1ybRRU\", \"pay_1PdaNV0znk84wl\", \"pay_PHUVsANsipAJ3K\", \"pay_j9Zp5ZxH41RZ34\", \"pay_fwYdQV0Fbij9PZ\", \"pay_1RqqDsaWYCwnXt\", \"pay_87bA0DjHcoG3Tq\", \"pay_Mvx0Z0KWE1JlRi\" (+10 more). Please refund the excess fees charged to our merchant account.",
+    "kind": "ticket",
+    "source": "model"
+  },
+  "dee86756151f3ae0:ticket": {
+    "subject": "Incorrect fee rate charged for debit card payments",
+    "body": "I noticed a loss impact of ₹174.56 across 10 debit card payments made via MasterCard and Visa networks between 6 Oct 2026 and 7 Oct 2026. These transactions were charged at the credit-card rate of 1.95% instead of our contract rate of 0.9%. The affected reference ids are \"pay_kBDe9pL5aVJ7Tk\", \"pay_pj09PttiXMpLZg\", \"pay_DEG90xdmYSGTmD\", \"pay_lhJUv5bzLiyMAP\", \"pay_DLIu10hh0xfVaG\", \"pay_EtRTYBVyjLdj9v\", \"pay_qpNwszQ5Vi4fcR\", \"pay_ECPukCgmXbZQ3Q\", \"pay_d9V4xBj4G3kk1r\", and \"pay_m6RxXpYRi2SCXD\". Please refund the excess fees charged for these transactions.",
+    "kind": "ticket",
     "source": "model"
   }
 }
