@@ -729,7 +729,67 @@ def _totals(con, r: Result) -> dict:
     total = counts[0] + counts[1] + counts[2]
     done = total - len(open_rows)
     t["auto_reconciled"] = {"rows": done, "of": total, "pct": round(100 * done / total, 1) if total else 0.0}  # fmt: skip
+    # value_reconciled: net of settlements the bank credited exactly (status "matched"), out of all
+    # net settled. In-transit money is not counted: it hasn't reached the bank yet.
+    sets = settlements(con, r)
+    got = sum(s["net"] for s in sets if s["status"] == "matched")
+    net = sum(s["net"] for s in sets)
+    t["value_reconciled"] = {"amount": got, "of": net, "pct": round(100 * got / net, 1) if net else 0.0}  # fmt: skip
     return t
+
+
+SETTLEMENT_STATUS = {
+    "matched": "Matched",
+    "short": "Short",
+    "over": "Over",
+    "missing": "Missing",
+    "reversed": "Reversed",
+    "in_transit": "In transit",
+    "needs_person": "Needs a person",
+}
+
+
+def settlements(con, r: Result) -> list[dict]:
+    """Every payout in the report with its bank credit(s) and one status, from the same
+    settlement_bank table the findings and the Razorpay → bank bridge are built on."""
+    banks = {b["row_no"]: b for b in _q(con, "SELECT row_no, txn_date, credit - debit AS amt FROM bank")}  # fmt: skip
+    found = {f.refs[0]: f.id for f in r.findings + [x for x, _ in r.resolved]
+             if f.refs and f.check.startswith("settlement_")}  # fmt: skip
+    out = []
+    for s in _q(con, "SELECT * FROM settlement_bank ORDER BY settled_at, settlement_id"):
+        credited = s["received"] + s["reversed"]  # what came in, before the bank took any back
+        status = (
+            "needs_person" if s["unmatched_reason"]
+            else "reversed" if s["reversed"]
+            else ("in_transit" if s["in_transit"] else "missing") if s["n_credits"] == 0
+            else "short" if credited < s["net"]
+            else "over" if credited > s["net"]
+            else "matched"
+        )  # fmt: skip
+        lines = [banks[n] for n in s["bank_rows"] or [] if n in banks]
+        out.append({
+            "settlement_id": s["settlement_id"], "utr": s["utr"], "settled_at": s["settled_at"],
+            "items": s["n_items"], "net": s["net"], "received": s["received"],
+            "bank_date": min((b["txn_date"] for b in lines if b["amt"] > 0), default=None),
+            "difference": s["received"] - s["net"], "matched_by": s["matched_by"],
+            "status": status, "why": s["unmatched_reason"],
+            "bank_rows": [{"row_no": b["row_no"], "date": b["txn_date"], "amount": b["amt"]} for b in lines],
+            "finding_id": found.get(s["settlement_id"]),
+        })  # fmt: skip
+    return out
+
+
+def brs(r: Result) -> list[tuple[str, int]]:
+    """The Razorpay → bank bridge in the Bank Reconciliation Statement layout accountants use."""
+    steps = r.razorpay_to_bank
+    lines = [("Balance as per Razorpay settlements", steps[0].amount)]
+    for s in steps[1:-1]:
+        if s.kind == "residual":
+            lines.append(("Unexplained difference", s.amount))
+        else:
+            lines.append((f"{'Less' if s.amount < 0 else 'Add'}: {s.label}", s.amount))
+    lines.append(("Balance as per bank (received in your bank)", steps[-1].amount))
+    return lines
 
 
 def _handled(con, pr: RateCard, sb: list[dict], resolved: list[tuple[Finding, Rule]]) -> list[dict]:

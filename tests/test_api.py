@@ -158,3 +158,34 @@ def test_ai_off_and_rate_limit_are_plain_errors(client, monkeypatch):
 def test_bad_json_is_a_plain_error(client):
     client.post("/api/sample")
     _error(client.post("/api/ask", content=b"not json", headers={"content-type": "application/json"}), 400)  # fmt: skip
+
+
+def test_settlements_tie_to_the_bank_bridge(client):
+    client.post("/api/sample")
+    body = client.get("/api/settlements").json()
+    rows, bridge = body["settlements"], client.get("/api/result").json()["bridges"]
+    rtb = bridge["razorpay_to_bank"]
+    assert body["totals"]["net"] == rtb[0]["amount"]  # Net settled by Razorpay
+    assert body["totals"]["received"] == rtb[-1]["amount"]  # Received in your bank
+    status = {r["status"] for r in rows}
+    assert {"matched", "missing", "short", "in_transit"} <= status
+    assert {"utr", "amount_date", "split"} <= {r["matched_by"] for r in rows}
+    missing = next(r for r in rows if r["status"] == "missing")
+    assert missing["finding_id"] and missing["received"] == 0 and missing["bank_rows"] == []
+    for r in rows:  # the per-type breakdown in the slide-over adds up to the payout
+        assert sum(r["by_type"].values()) == r["net"]
+    value = client.get("/api/result").json()["totals"]["value_reconciled"]
+    matched = sum(r["net"] for r in rows if r["status"] == "matched")
+    assert value["amount"] == matched and value["of"] == body["totals"]["net"]
+
+
+def test_brs_csv_ends_at_the_bank_balance(client):
+    client.post("/api/sample")
+    lines = list(csv.reader(io.StringIO(client.get("/api/brs").text)))
+    assert lines[0][0].startswith("Bank Reconciliation Statement")
+    assert lines[2][0] == "Balance as per Razorpay settlements"
+    assert ["Unexplained difference", "0.00"] in lines
+    received = client.get("/api/result").json()["bridges"]["razorpay_to_bank"][-1]["amount"]
+    assert (
+        lines[-1][0].startswith("Balance as per bank") and lines[-1][1] == f"{received / 100:.2f}"
+    )

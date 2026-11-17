@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from app.engine import Result
+from app.engine import Result, brs
 from app.gate import Action
 from app.journal import Entry, to_csv
 from app.money import rupees
@@ -149,6 +149,12 @@ def _bridge(steps) -> str:
     return '<table><tr><th>Line</th><th class="num">Items</th><th class="num">Amount</th></tr>' + "".join(rows) + "</table>"  # fmt: skip
 
 
+def _brs_class(i: int, label: str, amount: int) -> str:
+    if label == "Unexplained difference":
+        return "residual" + (" bad" if amount else "")
+    return "end" if i == 0 or label.startswith("Balance as per bank") else ""
+
+
 def render(
     result: Result,
     files: dict[str, Path],
@@ -163,6 +169,7 @@ def render(
     explanations, actions, journals = explanations or {}, actions or [], journals or []
     unexplained = t.get("unexplained", 0)
     auto = t.get("auto_reconciled", {})
+    val = t.get("value_reconciled", {})
     rows = t.get("rows", {})
     out = [f"<!doctype html><html><head><meta charset='utf-8'><title>Settle audit report, {p.start:%b %Y}</title><style>{CSS}</style></head><body>"]  # fmt: skip
 
@@ -183,11 +190,20 @@ def render(
 <div class="card loss">Money lost<b>{rupees(t.get("loss", 0))}</b></div>
 <div class="card loss">Owed to customers<b>{rupees(t.get("customer", 0))}</b></div>
 <div class="card">Book corrections<b>{rupees(t.get("books", 0))}</b></div>
+<div class="card ok">Reconciled by value<b>{val.get("pct", 0)}%</b><span class="muted">{rupees(val.get("amount", 0))} of {rupees(val.get("of", 0))}</span></div>
 <div class="card ok">Auto-reconciled<b>{auto.get("pct", 0)}%</b><span class="muted">{auto.get("rows", 0)} of {auto.get("of", 0)} rows</span></div>
 <div class="card {"ok" if unexplained == 0 else "loss"}">Unexplained<b>{rupees(unexplained)}</b></div></div>""")
 
     out.append("<h2>Books to Razorpay</h2>" + _bridge(result.books_to_razorpay))
-    out.append("<h2>Razorpay to bank</h2>" + _bridge(result.razorpay_to_bank))
+    rows = "".join(
+        f'<tr class="{_brs_class(i, label, amount)}">'
+        f'<td>{_e(label)}</td><td class="num">{rupees(amount)}</td></tr>'
+        for i, (label, amount) in enumerate(brs(result))
+    )
+    out.append(
+        "<h2>Bank Reconciliation Statement (Razorpay to bank)</h2>"
+        '<table><tr><th>Particulars</th><th class="num">Amount</th></tr>' + rows + "</table>"
+    )
 
     out.append(f"<h2>Findings ({len(result.findings)})</h2>")
     for f in result.findings:

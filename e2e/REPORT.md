@@ -1,38 +1,39 @@
 # Settle system test
 
-Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 165/165 checks passed.
+Run 2026-11-17 17:13 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 183/183 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
 | 0 Setup | 2 | 0 |
-| 1 Landing | 15 | 0 |
-| 10 Quality | 16 | 0 |
+| 1 Landing | 23 | 0 |
+| 10 Quality | 18 | 0 |
 | 11 Guidance | 10 | 0 |
-| 2 Sample results | 9 | 0 |
+| 2 Sample results | 11 | 0 |
 | 3 Finding drawers | 9 | 0 |
+| 3b Settlements | 5 | 0 |
 | 4 Actions and rules | 14 | 0 |
 | 5 Ask | 21 | 0 |
 | 6 Chaos | 6 | 0 |
 | 7 Upload | 40 | 0 |
-| 8 Downloads | 5 | 0 |
+| 8 Downloads | 6 | 0 |
 | 9 Failure handling | 18 | 0 |
 
 ## Timings
 
 | Step | Seconds |
 |---|---|
-| sample (click to results) | 0.83 |
-| ask: Why did a settlement never reach my bank? | 7.70 |
-| ask: How much did I lose to chargebacks this month? | 9.76 |
-| ask: Which day had the most refunds? | 8.76 |
-| ask: What should I do first? | 9.31 |
-| chaos month 1 | 0.84 |
-| chaos month 2 | 0.83 |
-| chaos month 3 | 0.83 |
-| CSV upload (submit to results) | 0.84 |
-| locked PDF (submit to review) | 10.48 |
-| scanned PDF (submit to review) | 8.49 |
-| digital PDF (submit to review) | 8.42 |
+| sample (click to results) | 0.82 |
+| ask: Why did a settlement never reach my bank? | 7.85 |
+| ask: How much did I lose to chargebacks this month? | 8.99 |
+| ask: Which day had the most refunds? | 59.09 |
+| ask: What should I do first? | 8.49 |
+| chaos month 1 | 0.83 |
+| chaos month 2 | 0.82 |
+| chaos month 3 | 0.82 |
+| CSV upload (submit to results) | 0.87 |
+| locked PDF (submit to review) | 7.88 |
+| scanned PDF (submit to review) | 7.43 |
+| digital PDF (submit to review) | 8.39 |
 
 ## Every check
 
@@ -46,18 +47,26 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ headline visible
 - ✅ button 'Try with sample data' visible
 - ✅ button 'Upload your files' visible
-- ✅ button 'Connect Razorpay' visible
+- ✅ button 'Connect your sources' visible
 - ✅ tour video plays (or its fallback shows)
 - ✅ How it works has 3 steps
 - ✅ trust strip has 4 points
 - ✅ hero net sales matches the sample (₹22,87,307.00)
 - ✅ hero received in bank matches the sample (₹21,26,760.32)
 - ✅ hero missing settlement matches the sample (₹21,196.39)
-- ✅ Connect Razorpay panel opens
-- ✅ key fields are disabled
-- ✅ 'How it connects' diagram visible
-- ✅ panel closes with 'Got it'
-- ✅ panel closes with Esc
+- ✅ headline is three-way, not Razorpay-only
+- ✅ Connections page shows 3 source cards
+- ✅ key / consent fields are disabled in the demo
+- ✅ 'How it connects' covers all three sources
+- ✅ Back returns to the landing page
+- ✅ Run a demo sync reconciles, labelled as sample data
+- ✅ demo sync: Money lost = ₹33,361.49
+- ✅ demo sync: Owed to customers = ₹5,096.00
+- ✅ demo sync: Book corrections = ₹10,291.00
+- ✅ demo sync: Reconciled by value = 92.1%
+- ✅ demo sync: Unexplained = ₹0.00
+- ✅ demo sync: both bridges end at ₹0.00 unexplained
+- ✅ after a sync the cards show when it last synced
 
 ### 10 Quality
 
@@ -74,6 +83,8 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ phone landing: no sideways scroll
 - ✅ phone upload: no sideways scroll
 - ✅ phone results: no sideways scroll
+- ✅ phone header fits on 2 lines
+- ✅ phone header: every action is still reachable
 - ✅ phone issues: no sideways scroll
 - ✅ phone drawer: no sideways scroll
 - ✅ no console errors or page errors anywhere
@@ -97,11 +108,13 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ sample: Money lost = ₹33,361.49
 - ✅ sample: Owed to customers = ₹5,096.00
 - ✅ sample: Book corrections = ₹10,291.00
-- ✅ sample: Auto-reconciled = 95.1%
+- ✅ sample: Reconciled by value = 92.1%
 - ✅ sample: Unexplained = ₹0.00
 - ✅ sample: both bridges end at ₹0.00 unexplained
 - ✅ every KPI has a help tooltip button
 - ✅ hovering a KPI's ? explains it in plain words
+- ✅ the ₹ reconciled KPI explains itself
+- ✅ the bank bridge is headed as a BRS
 
 ### 3 Finding drawers
 
@@ -114,6 +127,14 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ draft tabs all have text, Copy works
 - ✅ Esc closes and focus returns to the line every time
 - ✅ every drawer opens at the top, not where the last one was scrolled
+
+### 3b Settlements
+
+- ✅ lists all 31 settlements
+- ✅ total net settled = start of the bank bridge
+- ✅ total received = Received in your bank
+- ✅ status filter shows only that status
+- ✅ a row opens the payout: trail, contents, link to its issue
 
 ### 4 Actions and rules
 
@@ -158,12 +179,12 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #954746: every hidden problem found, nothing extra
-- ✅ Random month #954746: unexplained ₹0.00 on both bridges
-- ✅ Random month #394487: every hidden problem found, nothing extra
-- ✅ Random month #394487: unexplained ₹0.00 on both bridges
-- ✅ Random month #749040: every hidden problem found, nothing extra
-- ✅ Random month #749040: unexplained ₹0.00 on both bridges
+- ✅ Random month #262340: every hidden problem found, nothing extra
+- ✅ Random month #262340: unexplained ₹0.00 on both bridges
+- ✅ Random month #254375: every hidden problem found, nothing extra
+- ✅ Random month #254375: unexplained ₹0.00 on both bridges
+- ✅ Random month #761542: every hidden problem found, nothing extra
+- ✅ Random month #761542: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
@@ -171,7 +192,7 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ three sample CSVs: Money lost = ₹33,361.49
 - ✅ three sample CSVs: Owed to customers = ₹5,096.00
 - ✅ three sample CSVs: Book corrections = ₹10,291.00
-- ✅ three sample CSVs: Auto-reconciled = 95.1%
+- ✅ three sample CSVs: Reconciled by value = 92.1%
 - ✅ three sample CSVs: Unexplained = ₹0.00
 - ✅ three sample CSVs: both bridges end at ₹0.00 unexplained
 - ✅ orders file in the bank box: plain error naming the box
@@ -186,7 +207,7 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ locked PDF: Money lost = ₹33,361.49
 - ✅ locked PDF: Owed to customers = ₹5,096.00
 - ✅ locked PDF: Book corrections = ₹10,291.00
-- ✅ locked PDF: Auto-reconciled = 95.1%
+- ✅ locked PDF: Reconciled by value = 92.1%
 - ✅ locked PDF: Unexplained = ₹0.00
 - ✅ locked PDF: both bridges end at ₹0.00 unexplained
 - ✅ scanned PDF reaches the review step
@@ -194,7 +215,7 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ scanned PDF: Money lost = ₹33,361.49
 - ✅ scanned PDF: Owed to customers = ₹5,096.00
 - ✅ scanned PDF: Book corrections = ₹10,291.00
-- ✅ scanned PDF: Auto-reconciled = 95.1%
+- ✅ scanned PDF: Reconciled by value = 92.1%
 - ✅ scanned PDF: Unexplained = ₹0.00
 - ✅ scanned PDF: both bridges end at ₹0.00 unexplained
 - ✅ digital PDF reaches the review step
@@ -204,7 +225,7 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ digital PDF: Money lost = ₹33,361.49
 - ✅ digital PDF: Owed to customers = ₹5,096.00
 - ✅ digital PDF: Book corrections = ₹10,291.00
-- ✅ digital PDF: Auto-reconciled = 95.1%
+- ✅ digital PDF: Reconciled by value = 92.1%
 - ✅ digital PDF: Unexplained = ₹0.00
 - ✅ digital PDF: both bridges end at ₹0.00 unexplained
 
@@ -213,6 +234,7 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ audit report opens and shows Unexplained ₹0.00
 - ✅ audit report has the sign-off block
 - ✅ Start here ticks 'Download the audit report' after exporting it
+- ✅ BRS export ends at 'Balance as per bank' = Received in your bank
 - ✅ CSV pack zip downloads and unzips
 - ✅ Tally journal: total Dr equals total Cr
 
@@ -229,7 +251,7 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ AI off: Money lost = ₹33,361.49
 - ✅ AI off: Owed to customers = ₹5,096.00
 - ✅ AI off: Book corrections = ₹10,291.00
-- ✅ AI off: Auto-reconciled = 95.1%
+- ✅ AI off: Reconciled by value = 92.1%
 - ✅ AI off: Unexplained = ₹0.00
 - ✅ AI off: both bridges end at ₹0.00 unexplained
 - ✅ AI off: Ask is disabled, not broken
@@ -240,7 +262,7 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 ## Screenshots
 
 - `e2e/screenshots/01_landing_desktop.png`
-- `e2e/screenshots/02_connect_razorpay_panel.png`
+- `e2e/screenshots/02_connections_page.png`
 - `e2e/screenshots/03_results_overview_desktop.png`
 - `e2e/screenshots/04_results_full_desktop.png`
 - `e2e/screenshots/05_start_here_card.png`
@@ -251,26 +273,29 @@ Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phon
 - `e2e/screenshots/10_issues_table_desktop.png`
 - `e2e/screenshots/11_tour_step_1.png`
 - `e2e/screenshots/12_tour_step_2.png`
-- `e2e/screenshots/13_finding_drawer_desktop.png`
-- `e2e/screenshots/14_finding_trace_tab.png`
-- `e2e/screenshots/15_action_approved_dry_run.png`
-- `e2e/screenshots/16_rule_marked_expected.png`
-- `e2e/screenshots/17_ask_with_trace.png`
-- `e2e/screenshots/18_chaos_answer_key.png`
-- `e2e/screenshots/19_upload_desktop.png`
-- `e2e/screenshots/20_error_wrong_box.png`
-- `e2e/screenshots/21_error_locked_pdf_password.png`
-- `e2e/screenshots/22_pdf_review_verified.png`
-- `e2e/screenshots/23_pdf_review_broken_row.png`
-- `e2e/screenshots/24_audit_report.png`
-- `e2e/screenshots/25_error_network_retry.png`
-- `e2e/screenshots/26_empty_state_rules.png`
-- `e2e/screenshots/27_ai_off_template_explanation.png`
-- `e2e/screenshots/28_error_rate_limit.png`
-- `e2e/screenshots/29_landing_phone.png`
-- `e2e/screenshots/30_results_phone.png`
-- `e2e/screenshots/31_results_phone_full.png`
-- `e2e/screenshots/32_finding_drawer_phone.png`
+- `e2e/screenshots/13_settlements_desktop.png`
+- `e2e/screenshots/14_settlement_drawer_desktop.png`
+- `e2e/screenshots/15_finding_drawer_desktop.png`
+- `e2e/screenshots/16_finding_trace_tab.png`
+- `e2e/screenshots/17_action_approved_dry_run.png`
+- `e2e/screenshots/18_rule_marked_expected.png`
+- `e2e/screenshots/19_ask_with_trace.png`
+- `e2e/screenshots/20_chaos_answer_key.png`
+- `e2e/screenshots/21_upload_desktop.png`
+- `e2e/screenshots/22_error_wrong_box.png`
+- `e2e/screenshots/23_error_locked_pdf_password.png`
+- `e2e/screenshots/24_pdf_review_verified.png`
+- `e2e/screenshots/25_pdf_review_broken_row.png`
+- `e2e/screenshots/26_audit_report.png`
+- `e2e/screenshots/27_error_network_retry.png`
+- `e2e/screenshots/28_empty_state_rules.png`
+- `e2e/screenshots/29_ai_off_template_explanation.png`
+- `e2e/screenshots/30_error_rate_limit.png`
+- `e2e/screenshots/31_landing_phone.png`
+- `e2e/screenshots/32_phone_header.png`
+- `e2e/screenshots/33_results_phone.png`
+- `e2e/screenshots/34_results_phone_full.png`
+- `e2e/screenshots/35_finding_drawer_phone.png`
 
 ## Bugs the system test found
 

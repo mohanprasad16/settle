@@ -105,6 +105,9 @@ const HELP = {
   Settlement: "<b>Settlement</b>: one payout from Razorpay to your bank. It bundles a day's payments, minus refunds, fees and chargebacks.",
   UTR: "<b>UTR</b>: the bank's reference number for a transfer. It's how a settlement is matched to a line on your bank statement.",
   Chargeback: "<b>Chargeback</b>: the customer's bank pulled a payment back, usually after a dispute. You can often contest it.",
+  "Reconciled by value": "<b>Reconciled by value</b>: rupees of settled money that the bank credited exactly, out of everything Razorpay settled this month. Money still in transit isn't counted until it lands.",
+  BRS: "<b>Bank Reconciliation Statement (BRS)</b>: the standard statement that starts from one balance (Razorpay's settlements), lists every difference, and ends at the balance as per your bank.",
+  "Settlement status": "<b>Status</b>: Matched means the bank credited exactly the settled amount. Short, Over, Missing and Reversed are problems; In transit will land next month; Needs a person means it fits more than one bank line.",
   Timing: "<b>Timing</b>: normal differences that sort themselves out, like orders at month end that settle next month.",
 };
 for (const k of Object.keys(KIND)) HELP[`kind-${k}`] = `<b>${KIND[k].label}</b>: ${KIND[k].why}`;
@@ -210,19 +213,38 @@ function loading(steps, sub = "This takes a few seconds.") {
 
 // ---- views -------------------------------------------------------------------------------------
 
-const views = ["landing", "upload", "review", "results"];
+const views = ["landing", "upload", "review", "connections", "results"];
 function show(name) {
   for (const v of views) $("#" + v).hidden = v !== name;
   window.scrollTo({ top: 0 });
 }
 
-const state = { view: null, filter: "all", page: "overview", query: "", asked: [] };
+const state = { view: null, filter: "all", page: "overview", query: "", asked: [], sets: null, setFilter: "all", setQuery: "", synced: null };
 
 async function loadSample() {
   loading(["Loading the sample month…", "Matching about 3,700 rows across your three files…", "Building the bridge from books to bank…"]);
-  try { state.page = "overview"; render(await api("POST", "/api/sample")); put(alerts); }
+  try { state.synced = null; state.page = "overview"; render(await api("POST", "/api/sample")); put(alerts); }
   catch (e) { fail(e, loadSample); }
   finally { loading(false); }
+}
+
+// Demo of the live loop: the same sample month, presented as pulled from all three connections.
+async function demoSync() {
+  loading(["Pulling settlements from the payment gateway (sample data)…", "Pulling the bank statement (sample data)…", "Pulling orders from your books (sample data)…", "Reconciling all three…"]);
+  try {
+    const v = await api("POST", "/api/sample");
+    state.synced = new Date(); state.page = "overview"; render(v); put(alerts);
+    notice("info", "Demo sync done", "This is the sample month, loaded as if pulled from your gateway, bank and books. Live mode would do this every morning.");
+  } catch (e) { fail(e, demoSync); }
+  finally { loading(false); }
+}
+
+function openConnections() {
+  const when = state.synced ? `Last synced: ${fdate(state.synced.toISOString().slice(0, 10))}, ${state.synced.toTimeString().slice(0, 5)} (demo, sample data)` : "Last synced: never";
+  for (const s of $$("#connections .conn-synced")) s.textContent = when;
+  for (const s of $$("#connections .conn-status")) s.textContent = state.synced ? "✓ Demo sync done" : "Demo: sample data";
+  show("connections");
+  $("#conn-h").focus?.();
 }
 async function loadChaos() {
   loading(["Making a new random month with hidden problems…", "Reconciling it…", "Checking against the answer key…"], "Settle hasn't seen this month before.");
@@ -279,6 +301,7 @@ function issues() {
 
 const PAGES = [
   ["overview", "Overview", "◧"],
+  ["settlements", "Settlements", "⇆"],
   ["issues", "Issues to fix", "!"],
   ["flow", "How the money flows", "⇄"],
   ["patterns", "Patterns & things to check", "◇"],
@@ -289,6 +312,7 @@ const PAGES = [
 
 function render(v) {
   state.view = v;
+  state.sets = null; // payout list is fetched when the Settlements page is first opened
   const root = $("#results");
   const t = v.totals;
   const risks = v.findings.filter((f) => f.kind === "risk").length + (v.exceptions?.length || 0) + (v.unmatched_credits?.length || 0) + (v.suspicious?.length || 0);
@@ -301,28 +325,30 @@ function render(v) {
         el("span", { class: "ico", "aria-hidden": "true" }, ico), label,
         counts[k] ? el("span", { class: k === "issues" ? "count" : "count calm", "aria-label": `${counts[k]} items` }, counts[k]) : null))),
     el("div", { class: "side-foot" },
-      el("button", { class: "navbtn", type: "button", id: "nav-connect", onclick: () => $("#connect").showModal() }, el("span", { class: "ico", "aria-hidden": "true" }, "⚡"), "Connect Razorpay"),
+      el("button", { class: "navbtn", type: "button", id: "nav-connect", onclick: openConnections }, el("span", { class: "ico", "aria-hidden": "true" }, "⚡"), "Connect your sources"),
       el("span", { class: "live" }, v.demo_mode ? "Demo mode: nothing is sent" : "Live")));
 
   const month = v.period?.start ? `${MONTH_LONG[+String(v.period.start).slice(5, 7) - 1]} ${String(v.period.start).slice(0, 4)}` : "";
-  const source = v.source === "sample" ? "Sample month" : v.source === "chaos" ? `Random month #${v.seed ?? ""}` : "Your files";
+  const source = state.synced ? "Demo sync (sample data)" : v.source === "sample" ? "Sample month" : v.source === "chaos" ? `Random month #${v.seed ?? ""}` : "Your files";
   const top = el("header", { class: "topbar" }, el("div", { class: "in" },
     el("span", { class: "period", title: `${fdate(v.period.start)} to ${fdate(v.period.end)}` }, month),
     el("b", {}, v.merchant || "Your business"),
     el("span", { class: "source", id: "source-chip" }, source),
     el("span", { class: "grow" }),
-    el("button", { class: "btn ghost small", id: "tour-start", type: "button", "aria-label": "Take the tour", onclick: () => startTour() }, "? Take the tour"),
+    el("button", { class: "btn ghost small", id: "tour-start", type: "button", "aria-label": "Take the tour", onclick: () => startTour() }, "?", el("span", { class: "long" }, " Take the tour")),
     el("button", { class: "btn small", id: "nav-chaos", type: "button", title: "A new random month with hidden problems and an answer key", onclick: loadChaos }, "Inject chaos"),
     el("details", { class: "menu", id: "export-menu" },
       el("summary", { class: "btn small", role: "button" }, "Export ▾"),
       el("div", { class: "menu-list" },
         el("a", { href: "/api/report", target: "_blank", rel: "noopener", onclick: () => markStep("report") }, "Audit report", el("span", {}, "Opens in a new tab, prints to PDF")),
         el("a", { href: "/api/export", onclick: () => markStep("report") }, "Excel pack (.zip)", el("span", {}, "Issues, bridges and journals as CSV")),
+        el("a", { href: "/api/brs", onclick: () => markStep("report") }, "Bank Reconciliation Statement (.csv)", el("span", {}, "Razorpay balance to bank balance, line by line")),
         el("a", { href: "/api/journal", onclick: () => markStep("report") }, "Tally journal (.csv)", el("span", {}, "Balanced entries ready to import")))),
-    el("button", { class: "btn primary small", id: "nav-new", type: "button", onclick: () => { put(alerts); show("landing"); } }, "New reconciliation")));
+    el("button", { class: "btn primary small", id: "nav-new", type: "button", "aria-label": "New reconciliation", onclick: () => { put(alerts); show("landing"); } }, "New", el("span", { class: "long" }, " reconciliation"))));
 
   const pages = {
     overview: overviewPage(v, t),
+    settlements: settlementsPage(),
     issues: issuesPage(v),
     flow: flowPage(v),
     patterns: patternsPage(v),
@@ -335,6 +361,7 @@ function render(v) {
   put(root, nav, el("div", { class: "app" }, top, ...Object.values(pages)));
   show("results");
   if (state.page === "audit") refreshAudit();
+  if (state.page === "settlements") refreshSettlements();
 }
 
 function go(page) {
@@ -344,6 +371,7 @@ function go(page) {
     if (b.dataset.page === page) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   }
   if (page === "audit") refreshAudit();
+  if (page === "settlements") refreshSettlements();
   window.scrollTo({ top: 0 });
 }
 
@@ -357,6 +385,7 @@ function pageHead(title, text, ...actions) {
 
 function overviewPage(v, t) {
   const auto = t.auto_reconciled || {};
+  const val = t.value_reconciled || {};
   const tied = t.unexplained === 0;
   const biggest = issues()[0];
   const byKind = (kind) => v.findings.filter((f) => f.kind === kind);
@@ -372,8 +401,8 @@ function overviewPage(v, t) {
     tile("loss", "Money lost", rupees(t.loss), `${byKind("loss").length} issues`, seg("loss"), "loss"),
     tile("customer", "Owed to customers", rupees(t.customer), `${byKind("customer").length} customers`, seg("customer"), "customer"),
     tile("books", "Book corrections", rupees(t.books), `${byKind("books").length} entries to fix`, seg("books"), "books"),
-    tile("", "Auto-reconciled", `${auto.pct}%`, `${num(auto.rows)} of ${num(auto.of)} rows`,
-      el("div", { class: "progress", role: "progressbar", "aria-valuenow": auto.pct, "aria-valuemin": 0, "aria-valuemax": 100, "aria-label": "Auto-reconciled" }, el("i", { style: `width:${auto.pct}%` })), "auto"),
+    tile("", "Reconciled by value", `${val.pct}%`, `${short(val.amount)} of ${short(val.of)} settled · ${auto.pct}% of rows auto-matched`,
+      el("div", { class: "progress", role: "progressbar", "aria-valuenow": val.pct, "aria-valuemin": 0, "aria-valuemax": 100, "aria-label": "Reconciled by value" }, el("i", { style: `width:${val.pct}%` })), "value"),
     tile(tied ? "tied" : "tied bad", "Unexplained", rupees(t.unexplained), tied ? "✓ Every rupee is on a named line" : "Needs a look", null, "unexplained"));
 
   const r = v.roi;
@@ -548,16 +577,130 @@ function issuesPage(v) {
         body)))));
 }
 
+// ---- settlements ------------------------------------------------------------------------------
+
+const SET_STATUS = {
+  matched: ["ok", "✓ Matched"], short: ["loss", "Short"], over: ["books", "Over"], missing: ["loss", "Missing"],
+  reversed: ["loss", "Reversed"], in_transit: ["timing", "In transit"], needs_person: ["risk", "Needs a person"],
+};
+const MATCHED_BY = { utr: "UTR", amount_date: "Amount + date", split: "Split credit" };
+
+function settlementsPage() {
+  const body = el("tbody", { id: "settlement-rows" }, el("tr", {}, el("td", { colspan: 9 }, el("div", { class: "skeleton" }), el("div", { class: "skeleton", style: "width:70%" }))));
+  return el("div", {},
+    pageHead("Settlements", "Every payout from your payment gateway (Razorpay) this month, one line each: what was settled, what reached your bank, and how Settle matched them. Click a line to see inside it."),
+    el("div", { class: "stack" },
+      el("div", { class: "card", style: "padding:12px 14px" }, el("div", { class: "inline", id: "set-filters" }), el("div", { class: "small muted", style: "margin-top:8px" }, "Status explained ", helpBtn("Settlement status"))),
+      el("div", { class: "card flush" }, el("div", { class: "tablewrap" }, el("table", { class: "grid sets", id: "settlement-list" },
+        el("thead", {}, el("tr", {}, ...["Settled on", "Settlement", "Items", "Net settled", "Received in bank", "Bank date", "Difference", "How it matched", "Status"].map((h, i) => el("th", { class: [2, 3, 4, 6].includes(i) ? "num" : null }, h)))),
+        body, el("tfoot", { id: "settlement-total" }))))));
+}
+
+async function refreshSettlements() {
+  const body = $("#settlement-rows");
+  if (!body) return;
+  if (!state.sets) {
+    try { state.sets = await api("GET", "/api/settlements"); } catch (e) {
+      put(body, el("tr", {}, el("td", { colspan: 9 }, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint, " "), el("button", { class: "btn small", type: "button", onclick: () => { state.sets = null; refreshSettlements(); } }, "Try again")))));
+      return;
+    }
+  }
+  const { settlements: rows, totals } = state.sets;
+  const counts = { all: rows.length };
+  for (const s of rows) counts[s.status] = (counts[s.status] || 0) + 1;
+  const trs = rows.map((s) => {
+    const [cls, label] = SET_STATUS[s.status];
+    const open = (e) => openSettlement(s, e.currentTarget.closest("tr").querySelector("button"));
+    return el("tr", { class: "link", "data-status": s.status, "data-text": `${s.settlement_id} ${s.utr || ""} ${rupees(s.net)} ${rupees(s.received)}`.toLowerCase(), onclick: open },
+      el("td", {}, fdate(s.settled_at).split(",")[0]),
+      el("td", {}, el("button", { class: "entry-mini linkish mono", type: "button", "aria-label": `Settlement ${s.settlement_id}, ${label}`, onclick: (e) => { e.stopPropagation(); open(e); } }, s.settlement_id), el("div", { class: "ref" }, s.utr ? `UTR ${s.utr}` : "No UTR")),
+      el("td", { class: "num" }, num(s.items)),
+      el("td", { class: "num" }, rupees(s.net)),
+      el("td", { class: "num" }, s.bank_rows.length ? rupees(s.received) : "—"),
+      el("td", {}, s.bank_date ? fdate(s.bank_date) : "—"),
+      el("td", { class: `num ${s.difference ? "neg" : ""}` }, s.difference ? rupees(s.difference) : "—"),
+      el("td", {}, MATCHED_BY[s.matched_by] || "—"),
+      el("td", {}, el("span", { class: `kind ${cls}` }, label)));
+  });
+  const empty = el("tr", { hidden: true }, el("td", { colspan: 9 }, el("div", { class: "empty" }, el("b", {}, "Nothing matches."), "Try a different status or clear the search.")));
+  put(body, ...trs, empty);
+  put($("#settlement-total"), el("tr", { class: "end" },
+    el("td", { colspan: 2 }, el("b", {}, `Total, ${rows.length} settlements`)),
+    el("td", { class: "num" }, num(totals.items)), el("td", { class: "num", id: "set-total-net" }, rupees(totals.net)),
+    el("td", { class: "num", id: "set-total-received" }, rupees(totals.received)), el("td", {}),
+    el("td", { class: "num" }, rupees(totals.difference)), el("td", { colspan: 2 })));
+  const apply = () => {
+    const q = state.setQuery.trim().toLowerCase();
+    let shown = 0;
+    for (const tr of $$("tr[data-status]", body)) {
+      const ok = (state.setFilter === "all" || tr.dataset.status === state.setFilter) && (!q || tr.dataset.text.includes(q));
+      tr.hidden = !ok; shown += ok;
+    }
+    empty.hidden = shown > 0;
+  };
+  const chips = ["all", ...Object.keys(SET_STATUS).filter((k) => counts[k])].map((k) =>
+    el("button", { class: "chip", type: "button", "data-status": k, "aria-pressed": String(state.setFilter === k), onclick: (e) => { state.setFilter = k; $$("#set-filters .chip").forEach((c) => c.setAttribute("aria-pressed", String(c === e.currentTarget))); apply(); } },
+      k === "all" ? "All" : SET_STATUS[k][1].replace("✓ ", ""), el("span", { class: "n" }, counts[k])));
+  const search = el("input", { type: "search", id: "set-search", placeholder: "Search settlement, UTR or amount…", "aria-label": "Search settlements", value: state.setQuery, oninput: (e) => { state.setQuery = e.target.value; apply(); } });
+  put($("#set-filters"), ...chips, el("span", { class: "grow" }), el("div", { style: "min-width:240px;flex:1;max-width:340px" }, search));
+  apply();
+}
+
+const TYPE_LABEL = { payment: "Payments", fees: "Razorpay fees + GST", refund: "Refunds", dispute: "Chargebacks", adjustment: "Adjustments", transfer: "Transfers" };
+
+function openSettlement(s, opener) {
+  lastOpener = opener || document.activeElement;
+  drawer.hidden = false; document.body.style.overflow = "hidden"; sheet.scrollTop = 0;
+  const [cls, label] = SET_STATUS[s.status];
+  const close = el("button", { class: "btn ghost small", type: "button", onclick: closeDrawer, "aria-label": "Close" }, "Close ✕");
+  const order = ["payment", "fees", "refund", "dispute", "adjustment", "transfer"];
+  const parts = Object.entries(s.by_type).sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
+  const credited = s.bank_rows.filter((b) => b.amount > 0);
+  const step = (st, title, sub) => el("li", { class: st },
+    el("span", { class: "dot", "aria-hidden": "true" }, { ok: "✓", missing: "✗", mismatch: "!", waiting: "…" }[st]),
+    el("div", {}, el("div", { class: "st" }, { ok: "In place", missing: "Missing", mismatch: "Doesn't match", waiting: "Next month" }[st]),
+      el("b", {}, title), el("div", { class: "small muted" }, sub)));
+  const bankStep = s.bank_rows.length
+    ? step(s.status === "matched" ? "ok" : "mismatch", "Bank credit", s.bank_rows.map((b) => `Bank row ${b.row_no}, ${fdate(b.date)}: ${rupees(b.amount)}`).join(" · ") + (MATCHED_BY[s.matched_by] ? ` · matched by ${MATCHED_BY[s.matched_by]}` : ""))
+    : step(s.status === "in_transit" ? "waiting" : "missing", "Bank credit", s.status === "in_transit" ? "Not in this statement yet: settled on the last day, it lands next month." : s.why ? `Not matched: ${s.why}.` : "No credit for this settlement on your bank statement.");
+  put(sheet,
+    el("header", {},
+      el("div", { class: "hd" },
+        el("div", {}, el("span", { class: `kind ${cls}` }, label), el("h2", { id: "drawer-title" }, `Settlement ${s.settlement_id}`), el("div", { class: "bigamt" }, rupees(s.net))),
+        close),
+      el("p", { class: "why" }, `Settled ${fdate(s.settled_at)} · ${num(s.items)} items · ${s.utr ? `UTR ${s.utr}` : "no UTR on the report"}`)),
+    el("div", { class: "body" },
+      el("h3", {}, "Where the money went"),
+      el("ol", { class: "chain" }, step("ok", "Razorpay settlement", `${rupees(s.net)} settled on ${fdate(s.settled_at)}`), bankStep),
+      s.difference ? el("p", {}, el("b", {}, "Difference: "), rupees(s.difference), s.status === "in_transit" ? " (timing, not a loss)" : "") : null,
+      el("h3", {}, "What's inside this payout"),
+      el("table", { class: "grid book" }, el("tbody", {},
+        ...parts.map(([k, amt]) => el("tr", {}, el("td", {}, TYPE_LABEL[k] || k), el("td", { class: "num" }, rupees(amt)))),
+        el("tr", { class: "end" }, el("td", {}, "Net settled"), el("td", { class: "num" }, rupees(s.net))))),
+      credited.length > 1 ? el("p", { class: "small muted" }, `Your bank paid this in ${credited.length} parts; Settle added them up.`) : null,
+      s.finding_id ? el("div", { style: "margin-top:16px" }, el("button", { class: "btn primary", type: "button", onclick: () => openFinding(s.finding_id, lastOpener, "summary") }, "Open the issue for this payout"))
+        : el("p", { class: "small muted", style: "margin-top:16px" }, s.status === "matched" ? "Nothing to do: the bank credited exactly what Razorpay settled." : "")));
+  close.focus();
+}
+
 // ---- how the money flows -----------------------------------------------------------------------
 
-function bridgeTable(title, steps, caption) {
-  const rows = steps.map((s) => {
+// BRS wording for the Razorpay → bank bridge: the layout every Indian accountant files.
+function brsLabel(s, i, steps) {
+  if (i === 0) return "Balance as per Razorpay settlements";
+  if (i === steps.length - 1) return "Balance as per bank";
+  if (s.kind === "residual") return s.label;
+  return `${s.amount < 0 ? "Less" : "Add"}: ${s.label}`;
+}
+
+function bridgeTable(title, steps, caption, brs = false, help = null) {
+  const rows = steps.map((s, i) => {
     const cls = s.kind + (s.kind === "residual" && s.amount ? " bad" : "");
-    const label = s.kind === "residual" ? (s.amount ? "Unexplained" : "Unexplained: every rupee is on a line above ✓") : s.label;
+    const label = s.kind === "residual" ? (s.amount ? "Unexplained" : "Unexplained: every rupee is on a line above ✓") : brs ? brsLabel(s, i, steps) : s.label;
     return el("tr", { class: cls }, el("td", {}, label), el("td", { class: "num" }, s.count ? num(s.count) : ""), el("td", { class: "num" }, rupees(s.amount)));
   });
   return el("div", { class: "card flush" },
-    el("div", { style: "padding:16px 18px 10px" }, el("h3", {}, title), el("p", { class: "small muted", style: "margin:2px 0 0" }, caption)),
+    el("div", { style: "padding:16px 18px 10px" }, el("h3", { id: brs ? "brs-h" : null }, title, help ? helpBtn(help) : null), el("p", { class: "small muted", style: "margin:2px 0 0" }, caption)),
     el("div", { class: "tablewrap" }, el("table", { class: "grid book" },
       el("thead", {}, el("tr", {}, el("th", {}, "Line"), el("th", { class: "num" }, "Items"), el("th", { class: "num" }, "Amount"))),
       el("tbody", {}, rows))));
@@ -566,13 +709,13 @@ function bridgeTable(title, steps, caption) {
 function flowPage(v) {
   const resolved = v.resolved || [];
   return el("div", {},
-    pageHead("How the money flows", "Two bridges, the way an auditor ties out a month: from your books to what Razorpay settled, then to what reached your bank. Red lines are problems, grey lines are timing.",
+    pageHead("How the money flows", "Two bridges, the way an auditor ties out a month: from your books to what your payment gateway (Razorpay) settled, then to what reached your bank. Red lines are problems, grey lines are timing.",
       el("a", { class: "btn primary", href: "/api/report", target: "_blank", rel: "noopener", onclick: () => markStep("report") }, "Download the audit report")),
     el("div", { class: "stack" },
       el("h2", { id: "bridges-h", class: "sr" }, "Both bridges"),
       el("div", { class: "cols", style: "grid-template-columns:1fr 1fr" },
-        bridgeTable("Your books → Razorpay", v.bridges.books_to_razorpay, "From your net sales to what Razorpay settled."),
-        bridgeTable("Razorpay → your bank", v.bridges.razorpay_to_bank, "From what Razorpay settled to what reached your bank.")),
+        bridgeTable("Your books → payment gateway", v.bridges.books_to_razorpay, "From your net sales to what Razorpay settled."),
+        bridgeTable("Bank Reconciliation Statement (BRS)", v.bridges.razorpay_to_bank, "Razorpay → your bank: from what Razorpay settled to the balance as per your bank.", true, "BRS")),
       el("section", { class: "card", "aria-labelledby": "handled-h" },
         el("h2", { id: "handled-h" }, "What we checked and left alone"),
         el("p", { class: "small muted" }, "These look like problems in a simple match but aren't. Shown so you can see what was checked."),
@@ -966,6 +1109,7 @@ const TOUR = [
   { page: "overview", sel: ".statement", title: "The month in five numbers", text: "Money lost, what you owe customers, and what your books need fixing. Hover the small ? next to any label for a plain explanation." },
   { page: "overview", sel: "[data-kpi=unexplained]", title: "Unexplained ₹0.00 means it ties out", text: "Every rupee between your books and your bank is on a named line: a fee, a timing difference or an issue. If anything couldn't be placed, it would show here." },
   { page: "overview", sel: "#start-here", title: "Your three steps", text: "Review the biggest issue, approve its fix, download the audit report. The ticks fill in as you go." },
+  { page: "settlements", sel: "#settlement-list", title: "Every payout, one line each", text: "Each settlement from your payment gateway, what reached your bank, and how Settle matched them. This is the view an accountant ticks against the bank statement." },
   { page: "issues", sel: "#problem-list", title: "Issues to fix", text: "Everything Settle found, biggest first. Click any line to open it: why it happened, the proof rows from your files, the money trail and the fix." },
   { page: "audit", sel: "#nav-audit", title: "Nothing moves without you", text: "Each fix (a Razorpay ticket, a customer note, a journal entry) waits for a named approver. Approvals and every decision are logged here." },
   { page: "ask", sel: "#ask-q", title: "Ask in plain English", text: "Ask about the month, like “why was 14 Oct short?”. Answers cite the rows they came from, and every figure is checked." },
@@ -1126,9 +1270,9 @@ $$("[data-sample]").forEach((b) => b.addEventListener("click", loadSample));
 $("#go-upload").addEventListener("click", () => show("upload"));
 $("#upload-back").addEventListener("click", () => show("landing"));
 $("#review-back").addEventListener("click", () => show("upload"));
-const connect = $("#connect");
-$("#open-connect").addEventListener("click", () => connect.showModal());
-$("#connect-close").addEventListener("click", () => connect.close());
+$("#open-connect").addEventListener("click", openConnections);
+$("#conn-back").addEventListener("click", () => show(state.view ? "results" : "landing"));
+$("#demo-sync").addEventListener("click", demoSync);
 document.addEventListener("click", (e) => { for (const m of $$("details.menu[open]")) if (!m.contains(e.target)) m.open = false; });
 
 // Pick up where this browser left off (sessions last an hour).

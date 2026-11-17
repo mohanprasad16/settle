@@ -83,12 +83,12 @@ def base(k: str) -> str:
 def expected(rp=SAMPLE / "razorpay_settlements.csv", bank=SAMPLE / "bank_statement.csv"):
     con = duckdb.connect()
     r = run(con, load(con, rp, bank, SAMPLE / "orders.csv"))
-    a = r.totals["auto_reconciled"]
+    v = r.totals["value_reconciled"]
     return {
         "Money lost": rupees(r.totals["loss"]),
         "Owed to customers": rupees(r.totals["customer"]),
         "Book corrections": rupees(r.totals["books"]),
-        "Auto-reconciled": f"{a['pct']}%",
+        "Reconciled by value": f"{v['pct']}%",
         "Unexplained": rupees(r.totals["unexplained"]),
         "_result": r,
     }
@@ -108,7 +108,7 @@ def same_totals(area, page, exp, what):
         "Money lost",
         "Owed to customers",
         "Book corrections",
-        "Auto-reconciled",
+        "Reconciled by value",
         "Unexplained",
     ):
         check(area, f"{what}: {k} = {exp[k]}", got.get(k) == exp[k], f"page shows {got.get(k)}")
@@ -165,7 +165,7 @@ def landing(page, exp):
     page.wait_for_selector("#landing:not([hidden])")
     check(A, "headline visible", page.is_visible("h1"))
     for sel, name in [("#try-sample", "Try with sample data"), ("#go-upload", "Upload your files"),
-                      ("#open-connect", "Connect Razorpay")]:  # fmt: skip
+                      ("#open-connect", "Connect your sources")]:  # fmt: skip
         check(A, f"button '{name}' visible", page.is_visible(sel))
     check(
         A,
@@ -186,17 +186,49 @@ def landing(page, exp):
             hero,
         )
     shot(page, "landing_desktop", full=True)
+    check(
+        A,
+        "headline is three-way, not Razorpay-only",
+        "books, payments and bank" in page.inner_text("h1"),
+    )
     page.click("#open-connect")
-    dlg = page.locator("#connect")
-    check(A, "Connect Razorpay panel opens", dlg.evaluate("d => d.open"))
-    check(A, "key fields are disabled", page.is_disabled("#k-id") and page.is_disabled("#k-secret"))
-    check(A, "'How it connects' diagram visible", page.is_visible("#connect .flow"))
-    shot(page, "connect_razorpay_panel")
-    page.click("#connect-close")
-    check(A, "panel closes with 'Got it'", not dlg.evaluate("d => d.open"))
+    page.wait_for_selector("#connections:not([hidden])")
+    check(
+        A, "Connections page shows 3 source cards", page.locator("#connections .conn").count() == 3
+    )
+    fields = ["#k-id", "#k-secret", "#k-aa", "#k-books", "#k-schedule"]
+    check(
+        A, "key / consent fields are disabled in the demo", all(page.is_disabled(f) for f in fields)
+    )
+    check(
+        A,
+        "'How it connects' covers all three sources",
+        page.locator("#connections .flow .src > div").count() == 3,
+    )
+    shot(page, "connections_page", full=True)
+    page.click("#conn-back")
+    check(A, "Back returns to the landing page", page.is_visible("#landing"))
     page.click("#open-connect")
-    page.keyboard.press("Escape")
-    check(A, "panel closes with Esc", not dlg.evaluate("d => d.open"))
+    page.click("#demo-sync")
+    wait_results(page)
+    check(
+        A,
+        "Run a demo sync reconciles, labelled as sample data",
+        "Demo sync" in page.inner_text("#source-chip"),
+        page.inner_text("#source-chip"),
+    )
+    same_totals(A, page, exp, "demo sync")
+    page.click("#nav-connect")
+    page.wait_for_selector("#connections:not([hidden])")
+    check(
+        A,
+        "after a sync the cards show when it last synced",
+        "demo" in page.inner_text("#connections .conn-synced").lower(),
+    )
+    page.click("#conn-back")
+    page.wait_for_selector("#results:not([hidden])")
+    page.click("#nav-new")
+    page.wait_for_selector("#landing:not([hidden])")
 
 
 def sample_results(page, exp):
@@ -227,7 +259,16 @@ def sample_results(page, exp):
     check(A, "hovering a KPI's ? explains it in plain words", "every rupee" in tip.lower(), tip)
     shot(page, "help_tooltip")
     page.mouse.move(5, 5)
+    page.hover("[data-kpi=value] button.help")
+    tip = page.inner_text("#tip") if page.is_visible("#tip") else ""
+    check(A, "the ₹ reconciled KPI explains itself", "in transit" in tip.lower(), tip)
+    page.mouse.move(5, 5)
     goto_page(page, "flow")
+    check(
+        A,
+        "the bank bridge is headed as a BRS",
+        "Bank Reconciliation Statement" in page.inner_text("#brs-h"),
+    )
     shot(page, "bridges_desktop")
     goto_page(page, "patterns")
     shot(page, "patterns_desktop")
@@ -281,8 +322,50 @@ def guidance(page):
     )
     page.keyboard.press("Escape")
     heads = page.eval_on_selector_all(".page .page-head h1", "els => els.length")
-    check(A, "every page has a heading with a one-line purpose", heads == 7, heads)
+    check(A, "every page has a heading with a one-line purpose", heads == 8, heads)
     check(A, "Start here starts at 0 of 3 for a new month", not done_steps(page), done_steps(page))
+    goto_page(page, "issues")
+
+
+def settlements_page(page, exp):
+    A = "3b Settlements"
+    r = exp["_result"]
+    goto_page(page, "settlements")
+    page.wait_for_selector("#settlement-rows tr[data-status]")
+    n = r.totals["rows"]["settlements"]
+    rows = page.locator("#settlement-rows tr[data-status]")
+    check(A, f"lists all {n} settlements", rows.count() == n, rows.count())
+    net, got = page.inner_text("#set-total-net"), page.inner_text("#set-total-received")
+    check(
+        A,
+        "total net settled = start of the bank bridge",
+        net == rupees(r.razorpay_to_bank[0].amount),
+        net,
+    )
+    check(
+        A,
+        "total received = Received in your bank",
+        got == rupees(r.razorpay_to_bank[-1].amount),
+        got,
+    )
+    shot(page, "settlements_desktop")
+    page.click("#set-filters .chip[data-status=missing]")
+    shown = page.locator("#settlement-rows tr[data-status]:visible")
+    check(
+        A,
+        "status filter shows only that status",
+        shown.count() == 1 and shown.first.get_attribute("data-status") == "missing",
+    )
+    shown.first.locator("button").click()
+    page.wait_for_selector("#drawer-title")
+    page.wait_for_timeout(450)
+    txt = page.inner_text("#drawer-sheet")
+    check(A, "a row opens the payout: trail, contents, link to its issue",
+          "Bank credit" in txt and "What's inside this payout" in txt and "Open the issue" in txt, txt[:160])  # fmt: skip
+    shot(page, "settlement_drawer_desktop")
+    page.keyboard.press("Escape")
+    page.wait_for_selector("#drawer", state="hidden")
+    page.click("#set-filters .chip[data-status=all]")
     goto_page(page, "issues")
 
 
@@ -730,6 +813,10 @@ def downloads(page, ctx, tmp: Path):
         "report" in done_steps(page),
         done_steps(page),
     )
+    b = list(csv.reader(io.StringIO(ctx.request.get(base("A") + "/api/brs").text())))
+    received = ctx.request.get(base("A") + "/api/result").json()["bridges"]["razorpay_to_bank"][-1]["amount"]  # fmt: skip
+    check(A, "BRS export ends at 'Balance as per bank' = Received in your bank",
+          bool(b) and b[-1][0].startswith("Balance as per bank") and b[-1][1] == f"{received / 100:.2f}", b[-1] if b else b)  # fmt: skip
     z = ctx.request.get(base("A") + "/api/export")
     names = zipfile.ZipFile(io.BytesIO(z.body())).namelist() if z.ok else []
     check(
@@ -957,6 +1044,13 @@ def quality(browser):
     p.click("#upload-sample")
     wait_results(p)
     check(A, "phone results: no sideways scroll", no_hscroll(p))
+    lines = p.eval_on_selector(".topbar .in", "e => { const t = [...e.children].filter(c => c.offsetParent && c.offsetHeight).map(c => c.getBoundingClientRect().top).sort((a, b) => a - b); return t.filter((x, i) => i === 0 || x - t[i - 1] > 12).length }")  # fmt: skip
+    check(A, "phone header fits on 2 lines", lines <= 2, lines)
+    reach = all(
+        p.is_visible(s) for s in ("#tour-start", "#nav-chaos", "#export-menu summary", "#nav-new")
+    )
+    check(A, "phone header: every action is still reachable", reach)
+    shot(p, "phone_header")
     shot(p, "results_phone")
     shot(p, "results_phone_full", full=True)
     goto_page(p, "issues")
@@ -997,7 +1091,7 @@ def main() -> int:
             watch(ctx)
             page = ctx.new_page()
             steps = [
-                lambda: landing(page, exp), lambda: sample_results(page, exp), lambda: guidance(page), lambda: drawers(page, exp),
+                lambda: landing(page, exp), lambda: sample_results(page, exp), lambda: guidance(page), lambda: settlements_page(page, exp), lambda: drawers(page, exp),
                 lambda: actions(page, ctx), lambda: ask(page, ctx), lambda: chaos(page),
                 lambda: upload(page, exp, Path(tmp)), lambda: downloads(page, ctx, Path(tmp)),
                 lambda: failures(page, ctx, browser, exp), lambda: quality(browser),

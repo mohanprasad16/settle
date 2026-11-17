@@ -8,6 +8,7 @@ only called when a person asks (Ask, "Explain with AI", reading a PDF), behind a
 Every error leaves as {"error": plain English, "hint": what to do next}; never a stack trace.
 """
 
+import csv
 import io
 import logging
 import os
@@ -37,7 +38,7 @@ from app.actions import propose_all
 from app.ask import ask
 from app.audit import DecisionLog, pack, render
 from app.config import settings
-from app.engine import KINDS, Result, run
+from app.engine import KINDS, SETTLEMENT_STATUS, Result, brs, run, settlements
 from app.gate import Gate
 from app.llm import GeminiLLM, Usage
 from app.load import REQUIRED, LoadError, load
@@ -327,6 +328,7 @@ def _view(s: Session) -> dict:
                 "exceptions",
                 "unexplained",
                 "auto_reconciled",
+                "value_reconciled",
                 "rows",
             )
         },
@@ -856,6 +858,47 @@ def audit_trail(request: Request):
 def report(request: Request):
     s = _loaded(request)
     return HTMLResponse(_report_html(s))
+
+
+@app.get("/api/settlements")
+def settlement_list(request: Request):
+    """Payout by payout: the accountant's first view. Same table the Razorpay → bank bridge uses."""
+    s = _loaded(request)
+    rows = settlements(s.con, s.result)
+    by_type: dict[str, dict[str, int]] = defaultdict(dict)
+    for sid, typ, amt, fee in s.con.execute(
+        """SELECT settlement_id, type,
+                  sum(CASE WHEN type = 'payment' THEN amount ELSE credit - debit END),
+                  sum(CASE WHEN type = 'payment' THEN fee ELSE 0 END)
+           FROM rp GROUP BY ALL"""
+    ).fetchall():
+        by_type[sid][typ] = int(amt)
+        if fee:
+            by_type[sid]["fees"] = by_type[sid].get("fees", 0) - int(fee)
+    for r in rows:
+        r["by_type"] = by_type.get(r["settlement_id"], {})
+    totals = {k: sum(r[k] for r in rows) for k in ("items", "net", "received", "difference")}
+    return JSONResponse(
+        jsonable_encoder({"settlements": rows, "totals": totals, "labels": SETTLEMENT_STATUS})
+    )
+
+
+@app.get("/api/brs")
+def brs_csv(request: Request):
+    """The Bank Reconciliation Statement in the layout an accountant files, as CSV."""
+    s = _loaded(request)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    p = s.result.period
+    w.writerow([f"Bank Reconciliation Statement, {p.start:%d %b %Y} to {p.end:%d %b %Y}", ""])
+    w.writerow(["Particulars", "Amount (INR)"])
+    for label, amount in brs(s.result):
+        w.writerow([label, f"{amount / 100:.2f}"])
+    return Response(
+        buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="settle_brs_{p.start:%Y_%m}.csv"'},
+    )
 
 
 @app.get("/api/journal")

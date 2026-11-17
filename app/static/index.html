@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Settle: reconcile Razorpay, your books and your bank</title>
-<meta name="description" content="Account for every rupee between your books, Razorpay and your bank. Code does the maths, AI explains, you approve.">
+<title>Settle: reconcile your books, payments and bank</title>
+<meta name="description" content="Account for every rupee between your books, your payment gateway and your bank. Code does the maths, AI explains, you approve.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -21,14 +21,14 @@
   <header class="sitebar">
     <div class="wrap">
       <a class="brand" href="/" aria-label="Settle home"><span class="logo" aria-hidden="true"></span>Settle</a>
-      <button class="btn ghost small" id="open-connect" type="button">Connect Razorpay</button>
+      <button class="btn ghost small" id="open-connect" type="button">Connect your sources</button>
     </div>
   </header>
 
   <section class="hero wrap">
     <div class="hero-copy">
-      <h1>Find the money that went missing between Razorpay and your bank.</h1>
-      <p class="lead">Give Settle the three files you already have. It matches every payment, refund, fee and settlement, shows what went missing and why, and drafts the fixes for you to approve.</p>
+      <h1>Find the money that went missing between your books, payments and bank.</h1>
+      <p class="lead">Settle ties your orders, your payment gateway (Razorpay today) and your bank statement to the paisa. It matches every payment, refund, fee and settlement, shows what went missing and why, and drafts the fixes for you to approve. Upload three files, or connect the sources once.</p>
       <div class="cta">
         <button class="btn primary large" id="try-sample" type="button">Try it with a sample month</button>
         <button class="btn large" id="go-upload" type="button">Use my own files</button>
@@ -69,8 +69,8 @@
     <ol class="steps">
       <li>
         <span class="step-ico" aria-hidden="true">₹</span>
-        <h3>Razorpay settlement report</h3>
-        <p>Razorpay Dashboard, Reports, Settlement reconciliation, download as CSV. It lists every payment, refund and fee in each payout.</p>
+        <h3>Payment gateway settlements</h3>
+        <p>From Razorpay today: Dashboard, Reports, Settlement reconciliation, download as CSV. It lists every payment, refund and fee in each payout.</p>
       </li>
       <li>
         <span class="step-ico" aria-hidden="true">⌂</span>
@@ -180,6 +180,60 @@
 </div>
 
 <!-- The app ----------------------------------------------------------------------------------- -->
+<!-- Connections ------------------------------------------------------------------------------ -->
+<div id="connections" hidden>
+  <header class="sitebar">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Settle home"><span class="logo" aria-hidden="true"></span>Settle</a>
+      <button class="btn ghost small" id="conn-back" type="button">← Back</button>
+    </div>
+  </header>
+  <section class="wrap">
+    <div class="page-head" style="padding:28px 0 8px">
+      <div><h1 id="conn-h" tabindex="-1">Connect your sources</h1>
+        <p>Settle reconciles three sources: your payment gateway, your bank and your books. Connect them once and it pulls all three every morning, reconciles, and tells you only about new problems.</p></div>
+    </div>
+    <div class="banner info" role="note"><div><b>This is a demo, so it runs on sample data.</b> Live mode connects with a read-only key or your consent; those fields are switched off here. "Run a demo sync" loads the sample month as if it came from all three sources.</div></div>
+    <div class="conn-grid">
+      <article class="card conn" data-source="gateway">
+        <div class="conn-top"><span class="conn-ico" aria-hidden="true">₹</span><div><h2>Payment gateway</h2><p class="small muted">Razorpay</p></div><span class="kind timing conn-status">Demo: sample data</span></div>
+        <p><b>Pulls:</b> every settlement and the payments, refunds, chargebacks and fees inside it.</p>
+        <p><b>Connects with:</b> Razorpay's Settlement Reconciliation API and a read-only API key. The connector is built; uploads use the same columns.</p>
+        <div class="field"><label for="k-id">Key ID</label><input id="k-id" type="text" placeholder="rzp_live_…" disabled></div>
+        <div class="field"><label for="k-secret">Key secret</label><input id="k-secret" type="password" placeholder="••••••••" disabled></div>
+        <p class="small muted">More gateways (Cashfree, PayU, Stripe) would plug in the same way. Not built yet.</p>
+        <p class="small muted conn-synced">Last synced: never</p>
+      </article>
+      <article class="card conn" data-source="bank">
+        <div class="conn-top"><span class="conn-ico" aria-hidden="true">⌂</span><div><h2>Bank</h2><p class="small muted">Your current account</p></div><span class="kind timing conn-status">Demo: sample data</span></div>
+        <p><b>Pulls:</b> the statement lines, with the UTR or reference on each credit.</p>
+        <p><b>Connects with:</b> the Account Aggregator framework (RBI's consent-based way to share bank data), your bank's API, or a RazorpayX current account. Or upload the CSV or PDF statement, even scanned or password-locked.</p>
+        <div class="field"><label for="k-aa">Account Aggregator consent</label><input id="k-aa" type="text" placeholder="Your mobile number for the consent request" disabled></div>
+        <p class="small muted conn-synced">Last synced: never</p>
+      </article>
+      <article class="card conn" data-source="books">
+        <div class="conn-top"><span class="conn-ico" aria-hidden="true">≡</span><div><h2>Books and orders</h2><p class="small muted">Store or accounting system</p></div><span class="kind timing conn-status">Demo: sample data</span></div>
+        <p><b>Pulls:</b> orders with their amount, status and refunds.</p>
+        <p><b>Connects with:</b> Shopify, WooCommerce, Zoho Books or Tally. Or upload an orders export.</p>
+        <div class="field"><label for="k-books">Store or accounts</label><select id="k-books" disabled><option>Shopify</option><option>WooCommerce</option><option>Zoho Books</option><option>Tally</option></select></div>
+        <p class="small muted conn-synced">Last synced: never</p>
+      </article>
+    </div>
+    <div class="card conn-schedule">
+      <label class="inline"><input type="checkbox" id="k-schedule" checked disabled> <span><b>Reconcile every morning</b>, after the day's settlements land, and alert me only when there's a new issue.</span></label>
+      <p class="small muted" style="margin:6px 0 0">Switched off in the demo.</p>
+    </div>
+    <h2 style="margin-top:24px">How it connects</h2>
+    <div class="flow" aria-label="Payment gateway API, bank through Account Aggregator and books from Shopify or Tally feed Settle every morning">
+      <div class="src"><div>Payment gateway: Razorpay settlement API</div><div>Bank: Account Aggregator, bank API or RazorpayX</div><div>Books: Shopify, WooCommerce, Zoho Books, Tally</div></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="dst">Settle, every morning</div>
+    </div>
+    <div class="cta" style="margin:24px 0 48px"><button class="btn primary large" id="demo-sync" type="button">Run a demo sync</button>
+      <span class="small muted">Loads the sample month (fictional Kaapi Kart Foods) as if pulled from all three sources.</span></div>
+  </section>
+</div>
+
 <div id="results" class="shell" hidden></div>
 </main>
 
@@ -206,22 +260,6 @@
   </div>
 </div>
 
-<dialog id="connect" aria-labelledby="connect-h">
-  <div class="dbody">
-    <h2 id="connect-h">Connect Razorpay</h2>
-    <p>In live mode you add a read-only Razorpay API key. Every morning Settle pulls your settlement report, matches it to your bank and books, and tells you only when something new is wrong, so a missing settlement is seen the same day instead of at month end.</p>
-    <div class="banner info"><div><b>This demo runs on sample data.</b> Key entry is switched off here. The connector uses Razorpay's settlement reconciliation API, the same columns as the file upload.</div></div>
-    <div class="field"><label for="k-id">Key ID</label><input id="k-id" type="text" placeholder="rzp_live_…" disabled></div>
-    <div class="field"><label for="k-secret">Key secret</label><input id="k-secret" type="password" placeholder="••••••••" disabled></div>
-    <h3>How it connects</h3>
-    <div class="flow" aria-label="Razorpay API, bank via Account Aggregator and books via Shopify or Tally feed Settle">
-      <div class="src"><div>Razorpay settlement reconciliation API</div><div>Bank, through Account Aggregator or the bank's API</div><div>Books, from Shopify, Zoho Books or Tally</div></div>
-      <div class="arrow" aria-hidden="true">→</div>
-      <div class="dst">Settle, every morning</div>
-    </div>
-    <div class="cta"><button class="btn primary" id="connect-close" type="button">Got it</button></div>
-  </div>
-</dialog>
 
 <div class="tip" id="tip" role="tooltip" hidden></div>
 <script src="/static/app.js"></script>

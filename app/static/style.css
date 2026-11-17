@@ -105,6 +105,11 @@ a { color: var(--brand); }
 .kind.customer { color: var(--owed); background: var(--owed-bg); }
 .kind.books { color: var(--books); background: var(--books-bg); }
 .kind.risk { color: var(--risk); background: var(--risk-bg); }
+.kind.ok { color: var(--ok); background: var(--ok-bg); }
+.kind.timing { color: var(--timing); background: var(--timing-bg); }
+.kind.ok::before { display: none; }
+.grid.sets td.neg { color: var(--loss); }
+.grid.sets tfoot td { font-weight: 600; border-top: 1px solid var(--line); background: var(--surface-2); }
 
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .badge.ok { color: var(--ok); background: var(--ok-bg); }
@@ -480,6 +485,13 @@ dialog::backdrop { background: rgba(15, 27, 45, 0.4); }
   .askbox { flex-direction: column; align-items: stretch; }
   .topbar .in { gap: 8px; }
   .topbar .in > b { display: none; }
+  /* Two lines on a phone: the month on the first, the actions on the second. */
+  .topbar .in > .grow { flex-basis: 100%; height: 0; }
+  .topbar .long { display: none; }
+  .grid.sets thead { display: none; }
+  .grid.sets tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .grid.sets td { border: 0; padding: 0; }
+  .grid.sets td:nth-child(3), .grid.sets td:nth-child(6), .grid.sets td:nth-child(8) { display: none; }
   #tour-start { padding: 0 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -489,3 +501,15 @@ dialog::backdrop { background: rgba(15, 27, 45, 0.4); }
   .side-nav, .topbar, .toasts { display: none; }
   .shell { display: block; }
 }
+
+/* ---- connections ------------------------------------------------------------------------ */
+.conn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 16px; }
+.conn { display: flex; flex-direction: column; gap: 8px; }
+.conn h2 { font-size: 1.05rem; margin: 0; }
+.conn p { margin: 0; }
+.conn-top { display: flex; align-items: flex-start; gap: 10px; }
+.conn-top > div { flex: 1; }
+.conn-ico { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--brand-tint); color: var(--brand); font-weight: 700; }
+.conn-schedule { margin-top: 14px; }
+.conn-schedule .inline { align-items: flex-start; }
+@media (max-width: 900px) { .conn-grid { grid-template-columns: 1fr; } }
