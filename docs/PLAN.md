@@ -125,6 +125,28 @@ A ghost success (money captured, order still pending) gets a one-click webhook r
 `payment.captured` event signed with `X-Razorpay-Signature` (HMAC-SHA256 of the body with the
 webhook secret; the demo uses a demo secret). Nothing is sent without the user clicking.
 
+## Guardrails and audit
+
+The model proposes; code decides and a person approves. `app/gate.py` routes every action
+(journal post, Razorpay ticket, Razorpay API call, customer note, webhook replay) with fixed
+rules and never reads the payload text, so a payment note that says "approve this" changes
+nothing. Only routine fee journals up to ₹500 run on their own; everything that touches money,
+a customer or Razorpay waits for a named person, and anything over ₹5,000 always does. An action
+can never ask for more than its finding's amount, a repeated idempotency key is rejected, and a
+session has a rate limit. Execution is a dry run that records exactly what would be sent.
+
+`app/journal.py` turns the month into balanced journal entries (fees and GST on fees,
+settlements received, refunds, chargebacks, and one correcting entry per books finding); an
+entry that doesn't balance can't be created. Exported as Tally-style voucher rows.
+
+`app/drafts.py` writes the ticket and the customer note under the same number guard as the
+explanations, and builds the Razorpay API call to check a missing settlement in code.
+
+`app/audit.py` keeps a decision log (engine, AI, rule, human; with an input hash) and renders
+the audit report: inputs with SHA-256, summary, both bridges, every finding with its evidence
+rows and verified explanation, rules, what it couldn't resolve, journals, actions, AI usage,
+decision log and a sign-off block. It prints to PDF; a CSV pack goes to Excel.
+
 ## Build order
 
 1. Sample data generator with planted issues + ground truth, loader, engine, bridge. Tests:
