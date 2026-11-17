@@ -991,6 +991,31 @@ UNNAMED_JS = """
 """
 
 
+def desktop_layout(browser):
+    """QA found the top bar wrapping to two rows at 1366px on long page names, and the
+    selection bar sliding under an open Copilot."""
+    A = "10 Quality"
+    ctx = browser.new_context(viewport={"width": 1280, "height": 800})
+    p = ctx.new_page()
+    p.goto(base("A"))
+    p.click("#try-sample")
+    wait_results(p)
+    tall = []
+    for name in PAGE_IDS:
+        goto_page(p, name)
+        h = p.locator(".topbar").bounding_box()["height"]
+        if h > 64:
+            tall.append(f"{name}:{round(h)}px")
+    check(A, "desktop 1280px: top bar stays one row on every page", not tall, tall)
+    goto_page(p, "patterns")
+    p.locator("#page-patterns .pick-row").first.check()
+    p.click("#cp-launch")
+    p.wait_for_selector("#copilot:not([hidden])")
+    sb, cp = p.locator("#sel-bar").bounding_box(), p.locator("#copilot").bounding_box()
+    check(A, "selection bar stays clear of the open Copilot", sb["x"] + sb["width"] <= cp["x"], (sb, cp))  # fmt: skip
+    ctx.close()
+
+
 def quality(browser):
     A = "10 Quality"
     ctx = browser.new_context(viewport=DESK)
@@ -1295,7 +1320,7 @@ def main() -> int:
                 lambda: landing(page, exp), lambda: sample_results(page, exp), lambda: guidance(page), lambda: settlements_page(page, exp), lambda: drawers(page, exp),
                 lambda: actions(page, ctx), lambda: ask(page, ctx), lambda: chaos(page),
                 lambda: upload(page, exp, Path(tmp)), lambda: downloads(page, ctx, Path(tmp)),
-                lambda: failures(page, ctx, browser, exp), lambda: native(page, ctx), lambda: quality(browser),
+                lambda: failures(page, ctx, browser, exp), lambda: native(page, ctx), lambda: quality(browser), lambda: desktop_layout(browser),
             ]  # fmt: skip
             for step in steps:
                 try:
