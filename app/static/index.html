@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settle: reconcile Razorpay, your books and your bank</title>
+<meta name="description" content="Account for every rupee between your books, Razorpay and your bank. Code does the maths, AI explains, you approve.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Spectral:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231b2a4a%22/%3E%3Cpath d=%22M8 17l5 5 11-12%22 stroke=%22%23e3f1e8%22 stroke-width=%224%22 fill=%22none%22/%3E%3C/svg%3E">
+</head>
+<body>
+<a class="sr" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="/" id="home"><span class="tick" aria-hidden="true">✓</span>Settle</a>
+    <nav aria-label="Main" id="topnav" hidden>
+      <button class="btn quiet small" id="nav-chaos" type="button" title="A new random month with hidden problems">Inject chaos</button>
+      <button class="btn quiet small" id="nav-new" type="button">Start over</button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap" aria-live="polite" id="alerts"></div>
+
+<main id="main">
+<!-- Landing -->
+<div id="landing" class="wrap">
+  <section class="hero">
+    <div>
+      <h1>Account for every rupee between your books, Razorpay and your bank.</h1>
+      <p class="lead">Drop in three files you already have. Settle matches every payment, refund, fee and settlement, shows you the money that went missing and why, and drafts the fixes for you to approve.</p>
+      <div class="cta">
+        <button class="btn primary" id="try-sample" type="button">Try with sample data</button>
+        <button class="btn" id="go-upload" type="button">Upload your files</button>
+      </div>
+      <div class="cta">
+        <button class="linkish" id="open-connect" type="button">Connect Razorpay directly</button>
+      </div>
+    </div>
+    <div class="ledger" aria-label="Example of a month that ties out">
+      <div class="line"><span>Net sales in your books</span><span class="num">₹22,87,307.00</span></div>
+      <div class="line"><span class="minus">Razorpay fees + GST at your agreed rate</span><span class="num minus">−₹21,731.37</span></div>
+      <div class="line"><span class="minus">Timing: settles next month, or from last month</span><span class="num minus">−₹25,794.00</span></div>
+      <div class="line"><span class="bad">Settlement that never reached the bank</span><span class="num bad">−₹21,196.39</span></div>
+      <div class="line"><span class="bad">Refund paid out twice</span><span class="num bad">−₹2,697.00</span></div>
+      <div class="line"><span class="minus">…and 16 more lines, each explained</span><span></span></div>
+      <div class="line sum"><span>Received in your bank</span><span class="num">₹21,26,760.32</span></div>
+      <div class="stamp" aria-label="Ties out: unexplained zero rupees">✓ Ties out · Unexplained ₹0.00</div>
+    </div>
+  </section>
+
+  <section class="tour" aria-labelledby="tour-h">
+    <h2 id="tour-h">See it work in 90 seconds</h2>
+    <p class="muted">A walk through one month: the money found, the proof behind it, and the fixes.</p>
+    <div class="frame" id="tour-frame"><p>Product tour video coming soon. Meanwhile, press <b>Try with sample data</b> to use the real thing.</p></div>
+  </section>
+
+  <section aria-labelledby="how-h">
+    <h2 id="how-h">How it works</h2>
+    <ol class="steps">
+      <li><h3>Bring three files</h3><p>Razorpay settlement report, your bank statement (CSV or PDF, even scanned or locked) and your orders export. Or connect Razorpay directly.</p></li>
+      <li><h3>Code matches every rupee</h3><p>Fees, GST, refunds, chargebacks and timing are explained line by line until nothing is left unexplained. The AI only writes the explanations, and every figure it writes is checked.</p></li>
+      <li><h3>Approve the fixes</h3><p>Tickets to Razorpay, notes to customers and journal entries are drafted for you. Nothing is sent until a named person approves it. Download the audit report.</p></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="trust-h">
+    <h2 id="trust-h" class="sr">Why you can trust it</h2>
+    <ul class="trust">
+      <li><b>Unexplained ₹0.00</b><br><span class="muted">Every rupee lands on a named line, or it's flagged.</span></li>
+      <li><b>Every AI figure checked</b><br><span class="muted">The AI never calculates. Numbers come from your files.</span></li>
+      <li><b>Nothing moves without you</b><br><span class="muted">Money actions wait for a named approver.</span></li>
+      <li><b>Tested on unseen months</b><br><span class="muted">Measured on random months it never saw while being built.</span></li>
+    </ul>
+  </section>
+</div>
+
+<!-- Upload -->
+<div id="upload" class="wrap" hidden>
+  <section class="block">
+    <h2>Upload one month of files</h2>
+    <p class="muted">Use the same month for all three. Files stay in this browser session and are deleted after an hour.</p>
+    <form id="upload-form" novalidate>
+      <div class="slots">
+        <div class="slot" data-slot="razorpay">
+          <h3>Razorpay settlement report</h3>
+          <p class="small muted">Dashboard → Reports → Settlement recon. CSV.</p>
+          <label class="sr" for="f-razorpay">Razorpay settlement report file</label>
+          <input id="f-razorpay" name="razorpay" type="file" accept=".csv,text/csv" required>
+          <div class="file" aria-live="polite"></div>
+        </div>
+        <div class="slot" data-slot="bank">
+          <h3>Bank statement</h3>
+          <p class="small muted">CSV from net banking, or the PDF your bank emails you. Scanned and password-locked PDFs work.</p>
+          <label class="sr" for="f-bank">Bank statement file</label>
+          <input id="f-bank" name="bank" type="file" accept=".csv,text/csv,.pdf,application/pdf" required>
+          <div class="file" aria-live="polite"></div>
+        </div>
+        <div class="slot" data-slot="orders">
+          <h3>Orders export</h3>
+          <p class="small muted">From your store or accounts: order number, date, amount, status, refunds. CSV.</p>
+          <label class="sr" for="f-orders">Orders export file</label>
+          <input id="f-orders" name="orders" type="file" accept=".csv,text/csv" required>
+          <div class="file" aria-live="polite"></div>
+        </div>
+      </div>
+      <div class="field" id="pw-field" hidden>
+        <label for="f-password"><b>Statement password</b></label>
+        <input id="f-password" name="password" type="password" autocomplete="off">
+        <span class="small muted">Banks often use your customer ID or date of birth (DDMMYYYY).</span>
+      </div>
+      <div class="cta">
+        <button class="btn primary" type="submit">Reconcile these files</button>
+        <button class="btn quiet" type="button" id="upload-back">Back</button>
+      </div>
+      <p class="small muted" style="margin-top:12px">Don't have files handy? <button class="linkish" type="button" id="upload-sample">Use the sample month</button>.</p>
+    </form>
+  </section>
+</div>
+
+<!-- PDF review -->
+<div id="review" class="wrap" hidden>
+  <section class="block">
+    <h2>Check the bank statement we read</h2>
+    <div id="review-summary"></div>
+    <div class="tablewrap"><table class="review" id="review-table"></table></div>
+    <div class="cta" style="margin-top:16px">
+      <button class="btn primary" id="review-go" type="button">Continue to reconcile</button>
+      <button class="btn quiet" id="review-back" type="button">Upload different files</button>
+    </div>
+  </section>
+</div>
+
+<!-- Results -->
+<div id="results" class="wrap" hidden></div>
+</main>
+
+<div class="drawer" id="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+  <div class="sheet" id="drawer-sheet"></div>
+</div>
+
+<div class="loading" id="loading" hidden role="status" aria-live="assertive">
+  <div class="box"><div class="spinner" aria-hidden="true"></div><div id="loading-text">Working…</div></div>
+</div>
+
+<dialog id="connect" aria-labelledby="connect-h">
+  <div class="dbody">
+    <h2 id="connect-h">Connect Razorpay</h2>
+    <p>In live mode you enter a read-only Razorpay API key. Settle pulls your settlement report every morning, matches it to your bank and books, and alerts you only when something new is wrong, so a missing settlement is seen the same day, not at month end.</p>
+    <div class="banner info"><div><b>This demo runs on sample data.</b>Key entry is switched off here. The connector uses Razorpay's settlement recon API, the same columns as the file upload.</div></div>
+    <div class="field"><label for="k-id">Key ID</label><input id="k-id" type="text" placeholder="rzp_live_…" disabled></div>
+    <div class="field"><label for="k-secret">Key secret</label><input id="k-secret" type="password" placeholder="••••••••" disabled></div>
+    <h3>How it connects</h3>
+    <div class="flow" aria-label="Razorpay API, bank via Account Aggregator and books via Shopify or Tally feed Settle">
+      <div class="src"><div>Razorpay settlement recon API</div><div>Bank, through Account Aggregator or the bank's API</div><div>Books, from Shopify, Zoho Books or Tally</div></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="dst">Settle, every morning</div>
+    </div>
+    <div class="cta"><button class="btn primary" id="connect-close" type="button">Got it</button></div>
+  </div>
+</dialog>
+
+<footer><div class="wrap">Settle is a demo by Mohanprasad S. Sample data is fictional (Kaapi Kart Foods). In demo mode nothing is ever sent: approved actions are recorded, not executed.</div></footer>
+<script src="/static/app.js"></script>
+</body>
+</html>
