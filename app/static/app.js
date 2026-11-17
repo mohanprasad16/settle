@@ -214,7 +214,7 @@ function entry(f) {
     el("span", {},
       el("span", { class: "t" }, el("span", { class: `kind ${f.kind}` }, k.label), f.title, f.count ? ` (${f.count} payments)` : ""),
       f.headline ? el("div", { class: "h" }, f.headline) : null,
-      el("div", { class: "who" }, f.contact ? `Contact: ${f.contact}` : "", f.ref ? ` · ${f.ref}` : "")),
+      el("div", { class: "who" }, f.contact ? `Contact: ${f.contact}` : "", f.ref ? ` · ${fdate(f.ref)}` : "")),
     el("span", { class: "amt" }, rupees(f.amount)));
 }
 
@@ -310,7 +310,7 @@ function chaosPanel(v) {
     el("ul", { class: "answerkey" }, ...key.map((k) =>
       el("li", {},
         el("span", { class: k.found ? "y" : k.found === false ? "n" : "x", "aria-label": k.found ? "found" : k.found === false ? "missed" : "extra" }, k.found ? "✓" : k.found === false ? "✗" : "?"),
-        el("span", {}, k.title, el("span", { class: "small muted" }, ` · ${k.ref}`),
+        el("span", {}, k.title, el("span", { class: "small muted" }, ` · ${fdate(k.ref)}`),
           k.found === null ? el("div", { class: "small muted" }, "Flagged but not in the answer key") : null),
         el("span", { class: "num" }, rupees(k.amount))))),
     el("div", { class: "cta", style: "margin-top:12px" }, el("button", { class: "btn", type: "button", onclick: loadChaos }, "Try another random month")));
