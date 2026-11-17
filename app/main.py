@@ -1258,6 +1258,13 @@ def reject_proposal(request: Request, pid: str, body: ApproveIn):
     return JSONResponse(jsonable_encoder({"proposal": _card(p, s.policy)}))
 
 
+@app.get("/api/proposals")
+def list_proposals(request: Request):
+    """Every change card this session, newest first: for Approvals and undo."""
+    s = _loaded(request)
+    return JSONResponse(jsonable_encoder([_card(p, s.policy) for p in reversed(s.proposals.values())]))
+
+
 @app.get("/api/proposals/{pid}/sheet.csv")
 def proposal_sheet(request: Request, pid: str):
     s = _loaded(request)

@@ -28,40 +28,29 @@
   <section class="hero wrap">
     <div class="hero-copy">
       <h1>Find the money that went missing between your books, payments and bank.</h1>
-      <p class="lead">Settle ties your orders, your payment gateway (Razorpay today) and your bank statement to the paisa. It matches every payment, refund, fee and settlement, shows what went missing and why, and drafts the fixes for you to approve. Upload three files, or connect the sources once.</p>
+      <p class="lead">Settle ties your orders, your payment gateway (Razorpay today) and your bank statement to the paisa, shows what went missing and why, and drafts the fixes.</p>
+      <p class="tagline">Like a coding agent, but for your finance team: it does the work, you approve every change.</p>
       <div class="cta">
         <button class="btn primary large" id="try-sample" type="button">Try it with a sample month</button>
-        <button class="btn large" id="go-upload" type="button">Use my own files</button>
+        <button class="btn large" id="watch-tour" type="button">▶ Watch the tour</button>
+        <button class="btn ghost" id="go-upload" type="button">Use my own files</button>
       </div>
       <p class="small muted">The sample is a fictional coffee brand's October. Nothing to sign up for, nothing is sent anywhere.</p>
     </div>
 
-    <figure class="preview" aria-label="Preview of a month that ties out">
-      <div class="pv-top"><span class="pv-dot"></span><span class="pv-dot"></span><span class="pv-dot"></span><span class="pv-title">October 2026, Kaapi Kart Foods</span></div>
-      <div class="pv-body">
-        <div class="pv-kpis">
-          <div><span>Money lost</span><b class="loss-ink">₹33,361.49</b></div>
-          <div><span>Auto-reconciled</span><b>95.1%</b></div>
-          <div><span>Unexplained</span><b class="ok-ink">₹0.00</b></div>
+    <div class="hero-video">
+      <div class="browser">
+        <div class="browser-bar" aria-hidden="true"><span></span><span></span><span></span><i>settle.app · 90-second tour</i></div>
+        <div class="vwrap">
+          <video id="tour-video" autoplay muted loop playsinline preload="metadata" poster="/static/tour.jpg" aria-label="90-second product tour of Settle, silent with captions">
+            <source src="/static/tour.mp4" type="video/mp4">
+          </video>
+          <button class="vplay" id="tour-play" type="button" aria-label="Watch the 90-second tour from the start, with controls">▶ Watch the 90-second tour</button>
         </div>
-        <svg class="pv-chart" viewBox="0 0 320 96" aria-hidden="true">
-          <rect x="6" y="8" width="34" height="84" rx="3" class="w-total"/>
-          <rect x="48" y="8" width="34" height="5" rx="2" class="w-normal"/>
-          <rect x="90" y="13" width="34" height="6" rx="2" class="w-timing"/>
-          <rect x="132" y="19" width="34" height="4" rx="2" class="w-loss"/>
-          <rect x="174" y="23" width="34" height="69" rx="3" class="w-total"/>
-          <rect x="216" y="23" width="34" height="4" rx="2" class="w-loss"/>
-          <rect x="258" y="27" width="34" height="65" rx="3" class="w-total"/>
-        </svg>
-        <dl class="pv-lines">
-          <div><dt>Net sales in your books</dt><dd>₹22,87,307.00</dd></div>
-          <div class="loss-ink"><dt>Settlement that never reached the bank</dt><dd>−₹21,196.39</dd></div>
-          <div class="loss-ink"><dt>Refund paid out twice</dt><dd>−₹2,697.00</dd></div>
-          <div class="total"><dt>Received in your bank</dt><dd>₹21,26,760.32</dd></div>
-        </dl>
-        <div class="pv-stamp">✓ Every rupee on a named line. Unexplained ₹0.00</div>
+        <div class="frame" id="tour-frame" hidden><p>The tour video isn't available right now. Press <b>Try it with a sample month</b> to use the real thing.</p></div>
       </div>
-    </figure>
+      <p class="small muted" style="margin-top:8px">Silent, with captions. The real app, real numbers from the sample month.</p>
+    </div>
   </section>
 
   <section class="wrap band" aria-labelledby="files-h">
@@ -86,19 +75,6 @@
     <p class="muted small">No files handy? <button class="linkish" type="button" data-sample>Try the sample month</button> and see the whole flow in a minute.</p>
   </section>
 
-  <section class="wrap band" aria-labelledby="tour-h">
-    <div class="tour-head">
-      <h2 id="tour-h">See a month reconciled in 90 seconds</h2>
-      <p class="muted">The money found, the proof behind it, and the fixes waiting for approval.</p>
-    </div>
-    <div class="browser">
-      <div class="browser-bar" aria-hidden="true"><span></span><span></span><span></span><i>settle.app</i></div>
-      <video id="tour-video" autoplay muted loop playsinline controls preload="metadata" poster="/static/tour.jpg" aria-label="90-second product tour of Settle, silent with captions">
-        <source src="/static/tour.mp4" type="video/mp4">
-      </video>
-      <div class="frame" id="tour-frame" hidden><p>The tour video isn't available right now. Press <b>Try it with a sample month</b> to use the real thing.</p></div>
-    </div>
-  </section>
 
   <section class="wrap band" aria-labelledby="trust-h">
     <h2 id="trust-h">Why a finance team can trust it</h2>

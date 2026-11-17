@@ -1262,7 +1262,18 @@ $("#review-go").addEventListener("click", async () => {
 
 // If the tour can't load, say so in its place instead of showing a broken player.
 const tourVideo = $("#tour-video");
-tourVideo?.querySelector("source:last-of-type")?.addEventListener("error", () => { tourVideo.hidden = true; $("#tour-frame").hidden = false; });
+tourVideo?.querySelector("source:last-of-type")?.addEventListener("error", () => { tourVideo.closest(".vwrap").hidden = true; $("#tour-frame").hidden = false; });
+// Watch the tour: from the start, with sound controls; the muted loop is the preview.
+function watchTour() {
+  if (!tourVideo) return;
+  tourVideo.currentTime = 0; tourVideo.controls = true; tourVideo.loop = false;
+  $("#tour-play").hidden = true;
+  tourVideo.play().catch(() => {});
+  tourVideo.scrollIntoView({ behavior: "smooth", block: "center" });
+  tourVideo.focus();
+}
+$("#tour-play")?.addEventListener("click", watchTour);
+$("#watch-tour")?.addEventListener("click", watchTour);
 
 $("#try-sample").addEventListener("click", loadSample);
 $("#upload-sample").addEventListener("click", loadSample);
