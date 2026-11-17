@@ -236,6 +236,7 @@ table.review { width: 100%; border-collapse: collapse; font-size: 0.9rem; backgr
 table.review th, table.review td { border-bottom: 1px solid var(--rule); padding: 4px 6px; text-align: left; }
 table.review th { border-bottom: 1.5px solid var(--ink); color: var(--ink-2); }
 table.review input { width: 100%; min-width: 80px; padding: 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; font-variant-numeric: tabular-nums; }
+table.review input[data-k=narration] { min-width: 34ch; }  /* readable: the narration is how a person recognises the line */
 table.review input:focus { border-color: var(--rule-strong); background: #fff; }
 table.review tr.broken { background: var(--loss-bg); }
 table.review tr.broken input.likely { border-color: var(--loss); background: #fff; }
