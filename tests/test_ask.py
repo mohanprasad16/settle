@@ -183,3 +183,29 @@ def test_sql_sandbox_runs_single_threaded_so_ties_order_the_same_every_run():
     con = duckdb.connect()
     run_sql(con, "SELECT 1")
     assert con.execute("SELECT current_setting('threads')").fetchone()[0] == 1
+
+
+def test_grouped_total_from_code_subtotals_verifies(data):
+    """'Why is money lost?' answers group issues ("chargebacks totalling ₹3,297.00"). The model
+    used to add those itself and fail its own check; code now gives the subtotals."""
+    con, result = data
+    chargebacks = [f for f in result.findings if f.check == "chargeback"]
+    assert len(chargebacks) >= 2
+    total = rupees(sum(f.amount for f in chargebacks))
+    llm = FakeLLM(
+        [], [Answer(answer=f"Chargebacks total {total} across two orders.", citations=[])]
+    )
+    out = ask(con, result, "Why is money lost?", llm)
+    assert out.verified, out.answer
+    # A sum code didn't give is still caught.
+    odd = rupees(chargebacks[0].amount + 1234)
+    llm = FakeLLM([], [Answer(answer=f"Chargebacks total {odd}.", citations=[])] * 2)
+    assert not ask(con, result, "Why is money lost?", llm).verified
+
+
+def test_issue_ids_with_two_digits_are_not_figures(data):
+    con, result = data
+    late = [f.id for f in result.findings if len(f.id) > 2]
+    assert late, "the sample has at least ten issues"
+    llm = FakeLLM([], [Answer(answer=f"See {late[0]} and {late[-1]}.", citations=[])])
+    assert ask(con, result, "Which issues?", llm).verified
