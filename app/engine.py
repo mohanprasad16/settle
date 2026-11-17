@@ -17,7 +17,7 @@ from itertools import combinations
 import duckdb
 
 from app.load import Period
-from app.rules import Rule
+from app.rules import ManualMatch, Rule
 from app.sanitize import scan
 
 KINDS = {
@@ -153,6 +153,7 @@ class Result:
     handled: list[dict] = field(default_factory=list)
     resolved: list[tuple[Finding, Rule]] = field(default_factory=list)
     exceptions: list[dict] = field(default_factory=list)  # what it couldn't resolve, and why
+    manual: list[ManualMatch] = field(default_factory=list)  # a person's matches, applied
 
 
 def _q(con, sql: str, params=None) -> list[dict]:
@@ -230,7 +231,7 @@ def _norm(text: str | None) -> str:
     return re.sub(r"\s", "", (text or "").upper())
 
 
-def _match_bank(con, p: Period) -> None:
+def _match_bank(con, p: Period, manual: list[ManualMatch] = ()) -> None:
     """Bank credits for each settlement, into table settlement_bank. By UTR in the ref or the
     narration first. Banks that don't print the UTR: an exact-amount Razorpay credit within 2 days
     of settling, then 2-3 credits on the day or the next that add up exactly (a split). Anything
@@ -252,6 +253,14 @@ def _match_bank(con, p: Period) -> None:
         hits = [b for b in bank if utr and (utr in _norm(b["ref_no"]) or utr in _norm(b["narration"]))]  # fmt: skip
         if hits:
             take(s, hits, "utr")
+
+    # A person's links come next, before any guessing; each must still tie to the paisa.
+    by_id = {s["settlement_id"]: s for s in sets}
+    for m in manual:
+        s = by_id.get(m.settlement_id)
+        lines = [b for b in bank if b["row_no"] in m.bank_rows and b["row_no"] not in used]
+        if s and not s["matched_by"] and len(lines) == len(set(m.bank_rows)) and sum(b["amt"] for b in lines) == s["net"]:  # fmt: skip
+            take(s, lines, "manual")
 
     def pool(s, days):
         d = s["settled_at"].date()
@@ -322,10 +331,12 @@ def run(
     period: Period,
     rates: RateCard | None = None,
     rules: list[Rule] | None = None,
+    manual: list[ManualMatch] | None = None,
 ) -> Result:
     pr = rates or RateCard()
+    manual = manual or []
     _views(con, period, pr)
-    _match_bank(con, period)
+    _match_bank(con, period, manual)
     f: list[Finding] = []
 
     # --- Orders vs payments -------------------------------------------------------------
@@ -490,9 +501,9 @@ def run(
         x.id = f"R{i}"
 
     result = Result(period, f, *_bridges(con, f, pr, [x for x, _ in resolved]), resolved=resolved,
-                    exceptions=exceptions)  # fmt: skip
+                    exceptions=exceptions, manual=manual)  # fmt: skip
     result.totals = _totals(con, result)
-    result.handled = _handled(con, pr, sb, resolved)
+    result.handled = _handled(con, pr, sb, resolved) + _manual_handled(result, sb)
     # Instruction-like text in a record changes nothing above; it's shown so a person sees it.
     result.totals["suspicious_text"] = scan(con)
     if result.totals["suspicious_text"]:
@@ -719,7 +730,9 @@ def _totals(con, r: Result) -> dict:
         WHERE credit > 0 AND upper(narration) LIKE '%RAZORPAY%'
           AND row_no NOT IN (SELECT unnest(bank_rows) FROM settlement_bank WHERE bank_rows IS NOT NULL)""",
     )
-    t["unmatched_razorpay_credits"] = unknown
+    explained = {n: m for m in r.manual if not m.settlement_id for n in m.bank_rows}
+    t["unmatched_razorpay_credits"] = [u for u in unknown if u["row_no"] not in explained]
+    unknown = t["unmatched_razorpay_credits"]
     counts = con.execute("""SELECT (SELECT count(*) FROM rp), (SELECT count(*) FROM orders),
                                    (SELECT count(*) FROM bank), (SELECT count(*) FROM settlement)""").fetchone()
     t["rows"] = dict(zip(["razorpay", "orders", "bank", "settlements"], counts))
@@ -824,3 +837,36 @@ def _handled(con, pr: RateCard, sb: list[dict], resolved: list[tuple[Finding, Ru
         notes[rule.note] = notes.get(rule.note, 0) + 1
     items += [(f"Resolved by your rule: {note}", n) for note, n in notes.items()]
     return [{"label": label, "count": int(n)} for label, n in items if n]
+
+
+def _manual_handled(r: Result, sb: list[dict]) -> list[dict]:
+    """A person's matches, named, so the handled list says who decided what."""
+    linked = {s["settlement_id"] for s in sb if s["matched_by"] == "manual"}
+    return [{"label": f"Matched by {m.by}: {m.note}", "count": len(m.bank_rows)}
+            for m in r.manual if not m.settlement_id or m.settlement_id in linked]  # fmt: skip
+
+
+def check_manual(con, r: Result, settlement_id: str | None, bank_rows: list[int]) -> str | None:
+    """Why a proposed manual match can't be applied, or None if it ties. Code decides, not the
+    model: a match never changes an amount and must add up to the paisa."""
+    if not bank_rows:
+        return "pick at least one bank line"
+    rows = sorted(set(bank_rows))
+    lines = _q(con, f"SELECT row_no, credit - debit AS amt FROM bank WHERE row_no IN ({', '.join('?' * len(rows))})", rows)  # fmt: skip
+    if len(lines) != len(rows):
+        return "some of those bank lines aren't on the statement"
+    taken = {n for (ns,) in con.execute("SELECT bank_rows FROM settlement_bank").fetchall() for n in ns or []}  # fmt: skip
+    taken |= {n for m in r.manual for n in m.bank_rows}
+    if taken & set(rows):
+        return "a bank line is already matched; undo that match first"
+    if settlement_id is None:
+        return None
+    s = next(iter(_q(con, "SELECT * FROM settlement_bank WHERE settlement_id = ?", [settlement_id])), None)  # fmt: skip
+    if s is None:
+        return f"there's no settlement {settlement_id} in this report"
+    if s["matched_by"]:
+        return f"{settlement_id} is already matched ({s['matched_by']})"
+    got = sum(b["amt"] for b in lines)
+    if got != s["net"]:
+        return f"the bank lines add up to {got} paise but the settlement is {s['net']}; a manual match must tie exactly"  # fmt: skip
+    return None
