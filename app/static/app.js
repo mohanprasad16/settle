@@ -307,7 +307,8 @@ const PAGES = [
   ["patterns", "Patterns & things to check", "◇"],
   ["ask", "Ask a question", "?"],
   ["audit", "Approvals & audit trail", "✓"],
-  ["rules", "Saved rules", "≡"],
+  ["rules", "What Settle remembers", "≡"],
+  ["settings", "Settings", "⚙"],
 ];
 
 function render(v) {
@@ -331,6 +332,7 @@ function render(v) {
   const month = v.period?.start ? `${MONTH_LONG[+String(v.period.start).slice(5, 7) - 1]} ${String(v.period.start).slice(0, 4)}` : "";
   const source = state.synced ? "Demo sync (sample data)" : v.source === "sample" ? "Sample month" : v.source === "chaos" ? `Random month #${v.seed ?? ""}` : "Your files";
   const top = el("header", { class: "topbar" }, el("div", { class: "in" },
+    el("nav", { class: "crumbs", "aria-label": "You are here" }, el("button", { class: "linkish", type: "button", onclick: () => go("overview") }, "Settle"), el("span", { "aria-hidden": "true" }, " / "), el("b", { id: "crumb" }, "")),
     el("span", { class: "period", title: `${fdate(v.period.start)} to ${fdate(v.period.end)}` }, month),
     el("b", {}, v.merchant || "Your business"),
     el("span", { class: "source", id: "source-chip" }, source),
@@ -355,16 +357,47 @@ function render(v) {
     ask: askPage(v),
     audit: auditPage(),
     rules: rulesPage(v),
+    settings: settingsPage(),
   };
   for (const [k, p] of Object.entries(pages)) { p.id = `page-${k}`; p.classList.add("page"); p.hidden = k !== state.page; }
 
   put(root, nav, el("div", { class: "app" }, top, ...Object.values(pages)));
   show("results");
+  crumb(state.page);
+  if (!location.hash.startsWith("#/")) setHash(state.page, "", true);
   if (state.page === "audit") refreshAudit();
   if (state.page === "settlements") refreshSettlements();
+  if (state.page === "settings") refreshSettings();
+  copilotMount();
 }
 
-function go(page) {
+const PAGE_IDS = ["overview", "settlements", "issues", "flow", "patterns", "ask", "audit", "rules", "settings"];
+// Pages live in the URL (#/issues, #/issues/F3, #/settlements/setl_…), so Back, Forward,
+// refresh and shared links all land on the same view.
+function route() {
+  const [, page = "overview", id = ""] = decodeURIComponent(location.hash).split("/");
+  return { page: PAGE_IDS.includes(page) ? page : "overview", id };
+}
+function setHash(page, id = "", replace = false) {
+  const h = `#/${page}${id ? "/" + encodeURIComponent(id) : ""}`;
+  if (location.hash === h) return;
+  replace ? history.replaceState(null, "", h) : history.pushState(null, "", h);
+}
+addEventListener("popstate", () => { if (state.view) openRoute(); });
+function openRoute() {
+  const { page, id } = route();
+  go(page, false);
+  if (!id) { if (!drawer.hidden) closeDrawer(true); return; }
+  if (page === "issues") openFinding(id, null, "summary", false);
+  if (page === "settlements") refreshSettlements().then(() => {
+    const s = state.sets?.settlements.find((x) => x.settlement_id === id);
+    if (s) openSettlement(s, null, false);
+  });
+}
+
+function go(page, push = true) {
+  if (push) setHash(page);
+  crumb(page);
   state.page = page;
   for (const p of $$("#results .page")) p.hidden = p.id !== `page-${page}`;
   for (const b of $$("#results .navbtn[data-page]")) {
@@ -372,7 +405,15 @@ function go(page) {
   }
   if (page === "audit") refreshAudit();
   if (page === "settlements") refreshSettlements();
+  if (page === "settings") refreshSettings();
+  copilotSuggest();
   window.scrollTo({ top: 0 });
+}
+
+function crumb(page) {
+  const c = $("#crumb");
+  if (c) c.textContent = (PAGES.find((p) => p[0] === page) || ["", "Overview"])[1];
+  document.title = `${c?.textContent || "Settle"} · Settle`;
 }
 
 function pageHead(title, text, ...actions) {
@@ -592,7 +633,7 @@ function settlementsPage() {
     el("div", { class: "stack" },
       el("div", { class: "card", style: "padding:12px 14px" }, el("div", { class: "inline", id: "set-filters" }), el("div", { class: "small muted", style: "margin-top:8px" }, "Status explained ", helpBtn("Settlement status"))),
       el("div", { class: "card flush" }, el("div", { class: "tablewrap" }, el("table", { class: "grid sets", id: "settlement-list" },
-        el("thead", {}, el("tr", {}, ...["Settled on", "Settlement", "Items", "Net settled", "Received in bank", "Bank date", "Difference", "How it matched", "Status"].map((h, i) => el("th", { class: [2, 3, 4, 6].includes(i) ? "num" : null }, h)))),
+        el("thead", {}, el("tr", {}, el("th", { class: "pick" }, el("span", { class: "sr" }, "Select")), ...["Settled on", "Settlement", "Items", "Net settled", "Received in bank", "Bank date", "Difference", "How it matched", "Status"].map((h, i) => el("th", { class: [2, 3, 4, 6].includes(i) ? "num" : null }, h)))),
         body, el("tfoot", { id: "settlement-total" }))))));
 }
 
@@ -611,7 +652,9 @@ async function refreshSettlements() {
   const trs = rows.map((s) => {
     const [cls, label] = SET_STATUS[s.status];
     const open = (e) => openSettlement(s, e.currentTarget.closest("tr").querySelector("button"));
+    const pickable = ["missing", "needs_person", "short"].includes(s.status);
     return el("tr", { class: "link", "data-status": s.status, "data-text": `${s.settlement_id} ${s.utr || ""} ${rupees(s.net)} ${rupees(s.received)}`.toLowerCase(), onclick: open },
+      el("td", { class: "pick" }, pickable ? pickBox("settlements", s.settlement_id, `payout ${s.settlement_id}`) : null),
       el("td", {}, fdate(s.settled_at).split(",")[0]),
       el("td", {}, el("button", { class: "entry-mini linkish mono", type: "button", "aria-label": `Settlement ${s.settlement_id}, ${label}`, onclick: (e) => { e.stopPropagation(); open(e); } }, s.settlement_id), el("div", { class: "ref" }, s.utr ? `UTR ${s.utr}` : "No UTR")),
       el("td", { class: "num" }, num(s.items)),
@@ -622,10 +665,10 @@ async function refreshSettlements() {
       el("td", {}, MATCHED_BY[s.matched_by] || "—"),
       el("td", {}, el("span", { class: `kind ${cls}` }, label)));
   });
-  const empty = el("tr", { hidden: true }, el("td", { colspan: 9 }, el("div", { class: "empty" }, el("b", {}, "Nothing matches."), "Try a different status or clear the search.")));
+  const empty = el("tr", { hidden: true }, el("td", { colspan: 10 }, el("div", { class: "empty" }, el("b", {}, "Nothing matches."), "Try a different status or clear the search.")));
   put(body, ...trs, empty);
   put($("#settlement-total"), el("tr", { class: "end" },
-    el("td", { colspan: 2 }, el("b", {}, `Total, ${rows.length} settlements`)),
+    el("td", { colspan: 3 }, el("b", {}, `Total, ${rows.length} settlements`)),
     el("td", { class: "num" }, num(totals.items)), el("td", { class: "num", id: "set-total-net" }, rupees(totals.net)),
     el("td", { class: "num", id: "set-total-received" }, rupees(totals.received)), el("td", {}),
     el("td", { class: "num" }, rupees(totals.difference)), el("td", { colspan: 2 })));
@@ -648,8 +691,9 @@ async function refreshSettlements() {
 
 const TYPE_LABEL = { payment: "Payments", fees: "Razorpay fees + GST", refund: "Refunds", dispute: "Chargebacks", adjustment: "Adjustments", transfer: "Transfers" };
 
-function openSettlement(s, opener) {
+function openSettlement(s, opener, push = true) {
   lastOpener = opener || document.activeElement;
+  if (push) setHash("settlements", s.settlement_id);
   drawer.hidden = false; document.body.style.overflow = "hidden"; sheet.scrollTop = 0;
   const [cls, label] = SET_STATUS[s.status];
   const close = el("button", { class: "btn ghost small", type: "button", onclick: closeDrawer, "aria-label": "Close" }, "Close ✕");
@@ -756,9 +800,12 @@ function patternsPage(v) {
   const susp = (v.suspicious || []).map((s) => el("li", {},
     el("span", {}, el("b", {}, s.title), el("div", { class: "small muted" }, `${sourceName(s.source)} row ${s.row_no}, ${s.field}: `, el("q", { text: s.text.replace(/<\/?data>/g, "") }), ". Treated as data; it changed nothing."))));
   const exc = [
-    ...(v.exceptions || []).map((e) => `Settlement ${e.settlement_id} of ${rupees(e.amount)}, settled ${fdate(e.settled_on)}: ${e.why}. Check your bank statement for this credit.`),
-    ...(v.unmatched_credits || []).map((u) => `Bank credit of ${rupees(u.credit)} on ${fdate(u.txn_date)} (bank row ${u.row_no}) mentions Razorpay but matches no settlement in this report. Most likely from another month.`),
+    ...(v.exceptions || []).map((e) => el("li", { class: "pickli" }, e.entity_id ? null : pickBox("settlements", e.settlement_id, `payout ${e.settlement_id}`),
+      el("span", {}, `Settlement ${e.settlement_id} of ${rupees(e.amount)}, settled ${fdate(e.settled_on)}: ${e.why}. Check your bank statement for this credit.`))),
+    ...(v.unmatched_credits || []).map((u) => el("li", { class: "pickli" }, pickBox("bank_rows", u.row_no, `bank row ${u.row_no}`),
+      el("span", {}, `Bank credit of ${rupees(u.credit)} on ${fdate(u.txn_date)} (bank row ${u.row_no}) mentions Razorpay but matches no settlement in this report. Most likely from another month.`))),
   ];
+  const manual = (v.manual || []).map((m) => el("li", {}, el("span", {}, `${m.settlement_id ? `Bank row${m.bank_rows.length > 1 ? "s" : ""} ${m.bank_rows.join(", ")} matched to ${m.settlement_id}` : `Bank row${m.bank_rows.length > 1 ? "s" : ""} ${m.bank_rows.join(", ")} explained`}: “${m.note}”, by ${m.by}`)));
   return el("div", {},
     pageHead("Patterns & things to check", "Not missing money: the amounts here match. These are patterns worth a look, and the few things Settle won't decide on its own."),
     el("div", { class: "stack" },
@@ -769,8 +816,9 @@ function patternsPage(v) {
       el("section", { class: "card", "aria-labelledby": "exc-h" },
         el("h2", { id: "exc-h" }, "Couldn't match automatically"),
         el("p", { class: "small muted" }, "Settle doesn't guess. These need a person; they keep their own line so the bridge still ties out."),
-        exc.length ? el("ul", { class: "ticks" }, ...exc.map((x) => el("li", {}, x)))
-          : el("div", { class: "empty" }, el("b", {}, "Nothing needed a person this month."), "If a bank credit could match two settlements, it would wait here instead of being guessed."))));
+        exc.length ? el("div", {}, el("p", { class: "small" }, "Tick a line, then ", el("b", {}, "Reconcile selected with AI"), " or ", el("b", {}, "Match manually"), ". You confirm every match."), el("ul", { class: "ticks", id: "exc-list" }, ...exc))
+          : el("div", { class: "empty" }, el("b", {}, "Nothing needed a person this month."), "If a bank credit could match two settlements, it would wait here instead of being guessed.")),
+      manual.length ? el("section", { class: "card", "aria-labelledby": "man-h" }, el("h2", { id: "man-h" }, "Matched by a person"), el("ul", { class: "ticks" }, ...manual)) : null));
 }
 
 function sourceName(s) { return { rp: "Razorpay report", bank: "Bank statement", orders: "Your orders", finding: "Issue" }[s] || s; }
@@ -835,6 +883,7 @@ async function refreshAudit() {
   if (!box) return;
   try {
     const d = await api("GET", "/api/audit");
+    d.proposals = await api("GET", "/api/proposals").catch(() => []);
     const titles = Object.fromEntries((state.view?.findings || []).map((f) => [f.id, f.title]));
     const waiting = d.actions.filter((a) => a.status === "needs_approval").length;
     put(box,
@@ -859,16 +908,28 @@ async function refreshAudit() {
                   el("button", { class: "btn danger small", type: "button", onclick: () => decideInline(a, "reject") }, "Reject")) : null),
               el("td", { class: "num" }, a.amount ? rupees(a.amount) : ""))))))
           : el("div", { class: "empty" }, el("b", {}, "No fixes proposed yet."), "When Settle finds an issue it can act on, the ticket, note or journal entry appears here for approval.")),
+      el("section", { class: "card", "aria-labelledby": "bulk-h" }, el("h2", { id: "bulk-h" }, "Do it in bulk with Copilot"),
+        el("p", { class: "small muted" }, "Copilot prepares the change; you see exactly which fixes it covers and allow it once. The approval policy still applies."),
+        el("div", { class: "suggest" }, ...["Approve all fee journals under ₹500", "Reject all drafts for issue F7", "Summarise what was approved today"].map((q) => el("button", { type: "button", onclick: () => { openCopilot(q); sendCopilot(); } }, q)))),
+      changesCard(d.proposals || []),
       el("section", { class: "card flush", "aria-labelledby": "log-h" },
-        el("div", { style: "padding:16px 18px 10px" }, el("h2", { id: "log-h" }, "Decision log"), el("p", { class: "small muted", style: "margin:2px 0 0" }, "Newest first. The same log goes into the audit report.")),
+        el("div", { style: "padding:16px 18px 10px" }, el("h2", { id: "log-h" }, "Decision log"), el("p", { class: "small muted", style: "margin:2px 0 8px" }, "Newest first. The same log goes into the audit report."),
+          el("div", { class: "inline", role: "group", "aria-label": "Show log entries by" }, ...[["all", "Everyone"], ["human", "A person"], ["ai", "AI"], ["engine", "Settle (code)"], ["rule", "Your rules"]].map(([k, l]) =>
+            el("button", { class: "chip", type: "button", "data-actor": k, "aria-pressed": String(k === "all"), onclick: (e) => { $$("[data-actor]", e.currentTarget.parentNode).forEach((c) => c.setAttribute("aria-pressed", String(c === e.currentTarget))); for (const tr of $$("#log-body tr")) tr.hidden = k !== "all" && tr.dataset.actor !== k; } }, l)))),
         el("div", { class: "tablewrap" }, el("table", { class: "grid" },
           el("thead", {}, el("tr", {}, el("th", {}, "Time"), el("th", {}, "Who"), el("th", {}, "What"), el("th", {}, "Detail"))),
-          el("tbody", {}, ...d.log.slice().reverse().slice(0, 150).map((e) => el("tr", {},
+          el("tbody", { id: "log-body" }, ...d.log.slice().reverse().slice(0, 150).map((e) => el("tr", { "data-actor": e.actor },
             el("td", { class: "small", style: "white-space:nowrap" }, fdate(e.ts)), el("td", {}, ACTOR[e.actor] || e.actor),
             el("td", {}, e.action), el("td", { class: "small muted" }, e.detail))))))));
   } catch (e) {
     put(box, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint, el("div", { style: "margin-top:8px" }, el("button", { class: "btn small", type: "button", onclick: refreshAudit }, "Try again")))));
   }
+}
+
+function changesCard(props) {
+  return el("section", { class: "card", "aria-labelledby": "chg-h" }, el("h2", { id: "chg-h" }, "Changes made with Copilot"),
+    props.length ? el("div", { class: "stack" }, ...props.slice(0, 20).map(changeCard))
+      : el("div", { class: "empty" }, el("b", {}, "No changes yet."), "Change cards you allow, reject or undo show here, each with who decided."));
 }
 
 async function decideInline(a, how) {
@@ -886,23 +947,100 @@ async function decideInline(a, how) {
 // ---- rules -------------------------------------------------------------------------------------
 
 function rulesPage(v) {
-  const rules = v.rules || [], resolved = v.resolved || [];
+  const rules = v.rules || [], resolved = v.resolved || [], sug = v.suggested_rules || [], manual = v.manual || [];
+  const title = (check) => (v.findings.find((f) => f.check === check)?.title) || check.replace(/_/g, " ");
+  const suggestion = (s) => {
+    const box = el("li", { class: "card sug" },
+      el("div", {}, el("b", {}, `${s.title}: ${s.count} this month, each up to ${rupees(s.max_amount)}`),
+        el("div", { class: "small muted" }, `Why: the same small books-side difference keeps repeating (${s.finding_ids.join(", ")}). A rule moves these to their own line in the bridge, so they stop cluttering your list; anything bigger is still flagged.`)),
+      el("button", { class: "btn small", type: "button", onclick: async () => {
+        try {
+          const r = await api("POST", "/api/proposals/rule", { check: s.check, note: `Expected: ${s.title.toLowerCase()} up to ${rupees(s.max_amount)}`, max_amount: s.max_amount });
+          box.replaceWith(el("li", {}, changeCard(r.proposal)));
+        } catch (e) { fail(e); }
+      } }, "Create rule…"));
+    return box;
+  };
   return el("div", {},
-    pageHead("Saved rules", "When an issue is expected (a coupon at checkout, a known rounding), mark it as expected and Settle remembers it. Matching issues then move off your list but keep their own line in the bridge."),
-    rules.length ? el("div", { class: "stack" },
-      el("div", { class: "card flush" }, el("div", { class: "tablewrap" }, el("table", { class: "grid" },
-        el("thead", {}, el("tr", {}, el("th", {}, "Rule"), el("th", {}, "Why"), el("th", {}, "Applies to"))),
-        el("tbody", {}, ...rules.map((r) => el("tr", {}, el("td", {}, (v.findings.find((f) => f.check === r.check)?.title) || r.check.replace(/_/g, " ")), el("td", {}, `“${r.note}”`), el("td", { class: "small muted" }, r.ref ? `Only ${r.ref}` : "All like this"))))))),
-      resolved.length ? el("div", { class: "card" }, el("h2", {}, "What your rules resolved"), el("ul", { class: "ticks" }, ...resolved.map((r) => el("li", {}, el("span", {}, `${r.title}: “${r.note}”`), el("span", { class: "num" }, rupees(r.amount)))))) : null)
-      : el("div", { class: "card empty" }, el("b", {}, "No saved rules yet."), "Open an issue that isn't really a problem, go to its Fix tab and press ", el("i", {}, "Mark as expected"), " with a short reason. It will show here.",
-        el("div", { style: "margin-top:12px" }, el("button", { class: "btn small", type: "button", onclick: () => go("issues") }, "Go to Issues to fix"))));
+    pageHead("What Settle remembers", "How your team works, written down: rules for things that are expected, and matches a person made by hand. Settle applies them every month, like notes it keeps for your finance team. Every entry says who decided and why.",
+      el("button", { class: "btn", type: "button", onclick: () => openCopilot("/rules") }, "✦ Ask Copilot to suggest rules")),
+    el("div", { class: "stack" },
+      el("section", { class: "card", "aria-labelledby": "sug-h" }, el("h2", { id: "sug-h" }, "Suggested from this month"),
+        sug.length ? el("ul", { class: "suglist" }, ...sug.map(suggestion))
+          : el("div", { class: "empty" }, el("b", {}, "Nothing repeats enough to suggest a rule."), "When the same small difference shows up again and again (a coupon, a paisa of rounding), Settle suggests a rule here. Money-loss issues are never suggested.")),
+      el("section", { class: "card flush", "aria-labelledby": "rules-h" }, el("div", { style: "padding:16px 18px 6px" }, el("h2", { id: "rules-h" }, "Your rules"), el("p", { class: "small muted" }, "A rule only ever covers the kind of issue and the size you set. Remove one by undoing its change in Approvals & audit trail.")),
+        rules.length ? el("div", { class: "tablewrap" }, el("table", { class: "grid" },
+          el("thead", {}, el("tr", {}, el("th", {}, "Rule"), el("th", {}, "Why"), el("th", {}, "Applies to"))),
+          el("tbody", {}, ...rules.map((r) => el("tr", {}, el("td", {}, title(r.check)), el("td", {}, `“${r.note}”`), el("td", { class: "small muted" }, r.ref ? `Only ${r.ref}` : r.max_amount != null ? `All like this up to ${rupees(r.max_amount)}` : "All like this"))))))
+          : el("div", { class: "empty", style: "padding:0 18px 18px" }, el("b", {}, "No rules yet."), "Create one from a suggestion above, from an issue's Fix tab (Mark as expected), or ask the Copilot.")),
+      manual.length ? el("section", { class: "card" }, el("h2", {}, "Matches a person made"), el("ul", { class: "ticks" }, ...manual.map((m) => el("li", {}, el("span", {}, `${m.settlement_id ? `Bank rows ${m.bank_rows.join(", ")} → ${m.settlement_id}` : `Bank rows ${m.bank_rows.join(", ")}`}: “${m.note}”`), el("span", { class: "small muted" }, `by ${m.by}`))))) : null,
+      resolved.length ? el("div", { class: "card" }, el("h2", {}, "What your rules resolved this month"), el("ul", { class: "ticks" }, ...resolved.map((r) => el("li", {}, el("span", {}, `${r.title}: “${r.note}”`), el("span", { class: "num" }, rupees(r.amount)))))) : null));
+}
+
+// ---- settings: the approval policy ---------------------------------------------------------------
+
+const KIND_LABEL = { journal_post: "Journal entry", razorpay_ticket: "Ticket to Razorpay", razorpay_api_call: "Razorpay API call", customer_note: "Note to a customer",
+  webhook_replay: "Webhook replay to your store", manual_match: "Manual match", rule: "New rule", resolve: "Mark an issue as expected", transform: "Turn a sheet into an input" };
+const MODE_LABEL = { ask: "Ask before every change", auto_low_risk: "Auto-accept low-risk", read_only: "Read-only: explain, no changes" };
+
+function settingsPage() {
+  return el("div", {},
+    pageHead("Settings", "Your approval policy: what Copilot may do on its own, and what always waits for a person. Code enforces it; the AI can't change it. Every edit is logged with your name."),
+    el("div", { class: "stack", id: "settings-body" }, el("div", { class: "card" }, el("div", { class: "skeleton" }), el("div", { class: "skeleton", style: "width:60%" }))));
+}
+async function refreshSettings() {
+  const box = $("#settings-body"); if (!box) return;
+  let p;
+  try { p = await api("GET", "/api/policy"); } catch (e) { put(box, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint))); return; }
+  const who = el("input", { type: "text", id: "pol-who", value: store.get("settle_name"), placeholder: "Your name", autocomplete: "name" });
+  const msg = el("div", { "aria-live": "polite" });
+  const save = async (change) => {
+    const name = who.value.trim();
+    if (!name) { who.focus(); put(msg, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", {}, "Type your name to change the policy."), "Policy changes are recorded with who made them."))); return; }
+    store.set("settle_name", name);
+    try { await api("POST", "/api/policy", { approver: name, ...change }); put(msg, el("div", { class: "banner okb", role: "status" }, el("div", {}, el("b", {}, "Saved."), " The change is in the audit trail."))); refreshMode(); refreshSettings(); }
+    catch (e) { put(msg, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint))); }
+  };
+  const rupeeIn = (val, id, onset) => el("input", { type: "number", min: "0", step: "1", id, value: Math.round(val / 100), class: "money-in", onchange: (e) => onset(Math.round(+e.target.value * 100)) });
+  const rows = p.kinds.map((k) => el("tr", { "data-kind": k.kind },
+    el("td", {}, KIND_LABEL[k.kind] || k.kind, k.locked ? el("div", { class: "small muted" }, `🔒 Always asks: it ${k.locked}.`) : null),
+    el("td", {}, el("select", { "aria-label": `${KIND_LABEL[k.kind]}: when`, disabled: !!k.locked, onchange: (e) => save({ kinds: { [k.kind]: e.target.value } }) },
+      ...[["ask", "Ask every time"], ["auto", "Auto-allow up to"], ["never", "Never allow"]].filter(([m]) => !(k.locked && m === "auto")).map(([m, l]) => el("option", { value: m, selected: k.mode === m }, l)))),
+    el("td", { class: "num" }, k.mode === "auto" && !k.locked ? el("span", {}, "₹ ", rupeeIn(k.auto_max, `cap-${k.kind}`, (v) => save({ auto_max: { [k.kind]: v } }))) : el("span", { class: "muted" }, "—"))));
+  const mc = p.maker_checker_over != null;
+  put(box,
+    el("div", { class: "card" }, el("div", { class: "field", style: "max-width:280px" }, el("label", { for: "pol-who" }, "Changes are made as"), who), msg,
+      p.preview ? el("p", { class: "preview-line", id: "pol-preview" }, `With these settings, ${p.preview.auto} of this month's ${p.preview.of} proposed fixes (${rupees(p.preview.amount)}) would apply on their own; the rest wait for you.`) : null),
+    el("section", { class: "card", "aria-labelledby": "mode-h" }, el("h2", { id: "mode-h" }, "Copilot mode"),
+      el("div", { class: "seg", role: "radiogroup", "aria-label": "Copilot mode" }, ...p.modes.map((m) => el("label", { class: "segbtn" }, el("input", { type: "radio", name: "cpmode", value: m, checked: p.copilot_mode === m, onchange: () => save({ copilot_mode: m }) }), MODE_LABEL[m]))),
+      el("p", { class: "small muted" }, "Auto-accept only ever covers kinds you set to auto-allow below, within their limits. Money movement, customers and Razorpay always ask.")),
+    el("section", { class: "card flush", "aria-labelledby": "kinds-h" }, el("div", { style: "padding:16px 18px 6px" }, el("h2", { id: "kinds-h" }, "What needs a person")),
+      el("div", { class: "tablewrap" }, el("table", { class: "grid", id: "pol-kinds" }, el("thead", {}, el("tr", {}, el("th", {}, "Kind of change"), el("th", {}, "When"), el("th", { class: "num" }, "Limit"))), el("tbody", {}, ...rows)))),
+    el("section", { class: "card", "aria-labelledby": "appr-pol-h" }, el("h2", { id: "appr-pol-h" }, "Approvers"),
+      el("p", {}, "Hard cap: anything above ", rupeeIn(p.hard_cap, "pol-cap", (v) => save({ hard_cap: v })), " always needs a named approver. ", el("span", { class: "small muted" }, `🔒 Can be lowered, never raised above ${rupees(p.hard_cap_max)}.`)),
+      el("label", { class: "check" }, el("input", { type: "checkbox", id: "pol-mc", checked: mc, onchange: (e) => save({ maker_checker: e.target.checked, maker_checker_over: p.maker_checker_over ?? 100000 }) }),
+        " Two-person approval (maker-checker) above ", rupeeIn(p.maker_checker_over ?? 100000, "pol-mc-amt", (v) => save({ maker_checker: true, maker_checker_over: v })),
+        el("div", { class: "small muted" }, "A second, different person must confirm, and you can't approve a change you made yourself."))),
+    el("section", { class: "card", "aria-labelledby": "grants-h" }, el("h2", { id: "grants-h" }, "Always-allowed"),
+      p.grants.length ? el("ul", { class: "ticks", id: "pol-grants" }, ...p.grants.map((g, i) => el("li", {}, el("span", {}, `${KIND_LABEL[g.kind] || g.kind} up to ${rupees(g.max)}, by ${g.by}, ${fdate(g.at)}`),
+        el("button", { class: "btn danger small", type: "button", onclick: () => save({ revoke_grant: i }) }, "Revoke"))))
+        : el("div", { class: "empty" }, el("b", {}, "Nothing is always-allowed."), "When you press Always allow this kind on a Copilot change card, it appears here and you can revoke it.")),
+    el("section", { class: "card", "aria-labelledby": "lim-h" }, el("h2", { id: "lim-h" }, "Limits"),
+      el("div", { class: "cols", style: "grid-template-columns:repeat(auto-fill,minmax(200px,1fr))" },
+        el("div", { class: "field" }, el("label", { for: "pol-ai" }, "AI requests per hour"), el("input", { type: "number", id: "pol-ai", min: "1", max: "500", value: p.ai_calls_per_hour, onchange: (e) => save({ ai_calls_per_hour: +e.target.value }) })),
+        el("div", { class: "field" }, el("label", { for: "pol-steps" }, "Max steps per request"), el("input", { type: "number", id: "pol-steps", min: "1", max: "10", value: p.max_tool_steps, onchange: (e) => save({ max_tool_steps: +e.target.value }) })),
+        el("div", { class: "field" }, el("label", { for: "pol-mb" }, "Max attached file (MB)"), el("input", { type: "number", id: "pol-mb", min: "1", max: "15", value: p.max_file_mb, onchange: (e) => save({ max_file_mb: +e.target.value }) }))),
+      el("label", { class: "check" }, el("input", { type: "checkbox", id: "pol-aion", checked: p.ai_enabled, onchange: (e) => save({ ai_enabled: e.target.checked }) }), " AI on (Copilot, Ask, reading PDFs). Off: everything else keeps working.")));
 }
 
 // ---- issue slide-over --------------------------------------------------------------------------
 
 let lastOpener = null;
 const drawer = $("#drawer"), sheet = $("#drawer-sheet");
-function closeDrawer() { drawer.hidden = true; document.body.style.overflow = ""; lastOpener?.focus?.(); }
+function closeDrawer(fromRoute = false) {
+  drawer.hidden = true; document.body.style.overflow = ""; lastOpener?.focus?.();
+  if (!fromRoute && route().id) setHash(state.page);
+}
 drawer.addEventListener("click", (e) => { if (e.target === drawer) closeDrawer(); });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
@@ -910,8 +1048,9 @@ document.addEventListener("keydown", (e) => {
   if (!drawer.hidden) closeDrawer();
 });
 
-async function openFinding(id, opener, tab = "summary") {
+async function openFinding(id, opener, tab = "summary", push = true) {
   lastOpener = opener || document.activeElement;
+  if (push) setHash(state.page === "patterns" ? "patterns" : "issues", id);
   drawer.hidden = false; document.body.style.overflow = "hidden";
   sheet.scrollTop = 0;
   put(sheet, el("div", { class: "body" }, el("div", { class: "skeleton", style: "width:30%;margin-top:20px" }), el("div", { class: "skeleton", style: "height:28px" }), el("div", { class: "skeleton" }), el("div", { class: "skeleton", style: "width:80%" })));
@@ -1290,6 +1429,324 @@ document.addEventListener("click", (e) => { for (const m of $$("details.menu[ope
 (async () => {
   try {
     const v = await api("GET", "/api/result");
-    if (v.loaded) render(v); else show("landing");
+    if (v.loaded) { state.page = route().page; render(v); if (route().id) openRoute(); else setHash(state.page, "", true); }
+    else show("landing");
   } catch { show("landing"); }
 })();
+
+
+// ---- ⌘K: go to anything --------------------------------------------------------------------------
+
+const palette = $("#palette"), pq = $("#palette-q"), plist = $("#palette-list");
+let pItems = [], pAt = 0;
+function paletteItems(q) {
+  const v = state.view;
+  const out = [];
+  if (!v) out.push(["Try it with a sample month", "Start", loadSample]);
+  for (const [k, label] of PAGES) out.push([`Go to ${label}`, "Page", () => go(k)]);
+  if (v) {
+    for (const f of v.findings) out.push([`${f.id} · ${f.title}`, rupees(Math.abs(f.amount)), () => { go(f.kind === "risk" ? "patterns" : "issues"); openFinding(f.id, null); }]);
+    for (const s of state.sets?.settlements || []) out.push([`${s.settlement_id} · ${fdate(s.settled_at).split(",")[0]}`, rupees(s.net), () => { go("settlements"); openSettlement(s, null); }]);
+    out.push(["Ask Settle Copilot…", "AI", () => openCopilot(q)], ["Inject chaos: a new random month", "Action", loadChaos],
+      ["Download the audit report", "Export", () => open("/api/report", "_blank")], ["Start a new month", "Home", () => show("landing")]);
+  }
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  return out.filter(([t, h]) => words.every((w) => `${t} ${h}`.toLowerCase().includes(w))).slice(0, 12);
+}
+function drawPalette() {
+  pItems = paletteItems(pq.value);
+  if (!pItems.length && pq.value.trim()) pItems = [[`Ask Settle: “${pq.value.trim()}”`, "AI", () => openCopilot(pq.value.trim())]];
+  pAt = Math.min(pAt, Math.max(0, pItems.length - 1));
+  put(plist, ...pItems.map(([t, h], i) => el("li", { role: "option", id: `po-${i}`, "aria-selected": String(i === pAt), onclick: () => runPalette(i), onmousemove: () => { pAt = i; for (const [j, li] of [...plist.children].entries()) li.setAttribute("aria-selected", String(j === i)); } }, el("span", {}, t), el("span", { class: "small muted" }, h))));
+  pq.setAttribute("aria-activedescendant", pItems.length ? `po-${pAt}` : "");
+}
+function runPalette(i) { const it = pItems[i]; if (!it) return; palette.close(); it[2](); }
+function openPalette() { if (palette.open) return; pq.value = ""; pAt = 0; drawPalette(); palette.showModal(); pq.focus(); }
+pq.addEventListener("input", () => { pAt = 0; drawPalette(); });
+pq.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") { e.preventDefault(); pAt = Math.min(pAt + 1, pItems.length - 1); drawPalette(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); pAt = Math.max(pAt - 1, 0); drawPalette(); }
+  else if (e.key === "Enter") { e.preventDefault(); runPalette(pAt); }
+});
+palette.addEventListener("click", (e) => { if (e.target === palette) palette.close(); });
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); palette.open ? palette.close() : openPalette(); }
+});
+
+// ---- Settle Copilot: the finance team's assistant on every page ---------------------------------
+// Claude Code, for a finance team: it plans, shows each step it ran, and prepares changes as
+// cards. Nothing changes until a named person allows it; code applies it and it can be undone.
+
+const COPILOT_SUGGEST = {
+  overview: ["What should I do first?", "/close-month", "Summarise this month in three lines"],
+  settlements: ["Why is the 21 Oct payout short?", "Match the selected bank credit to the right payout", "Which payouts need a person?"],
+  issues: ["/draft-tickets", "Explain the biggest money-lost issue", "Which issues are probably expected?"],
+  flow: ["Walk me through the Bank Reconciliation Statement", "What makes up the timing lines?"],
+  patterns: ["Explain the 1 Oct bank credit that matches nothing", "Is the refund spike a problem?"],
+  ask: ["What should I do first?", "How much did I lose to chargebacks this month?"],
+  audit: ["/approve fee journals under ₹500", "Summarise what was approved today", "Reject all drafts for issue F7"],
+  rules: ["/rules", "Which issues keep repeating?"],
+  settings: ["What does auto-accept low-risk allow?", "Which of this month's changes would auto-apply?"],
+};
+const SLASH = [
+  ["/reconcile", "Reconcile again and tell me what changed"],
+  ["/explain", "Explain an issue: /explain @F3"],
+  ["/draft-tickets", "Draft Razorpay tickets for every money-lost issue"],
+  ["/approve", "Prepare approvals: /approve fee journals under ₹500"],
+  ["/rules", "Suggest rules for things that keep repeating"],
+  ["/close-month", "Plan the month-end close and work through it"],
+  ["/export", "Get the audit report, BRS and Tally journal"],
+];
+const SLASH_PROMPT = {
+  "/reconcile": "Reconcile this month again and tell me what changed and what still needs me.",
+  "/draft-tickets": "Draft Razorpay support tickets for every money-lost issue: list which ones and prepare approving the ticket actions that are waiting.",
+  "/approve": "Prepare approving the waiting actions I describe next, using list_actions for exact ids:",
+  "/rules": "Suggest rules for findings that keep repeating this month and prepare the ones that are safe.",
+  "/close-month": "Make a plan to close this month (review the biggest issue, decide the waiting fixes, explain unmatched lines, export the audit report) and work through it, preparing change cards where needed.",
+  "/explain": "Explain this issue in plain words and what I should do:",
+};
+
+const cp = { open: false, busy: false, ctrl: null, sel: { settlements: [], bank_rows: [], findings: [], actions: [] }, files: [] };
+
+function copilotMount() {
+  if ($("#copilot")) return;
+  const log = el("div", { class: "cp-log", id: "cp-log", "aria-live": "polite" });
+  const input = el("textarea", { id: "cp-q", rows: 2, maxlength: "800", placeholder: "Ask, or tell Settle what to do. / for commands, @ for issues and payouts", "aria-label": "Message Settle Copilot" });
+  const menu = el("ul", { class: "cp-menu", id: "cp-menu", role: "listbox", hidden: true });
+  const file = el("input", { type: "file", id: "cp-file", accept: ".csv,.xlsx", hidden: true, onchange: (e) => attachSheet(e.target.files[0]) });
+  const send = el("button", { class: "btn primary small", id: "cp-send", type: "submit" }, "Send");
+  const stop = el("button", { class: "btn small", id: "cp-stop", type: "button", hidden: true, onclick: () => cp.ctrl?.abort() }, "■ Stop");
+  const mode = el("button", { class: "mode-chip", id: "cp-mode", type: "button", title: "Change in Settings", onclick: () => { closeCopilot(); go("settings"); } }, "Ask before every change");
+  const panel = el("aside", { class: "copilot", id: "copilot", hidden: true, "aria-label": "Settle Copilot" },
+    el("header", {}, el("div", {}, el("b", {}, "Settle Copilot"), el("div", { class: "small muted", id: "cp-where" }, "")),
+      el("div", { class: "inline" }, mode, el("button", { class: "btn ghost small", type: "button", "aria-label": "Close Copilot", onclick: closeCopilot }, "✕"))),
+    log,
+    el("div", { class: "cp-sel", id: "cp-sel", hidden: true }),
+    el("div", { class: "cp-suggest", id: "cp-suggest" }),
+    el("form", { class: "cp-form", onsubmit: (e) => { e.preventDefault(); sendCopilot(); } },
+      menu, input,
+      el("div", { class: "inline" }, el("button", { class: "btn ghost small", type: "button", "aria-label": "Attach a spreadsheet", title: "Attach .xlsx or .csv", onclick: () => file.click() }, "📎 Attach"), file,
+        el("span", { class: "small muted grow" }, "Nothing changes until you allow it."), stop, send)));
+  const launcher = el("button", { class: "cp-launch", id: "cp-launch", type: "button", "aria-label": "Open Settle Copilot", onclick: () => openCopilot() }, "✦ Copilot");
+  document.body.append(panel, launcher);
+  log.append(el("div", { class: "cp-hello" }, el("b", {}, "I'm your finance copilot."), " I can explain anything this month, and prepare work: manual matches, rules, bulk approvals, turning your Excel into an input. You review every change before it happens."));
+  input.addEventListener("input", copilotMenu);
+  input.addEventListener("keydown", (e) => {
+    if (!menu.hidden && ["ArrowDown", "ArrowUp", "Enter", "Tab"].includes(e.key)) {
+      const items = [...menu.children]; let i = items.findIndex((x) => x.getAttribute("aria-selected") === "true");
+      if (e.key === "ArrowDown") i = Math.min(i + 1, items.length - 1); else if (e.key === "ArrowUp") i = Math.max(i - 1, 0);
+      else { e.preventDefault(); items[Math.max(i, 0)]?.click(); return; }
+      e.preventDefault(); items.forEach((x, j) => x.setAttribute("aria-selected", String(j === i))); return;
+    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendCopilot(); }
+    if (e.key === "Escape") closeCopilot();
+  });
+  copilotSuggest();
+  refreshMode();
+}
+
+function openCopilot(q = "") {
+  copilotMount();
+  cp.open = true; $("#copilot").hidden = false; $("#cp-launch").hidden = true;
+  copilotSuggest(); drawSelection();
+  if (q) { $("#cp-q").value = q; }
+  $("#cp-q").focus();
+}
+function closeCopilot() { cp.open = false; $("#copilot").hidden = true; $("#cp-launch").hidden = false; $("#cp-launch").focus(); }
+
+function copilotSuggest() {
+  const box = $("#cp-suggest"); if (!box) return;
+  const label = (PAGES.find((p) => p[0] === state.page) || ["", "Overview"])[1];
+  $("#cp-where").textContent = `On ${label}${route().id ? " · " + route().id : ""}`;
+  put(box, ...(COPILOT_SUGGEST[state.page] || COPILOT_SUGGEST.overview).map((s) => el("button", { type: "button", onclick: () => { $("#cp-q").value = s; sendCopilot(); } }, s)));
+}
+
+function copilotMenu() {
+  const input = $("#cp-q"), menu = $("#cp-menu");
+  const before = input.value.slice(0, input.selectionStart);
+  const m = before.match(/(^|\s)([/@])([\w-]*)$/);
+  if (!m) { menu.hidden = true; return; }
+  const q = m[3].toLowerCase();
+  let items;
+  if (m[2] === "/") items = SLASH.filter(([c]) => c.slice(1).startsWith(q)).map(([c, d]) => [c, d, c + " "]);
+  else {
+    const v = state.view || { findings: [] };
+    items = [
+      ...v.findings.map((f) => [`@${f.id}`, `${f.title}, ${rupees(Math.abs(f.amount))}`]),
+      ...(state.sets?.settlements || []).map((s) => [`@${s.settlement_id}`, `payout ${fdate(s.settled_at).split(",")[0]}, ${rupees(s.net)}`]),
+      ...cp.files.map((f) => [`@${f.file_id}`, `attached ${f.name}`]),
+    ].filter(([t, d]) => `${t} ${d}`.toLowerCase().includes(q)).slice(0, 8).map(([t, d]) => [t, d, t + " "]);
+  }
+  if (!items.length) { menu.hidden = true; return; }
+  put(menu, ...items.map(([t, d, ins], i) => el("li", { role: "option", "aria-selected": String(i === 0), onmousedown: (e) => e.preventDefault(), onclick: () => {
+    input.value = before.slice(0, before.length - m[2].length - m[3].length) + ins + input.value.slice(input.selectionStart);
+    menu.hidden = true; input.focus();
+  } }, el("b", {}, t), el("span", { class: "small muted" }, d))));
+  menu.hidden = false;
+}
+
+function selection() {
+  return { ...cp.sel, findings: [...cp.sel.findings, ...(route().id && route().page === "issues" ? [route().id] : [])] };
+}
+function drawSelection() {
+  const box = $("#cp-sel"); if (!box) return;
+  const parts = [...cp.sel.settlements.map((s) => `payout ${s}`), ...cp.sel.bank_rows.map((r) => `bank row ${r}`)];
+  box.hidden = !parts.length;
+  put(box, el("span", { class: "small" }, "Selected: ", parts.join(", ")), el("button", { class: "linkish small", type: "button", onclick: () => { clearSelection(); } }, "clear"));
+}
+function clearSelection() {
+  cp.sel = { settlements: [], bank_rows: [], findings: [], actions: [] };
+  for (const c of $$("input.pick-row:checked")) c.checked = false;
+  drawSelection(); drawSelBar();
+}
+
+async function sendCopilot() {
+  const input = $("#cp-q"), log = $("#cp-log");
+  let msg = input.value.trim();
+  if (!msg || cp.busy) return;
+  $("#cp-menu").hidden = true;
+  const cmd = msg.split(/\s+/)[0];
+  if (cmd === "/export") { input.value = ""; log.append(el("div", { class: "msg-q" }, msg), el("div", { class: "cp-a" }, "Here you go: ", el("a", { href: "/api/report", target: "_blank", rel: "noopener" }, "audit report"), " · ", el("a", { href: "/api/brs" }, "BRS (.csv)"), " · ", el("a", { href: "/api/journal" }, "Tally journal (.csv)"), " · ", el("a", { href: "/api/export" }, "Excel pack (.zip)"))); return; }
+  if (SLASH_PROMPT[cmd]) msg = `${SLASH_PROMPT[cmd]} ${msg.slice(cmd.length).trim()}`.trim();
+  input.value = "";
+  log.append(el("div", { class: "msg-q" }, input.dataset.shown || msg.replace(SLASH_PROMPT[cmd] || "", cmd)));
+  const status = el("div", { class: "cp-status" }, el("span", { class: "spinner sm", "aria-hidden": "true" }), el("span", { id: "cp-status-t" }, "Reading this month…"));
+  log.append(status); log.scrollTop = log.scrollHeight;
+  const words = ["Reading this month…", "Looking things up…", "Checking every figure…", "Preparing changes for you…"];
+  let w = 0; const tick = setInterval(() => { $("#cp-status-t") && ($("#cp-status-t").textContent = words[++w % words.length]); }, 2200);
+  cp.busy = true; $("#cp-send").hidden = true; $("#cp-stop").hidden = false;
+  cp.ctrl = new AbortController();
+  try {
+    const res = await fetch("/api/copilot", { method: "POST", credentials: "same-origin", signal: cp.ctrl.signal, headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg, page: state.page, focus: route().id || "", selection: selection() }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw { error: d.error || "Something went wrong.", hint: d.hint || "Try again." };
+    status.replaceWith(copilotReply(d));
+    if (d.view) applyView(d.view);
+  } catch (e) {
+    status.replaceWith(el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.name === "AbortError" ? "Stopped." : e.error }), e.name === "AbortError" ? "Nothing was changed." : e.hint)));
+  } finally {
+    clearInterval(tick); cp.busy = false; $("#cp-send").hidden = false; $("#cp-stop").hidden = true; log.scrollTop = log.scrollHeight;
+  }
+}
+
+function copilotReply(d) {
+  const box = el("div", { class: "cp-a" });
+  if (d.plan?.length) box.append(el("div", { class: "cp-plan" }, el("b", { class: "small" }, "Plan"), el("ol", {}, ...d.plan.map((p) => el("li", { class: p.done ? "done" : "" }, el("span", { "aria-hidden": "true" }, p.done ? "☑ " : "☐ "), p.text)))));
+  if (d.trace?.length) box.append(el("details", { class: "cp-steps" }, el("summary", { class: "small" }, `${d.trace.length} step${d.trace.length > 1 ? "s" : ""} ran`),
+    el("ol", { class: "timeline" }, ...d.trace.map((t) => el("li", {}, el("b", {}, stepLabel(t)), ` · ${t.rows_returned ?? 0} row${(t.rows_returned ?? 0) === 1 ? "" : "s"} · ${t.ms} ms`, t.error ? el("div", { class: "small", style: "color:var(--loss)" }, t.error) : null, el("pre", {}, t.input || ""))))));
+  box.append(el("span", { class: d.verified ? "badge ok" : "badge warn" }, d.verified ? "✓ Figures checked" : "Couldn't verify every figure: double-check"), el("p", {}, d.answer));
+  if (d.citations?.length) box.append(el("ul", { class: "cites" }, ...d.citations.map((c) => c.source === "finding"
+    ? el("li", {}, el("button", { type: "button", onclick: (e) => openFinding(c.ref, e.currentTarget) }, `Issue ${c.ref}`))
+    : el("li", {}, `${sourceName(c.source)}, row ${c.ref}`))));
+  for (const p of d.proposals || []) box.append(changeCard(p));
+  return box;
+}
+function stepLabel(t) {
+  return { run_sql: "Looked up the data", get_finding: "Opened an issue", get_settlement: "Opened a payout", list_actions: "Listed the fixes", list_unmatched: "Listed unmatched lines",
+    inspect_file: "Read the attached file", make_plan: "Made a plan", done_step: "Ticked off a step" }[t.tool] || (t.tool.startsWith("propose_") ? "Prepared a change" : t.tool);
+}
+
+function changeCard(p) {
+  const card = el("div", { class: "change", "data-pid": p.id });
+  const draw = (p, note) => {
+    const name = el("input", { type: "text", class: "cc-name", value: store.get("settle_name"), placeholder: "Your name", "aria-label": "Your name", autocomplete: "name" });
+    const decide = async (how, always = false) => {
+      const who = name.value.trim();
+      if (!who && how !== "reject") { name.focus(); draw(p, ["err", "Type your name to allow it.", "Every change is recorded with who allowed it."]); return; }
+      store.set("settle_name", who);
+      try {
+        const r = await api("POST", `/api/proposals/${p.id}/${how}`, { approver: who || "a reviewer", always });
+        if (r.view) applyView(r.view);
+        draw(r.proposal, r.needs_second ? ["info", "First approval recorded.", "The two-person rule is on: a second, different person has to allow it."]
+          : how === "reject" ? ["info", "Rejected. Nothing changed.", ""] : how === "undo" ? ["info", "Undone.", "The month was reconciled again without it."]
+          : ["ok", always ? "Allowed, and remembered for this kind." : "Done.", "It's in the audit trail. You can undo it there or here."]);
+        if (how === "confirm") markStep("decide");
+      } catch (e) { draw(p, ["err", e.error, e.hint]); }
+    };
+    put(card,
+      el("div", { class: "cc-head" }, el("span", { class: "cc-tag" }, p.status === "pending" ? "Change waiting for you" : `Change ${p.status}${p.decided_by ? " by " + p.decided_by : ""}`), el("b", {}, p.title)),
+      el("table", { class: "cc-diff" }, el("tbody", {}, ...p.changes.slice(0, 12).map((c) => el("tr", {}, el("td", {}, c.label), el("td", { class: "before" }, c.before), el("td", { "aria-hidden": "true" }, "→"), el("td", { class: "after" }, c.after))))),
+      p.changes.length > 12 ? el("div", { class: "small muted" }, `…and ${p.changes.length - 12} more`) : null,
+      p.preview ? el("details", {}, el("summary", { class: "small" }, `Preview: first ${Math.min(20, p.preview.count)} of ${p.preview.count} rows`),
+        el("div", { class: "tablewrap" }, el("table", { class: "grid tiny" }, el("thead", {}, el("tr", {}, ...p.preview.columns.map((c) => el("th", {}, c)))), el("tbody", {}, ...p.preview.rows.map((r) => el("tr", {}, ...r.map((x) => el("td", {}, x))))))) ) : null,
+      el("ul", { class: "cc-checks" }, ...p.checks.map((c) => el("li", {}, "✓ ", c))),
+      note ? el("div", { class: `banner ${note[0] === "ok" ? "okb" : note[0]}`, role: note[0] === "err" ? "alert" : "status" }, el("div", {}, el("b", { text: note[1] }), note[2])) : null,
+      p.status === "pending" ? el("div", { class: "cc-act" }, name,
+        el("button", { class: "btn primary small", type: "button", onclick: () => decide("confirm") }, "Allow once"),
+        p.always_allow ? el("button", { class: "btn small", type: "button", title: "Apply now, and apply this kind up to this amount without asking next time (revocable in Settings)", onclick: () => decide("confirm", true) }, "Always allow this kind") : null,
+        el("button", { class: "btn danger small", type: "button", onclick: () => decide("reject") }, "Reject"))
+        : p.status === "confirmed" ? el("div", { class: "cc-act" }, el("button", { class: "btn ghost small", type: "button", onclick: () => decide("undo") }, "↶ Undo"),
+          p.result?.download ? el("a", { class: "btn small", href: p.result.download }, "Download the sheet") : null) : null);
+  };
+  draw(p, null);
+  return card;
+}
+
+function applyView(v) {
+  const page = state.page;
+  state.view = null; render(v); go(page, false);
+  if (cp.open) { $("#copilot").hidden = false; $("#cp-launch").hidden = true; }
+}
+
+async function refreshMode() {
+  try { const p = await api("GET", "/api/policy"); $("#cp-mode") && ($("#cp-mode").textContent = { ask: "Ask before every change", auto_low_risk: "Auto-accept low-risk", read_only: "Read-only" }[p.copilot_mode]); } catch { /* keep the default label */ }
+}
+
+async function attachSheet(f) {
+  if (!f) return;
+  $("#cp-file").value = "";
+  openCopilot();
+  const log = $("#cp-log");
+  log.append(el("div", { class: "msg-q" }, `📎 ${f.name}`));
+  const status = el("div", { class: "cp-status" }, el("span", { class: "spinner sm", "aria-hidden": "true" }), "Reading the sheet (values only)…");
+  log.append(status);
+  const fd = new FormData(); fd.append("file", f);
+  try {
+    const r = await api("POST", "/api/copilot/file", fd, true);
+    cp.files.push({ file_id: r.file_id, name: r.name });
+    status.replaceWith(el("div", { class: "cp-a" }, el("p", {}, `Read ${r.name}: ${num(r.rows)} rows, columns ${r.headers.slice(0, 8).join(", ")}${r.headers.length > 8 ? "…" : ""}. Mention it as @${r.file_id}.`),
+      r.proposal ? changeCard(r.proposal) : el("p", { class: "small muted" }, `I couldn't map it on my own (${r.why_not}). Tell me which columns are which, e.g. "@${r.file_id} is our orders; 'Bill No' is the order number".`)));
+  } catch (e) { status.replaceWith(el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint))); }
+  log.scrollTop = log.scrollHeight;
+}
+
+// ---- selecting rows to reconcile by hand -----------------------------------------------------------
+
+function pickBox(kind, value, label) {
+  const c = el("input", { type: "checkbox", class: "pick-row", "aria-label": `Select ${label}`, onclick: (e) => e.stopPropagation(), onchange: (e) => {
+    const list = cp.sel[kind]; const i = list.indexOf(value);
+    if (e.target.checked && i < 0) list.push(value); else if (!e.target.checked && i >= 0) list.splice(i, 1);
+    drawSelection(); drawSelBar();
+  } });
+  c.checked = cp.sel[kind].includes(value);
+  return c;
+}
+function drawSelBar() {
+  let bar = $("#sel-bar");
+  const n = cp.sel.settlements.length + cp.sel.bank_rows.length;
+  if (!n) { bar?.remove(); return; }
+  if (!bar) { bar = el("div", { class: "sel-bar", id: "sel-bar", role: "region", "aria-label": "Selected rows" }); document.body.append(bar); }
+  put(bar, el("b", {}, `${n} selected`),
+    el("button", { class: "btn primary small", type: "button", id: "sel-ai", onclick: () => { openCopilot(); $("#cp-q").value = "Reconcile the selected rows: match them to the right payout if they add up exactly, otherwise tell me what they are."; sendCopilot(); } }, "✦ Reconcile selected with AI"),
+    el("button", { class: "btn small", type: "button", id: "sel-manual", onclick: manualForm }, "Match manually…"),
+    el("button", { class: "btn ghost small", type: "button", onclick: clearSelection }, "Clear"));
+}
+function manualForm() {
+  openCopilot();
+  const sets = (state.sets?.settlements || []).filter((s) => ["missing", "needs_person"].includes(s.status));
+  const pick = el("select", { id: "mm-set", "aria-label": "Settlement" }, el("option", { value: "" }, "No payout: explain these bank lines"),
+    ...sets.map((s) => el("option", { value: s.settlement_id, selected: cp.sel.settlements.includes(s.settlement_id) }, `${s.settlement_id} · ${rupees(s.net)}`)));
+  const note = el("input", { type: "text", id: "mm-note", maxlength: "120", placeholder: "Why, e.g. Prior-month settlement credited 1 Oct" });
+  const msg = el("div");
+  const form = el("form", { class: "cp-a", onsubmit: async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api("POST", "/api/proposals/manual", { bank_rows: cp.sel.bank_rows, settlement_id: pick.value || null, note: note.value, by_name: store.get("settle_name") || "" });
+      form.replaceWith(changeCard(r.proposal));
+    } catch (e2) { put(msg, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e2.error }), e2.hint))); }
+  } }, el("b", {}, "Match manually"), el("p", { class: "small muted" }, `Bank rows: ${cp.sel.bank_rows.join(", ") || "none selected: tick the bank lines first"}. Settle checks they add up to the paisa.`),
+    el("div", { class: "field" }, el("label", { for: "mm-set" }, "To payout"), pick), el("div", { class: "field" }, el("label", { for: "mm-note" }, "Reason"), note), msg,
+    el("button", { class: "btn primary small", type: "submit" }, "Prepare the change"));
+  $("#cp-log").append(form); note.focus();
+}
