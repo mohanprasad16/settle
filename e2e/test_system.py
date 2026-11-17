@@ -1014,6 +1014,11 @@ def desktop_layout(browser):
     p.wait_for_selector("#copilot:not([hidden])")
     sb, cp = p.locator("#sel-bar").bounding_box(), p.locator("#copilot").bounding_box()
     check(A, "selection bar stays clear of the open Copilot", sb["x"] + sb["width"] <= cp["x"], (sb, cp))  # fmt: skip
+    nav = p.locator(".side-nav").bounding_box()
+    check(A, "selection bar stays clear of the sidebar", sb["x"] >= nav["x"] + nav["width"], (sb, nav))  # fmt: skip
+    p.locator("#copilot header button[aria-label='Close Copilot']").click()
+    sb = p.locator("#sel-bar").bounding_box()
+    check(A, "selection bar clear of the sidebar with Copilot closed", sb["x"] >= nav["x"] + nav["width"], (sb, nav))  # fmt: skip
     ctx.close()
 
 
