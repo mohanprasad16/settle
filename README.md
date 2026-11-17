@@ -170,6 +170,11 @@ its own branch), reviewed every screen and result, pushed back when something wa
 checked it with tests and with months the engine had never seen. Every bug we found is written
 down in the failures log.
 
+**All of this was built in one day, 17 November 2026, alongside my regular work.** While I did my
+day job, the agents worked in parallel and I came back to review, redirect and test. The git
+history shows it: first commit at 08:32, last at 23:02, 74 commits. That's the speed I can build
+at with Claude Code, without giving up tests, evals or guardrails.
+
 ## Run it
 
 ```bash
