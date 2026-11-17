@@ -97,3 +97,9 @@ twin refunds in the same minute and three-decimal amounts all came out right.
   "null" / "undefined" text (it fails on the old code, passes on the fix).
 - **The tour claimed 2.4 seconds to reconcile.** The timer included the fake cursor's glide. It now
   times only the click to the results, so the caption shows the real figure for that run.
+- **A toast hid the top bar for nine seconds.** After the redesign, "Inject chaos" twice in a row took
+  9.4 s instead of 0.8 s in the browser suite: the "New random month" toast sat over the top-right
+  buttons until it dismissed itself. Toasts now open below the top bar; back to 0.8 s.
+- **A retried upload showed the previous attempt's error.** The new upload counts rows before
+  reading the files, and the old error toast stayed up, so a fresh mistake was reported as the last
+  one. A submit now clears old alerts and shows progress straight away.

@@ -140,7 +140,7 @@ a { color: var(--brand); }
 .banner.okb { color: #054f31; background: var(--ok-bg); border-color: #abefc6; }
 .banner.info { color: #1e3a8a; background: var(--brand-tint); border-color: #c7d7fe; }
 .banner .inline { flex-shrink: 0; }
-.toasts { position: fixed; top: 14px; right: 14px; z-index: 80; width: min(440px, calc(100vw - 28px)); }
+.toasts { position: fixed; top: 72px; right: 16px; z-index: 80; width: min(440px, calc(100vw - 28px)); }
 .toasts .banner { box-shadow: var(--shadow-pop); }
 .inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
