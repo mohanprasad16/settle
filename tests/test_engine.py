@@ -9,6 +9,7 @@ from app import sample
 from app.engine import run
 from app.load import LoadError, load
 from app.money import rupees, to_paise
+from app.rules import Rule, add_rule, load_rules
 
 
 @pytest.fixture(scope="module")
@@ -95,3 +96,34 @@ def test_sample_on_disk_matches_generator():
         json.loads(disk.read_text())["planted"]
         == sample.write(Path("/tmp/settle-check"))["planted"]
     )
+
+
+def test_ghost_success_and_abandoned_checkouts(world):
+    _, _, result = world
+    ghosts = [f for f in result.findings if f.check == "ghost_success"]
+    assert len(ghosts) == 2 and all(f.facts["books_status"] == "pending" for f in ghosts)
+    labels = {h["label"]: h["count"] for h in result.handled}
+    assert labels["Unpaid checkouts (pending / failed) with no payment, not sales"] == 4
+
+
+def test_auto_reconciled_share(world):
+    _, _, result = world
+    a = result.totals["auto_reconciled"]
+    assert a["of"] == sum(result.totals["rows"][k] for k in ("razorpay", "orders", "bank"))
+    assert 90 < a["pct"] < 100 and a["rows"] < a["of"]
+
+
+def test_rule_resolves_expected_findings_and_bridge_still_closes(world, tmp_path):
+    out, _, before = world
+    path = tmp_path / "rules.json"
+    rules = add_rule(path, Rule("amount_mismatch", "coupon at checkout", max_amount=10000))
+    assert load_rules(path) == rules
+    con = duckdb.connect()
+    period = load(con, out / "razorpay_settlements.csv", out / "bank_statement.csv", out / "orders.csv")  # fmt: skip
+    after = run(con, period, rules=rules)
+    assert not [f for f in after.findings if f.check == "amount_mismatch"]
+    assert len(after.findings) == len(before.findings) - 2 and len(after.resolved) == 2
+    assert {"label": "Resolved by your rule: coupon at checkout", "count": 2} in after.handled
+    for bridge in (after.books_to_razorpay, after.razorpay_to_bank):
+        assert next(s for s in bridge if s.kind == "residual").amount == 0
+    assert any(s.label == "Resolved by your rules" for s in after.books_to_razorpay)

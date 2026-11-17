@@ -13,6 +13,7 @@ from datetime import timedelta
 import duckdb
 
 from app.load import Period
+from app.rules import Rule
 
 KINDS = {
     "settlement_missing": ("loss", "Settlement never reached your bank"),
@@ -26,10 +27,14 @@ KINDS = {
     "duplicate_payment": ("customer", "Customer charged twice for one order"),
     "books_refund_not_processed": ("customer", "Books say refunded, no refund went out"),
     "refund_mismatch": ("books", "Refund at Razorpay differs from the books"),
+    "ghost_success": ("books", "Paid at Razorpay, order still pending in your store"),
     "orphan_payment": ("books", "Payment with no order in your books"),
     "refund_not_in_books": ("books", "Refunded at Razorpay, books still say paid"),
     "amount_mismatch": ("books", "Amount captured differs from the order"),
 }
+# Findings that make Razorpay higher than the books (step goes up the waterfall, not down).
+UP = {"duplicate_payment", "orphan_payment", "ghost_success", "books_refund_not_processed"}
+UNPAID = "('pending', 'failed', 'created')"  # store statuses for checkouts that aren't sales
 
 
 @dataclass
@@ -76,6 +81,7 @@ class Result:
     razorpay_to_bank: list[Step]
     totals: dict = field(default_factory=dict)
     handled: list[dict] = field(default_factory=list)
+    resolved: list[tuple[Finding, Rule]] = field(default_factory=list)
 
 
 def _q(con, sql: str, params=None) -> list[dict]:
@@ -90,7 +96,7 @@ def _views(con, p: Period, pr: Pricing) -> None:
     con.execute(f"""
         CREATE OR REPLACE TEMP VIEW books AS
         SELECT * FROM orders
-        WHERE payment_method = 'razorpay' AND status <> 'cancelled'
+        WHERE payment_method = 'razorpay' AND status NOT IN ('cancelled', {UNPAID[1:-1]})
           AND order_date BETWEEN DATE '{p.start}' AND DATE '{p.end}';
 
         CREATE OR REPLACE TEMP VIEW pay AS
@@ -109,6 +115,8 @@ def _views(con, p: Period, pr: Pricing) -> None:
         CREATE OR REPLACE TEMP VIEW pay_class AS
         SELECT pay.*, CASE
             WHEN order_receipt IN (SELECT order_no FROM books) THEN 'matched'
+            WHEN order_receipt IN (SELECT order_no FROM orders WHERE status IN {UNPAID}
+                 AND order_date BETWEEN DATE '{p.start}' AND DATE '{p.end}') THEN 'ghost'
             WHEN created_date < DATE '{p.start}' THEN 'carry_in'
             ELSE 'orphan' END AS bucket
         FROM pay;
@@ -135,7 +143,7 @@ def _views(con, p: Period, pr: Pricing) -> None:
         CREATE OR REPLACE TEMP VIEW settlement AS
         SELECT settlement_id, max(utr) AS utr, max(settled_at) AS settled_at,
                sum(credit) - sum(debit) AS net, count(*) AS n_items,
-               min(row_no) AS first_row, max(row_no) AS last_row
+               list(row_no ORDER BY row_no) AS rp_rows
         FROM rp GROUP BY settlement_id;
 
         CREATE OR REPLACE TEMP VIEW settlement_bank AS
@@ -148,7 +156,12 @@ def _views(con, p: Period, pr: Pricing) -> None:
         """)
 
 
-def run(con: duckdb.DuckDBPyConnection, period: Period, pricing: Pricing | None = None) -> Result:
+def run(
+    con: duckdb.DuckDBPyConnection,
+    period: Period,
+    pricing: Pricing | None = None,
+    rules: list[Rule] | None = None,
+) -> Result:
     pr = pricing or Pricing()
     _views(con, period, pr)
     f: list[Finding] = []
@@ -169,6 +182,18 @@ def run(con: duckdb.DuckDBPyConnection, period: Period, pricing: Pricing | None 
                 f.append(Finding("duplicate_payment", o["paid"] - o["amount"], [o["order_no"], *ids], rows, facts))  # fmt: skip
             else:
                 f.append(Finding("amount_mismatch", o["amount"] - o["paid"], [o["order_no"], *ids], rows, facts))  # fmt: skip
+
+    for p in _q(
+        con,
+        """SELECT p.*, o.status AS books_status, o.row_no AS order_row
+                        FROM pay_class p JOIN orders o ON o.order_no = p.order_receipt
+                        WHERE bucket = 'ghost' ORDER BY p.created_at""",
+    ):
+        f.append(Finding("ghost_success", p["amount"], [p["order_receipt"], p["entity_id"]],
+            {"orders": [p["order_row"]], "rp": [p["row_no"]]}, {
+            "order_no": p["order_receipt"], "books_status": p["books_status"],
+            "payment_id": p["entity_id"], "amount": p["amount"], "captured_on": p["created_at"],
+            "method": p["method"], "razorpay_order_id": p["order_id"]}))  # fmt: skip
 
     for p in _q(con, "SELECT * FROM pay_class WHERE bucket = 'orphan' ORDER BY created_at"):
         f.append(Finding("orphan_payment", p["amount"], [p["entity_id"]], {"rp": [p["row_no"]]}, {
@@ -236,7 +261,7 @@ def run(con: duckdb.DuckDBPyConnection, period: Period, pricing: Pricing | None 
     # --- Settlements vs bank ------------------------------------------------------------------
     sb = _q(con, "SELECT * FROM settlement_bank ORDER BY settled_at")
     for s in sb:
-        rows = {"rp": [s["first_row"], s["last_row"]], "bank": s["bank_rows"] or []}
+        rows = {"rp": s["rp_rows"], "bank": s["bank_rows"] or []}
         facts = {"settlement_id": s["settlement_id"], "utr": s["utr"], "settled_on": s["settled_at"],
                  "net_settled": s["net"], "bank_received": s["received"], "items": s["n_items"]}  # fmt: skip
         if s["n_credits"] == 0 and not s["in_transit"]:
@@ -246,12 +271,20 @@ def run(con: duckdb.DuckDBPyConnection, period: Period, pricing: Pricing | None 
 
     order = list(KINDS)
     f.sort(key=lambda x: (order.index(x.check), -x.amount))
+    resolved = []  # findings a person marked as expected: out of the list, still in the bridge
+    for x in list(f):
+        rule = next((r for r in rules or [] if r.matches(x)), None)
+        if rule:
+            f.remove(x)
+            resolved.append((x, rule))
     for i, x in enumerate(f, 1):
         x.id = f"F{i}"
+    for i, (x, _) in enumerate(resolved, 1):
+        x.id = f"R{i}"
 
-    result = Result(period, f, *_bridges(con, f, pr))
+    result = Result(period, f, *_bridges(con, f, pr, [x for x, _ in resolved]), resolved=resolved)
     result.totals = _totals(con, result)
-    result.handled = _handled(con, pr, sb)
+    result.handled = _handled(con, pr, sb, resolved)
     _persist(con, f)
     return result
 
@@ -271,7 +304,9 @@ def _sum(con, sql: str) -> tuple[int, int]:
     return int(total), int(n)
 
 
-def _bridges(con, f: list[Finding], pr: Pricing) -> tuple[list[Step], list[Step]]:
+def _bridges(
+    con, f: list[Finding], pr: Pricing, resolved: list[Finding]
+) -> tuple[list[Step], list[Step]]:
     by = {}
     for x in f:
         by.setdefault(x.check, [0, 0])
@@ -310,9 +345,16 @@ def _bridges(con, f: list[Finding], pr: Pricing) -> tuple[list[Step], list[Step]
                                AND debit > 0 AND description IS NULL)""",
     )
 
-    def fstep(check, sign=1):
+    def fstep(check):
         amt, n = by.get(check, [0, 0])
-        return Step(KINDS[check][1], -sign * amt, "finding", n)
+        return Step(KINDS[check][1], amt if check in UP else -amt, "finding", n)
+
+    def rstep(checks):
+        mine = [x for x in resolved if x.check in checks]
+        amt = sum(x.amount if x.check in UP else -x.amount for x in mine)
+        return Step("Resolved by your rules", amt, "resolved", len(mine))
+
+    bank_checks = {"settlement_missing", "settlement_short"}
 
     contrib = [
         Step("Razorpay fees + GST at your agreed rate", -exp_fee, "normal", n_pay),
@@ -327,14 +369,16 @@ def _bridges(con, f: list[Finding], pr: Pricing) -> tuple[list[Step], list[Step]
         Step("Other Razorpay adjustments and transfers", -adj_other, "normal", n_adj),
         fstep("paid_order_no_payment"),
         fstep("amount_mismatch"),
-        fstep("duplicate_payment", -1),
-        fstep("orphan_payment", -1),
+        fstep("duplicate_payment"),
+        fstep("ghost_success"),
+        fstep("orphan_payment"),
         fstep("duplicate_refund"),
         fstep("refund_not_in_books"),
         fstep("refund_mismatch"),
-        fstep("books_refund_not_processed", -1),
+        fstep("books_refund_not_processed"),
         fstep("chargeback"),
         fstep("unexplained_adjustment"),
+        rstep(set(KINDS) - bank_checks - {"gst_mismatch"}),  # GST errors sit inside the fee lines
     ]
     explained = sum(s.amount for s in contrib)
     a = [Step("Net sales in your books (Razorpay orders, after refunds)", books, "start", n_books)]
@@ -351,6 +395,7 @@ def _bridges(con, f: list[Finding], pr: Pricing) -> tuple[list[Step], list[Step]
         fstep("settlement_missing"),
         fstep("settlement_short"),
         Step("Settled on the last day, reaches the bank next month", -transit, "timing", n_tr),
+        rstep(bank_checks),
     ] if s.amount]  # fmt: skip
     miss = sum(s.amount for s in b[1:])
     b += [Step("Unexplained", received - rp_net - miss, "residual"),
@@ -359,6 +404,8 @@ def _bridges(con, f: list[Finding], pr: Pricing) -> tuple[list[Step], list[Step]
 
 
 def _totals(con, r: Result) -> dict:
+    """auto_reconciled: rows across the three files that no finding cites as evidence and that
+    aren't unmatched Razorpay bank credits, out of all rows."""
     t = {k: sum(x.amount for x in r.findings if x.kind == k) for k in ("loss", "books", "customer")}
     t["findings"] = len(r.findings)
     t["unexplained"] = sum(
@@ -374,10 +421,15 @@ def _totals(con, r: Result) -> dict:
     counts = con.execute("""SELECT (SELECT count(*) FROM rp), (SELECT count(*) FROM orders),
                                    (SELECT count(*) FROM bank), (SELECT count(*) FROM settlement)""").fetchone()
     t["rows"] = dict(zip(["razorpay", "orders", "bank", "settlements"], counts))
+    open_rows = {(src, n) for x in r.findings for src, rows in x.rows.items() for n in rows}
+    open_rows |= {("bank", u["row_no"]) for u in unknown}
+    total = counts[0] + counts[1] + counts[2]
+    done = total - len(open_rows)
+    t["auto_reconciled"] = {"rows": done, "of": total, "pct": round(100 * done / total, 1) if total else 0.0}  # fmt: skip
     return t
 
 
-def _handled(con, pr: Pricing, sb: list[dict]) -> list[dict]:
+def _handled(con, pr: Pricing, sb: list[dict], resolved: list[tuple[Finding, Rule]]) -> list[dict]:
     """Things that look like problems in a naive match but aren't. Shown so the user trusts it."""
     one = lambda sql: con.execute(sql).fetchone()[0]
     items = [
@@ -389,7 +441,13 @@ def _handled(con, pr: Pricing, sb: list[dict]) -> list[dict]:
          sum(1 for s in sb if s["n_credits"] > 1)),
         ("Cash-on-delivery and cancelled orders left out",
          one("SELECT count(*) FROM orders WHERE payment_method <> 'razorpay' OR status = 'cancelled'")),
+        ("Unpaid checkouts (pending / failed) with no payment, not sales",
+         one(f"SELECT count(*) FROM orders WHERE status IN {UNPAID} AND order_no NOT IN (SELECT order_receipt FROM pay WHERE order_receipt IS NOT NULL)")),
         ("Bank lines that aren't Razorpay (rent, salaries, other channels)",
          one("SELECT count(*) FROM bank WHERE upper(narration) NOT LIKE '%RAZORPAY%'")),
     ]  # fmt: skip
+    notes: dict[str, int] = {}
+    for _, rule in resolved:
+        notes[rule.note] = notes.get(rule.note, 0) + 1
+    items += [(f"Resolved by your rule: {note}", n) for note, n in notes.items()]
     return [{"label": label, "count": int(n)} for label, n in items if n]

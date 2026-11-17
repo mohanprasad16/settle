@@ -172,6 +172,12 @@ def template(f: Finding) -> Explained:
             "Most likely a partial refund was recorded with the wrong amount.",
             ["Correct the refund amount in your books."],
             "your accountant"),
+        "ghost_success": (
+            f"Order {g('order_no')} was paid but still shows {g('books_status')}.",
+            f"Razorpay captured {g('amount')} for order {g('order_no')} as {g('payment_id')} on {g('captured_on')}, but your store still shows it as {g('books_status')}.",
+            "Most likely the payment webhook never reached your store, so the order was not marked paid.",
+            ["Replay the payment.captured webhook, or mark the order paid by hand.", "Ship the order if it hasn't gone out."],
+            "your store/ops team"),
         "orphan_payment": (
             f"Payment of {g('amount')} has no order in your books.",
             f"Razorpay received {g('amount')} as {g('payment_id')} (receipt {g('receipt')}), but no order with that number is in your books.",

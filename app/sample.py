@@ -2,18 +2,23 @@
 purpose and an answer key (truth.json) listing each one and its exact rupee impact.
 
     uv run python -m app.sample            # writes data/sample/*.csv + truth.json
+    uv run python -m app.sample 42 /tmp/x  # a random month (what "Inject chaos" serves)
 
 The Razorpay file uses the columns of Razorpay's settlement recon API (amounts in paise). Every
 "normal" thing a real month has is in here too, so the engine has to tell them apart from the
 problems: partial refunds, Amex at 3%, a settlement split into two bank credits, month-end
 orders that settle in November, September payments settled in October, COD orders, rent and
-salary lines in the bank, last month's settlement credited on 1 Oct.
+salary lines in the bank, last month's settlement credited on 1 Oct, abandoned checkouts.
+
+Seed 7 is the curated demo month. Any other seed draws a random Plan: which problems, how many
+(0-3 each), on which days, for how much. The engine must find exactly the planted set every time.
 """
 
 import csv
 import json
 import random
 import string
+import tempfile
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -26,6 +31,12 @@ RATE_BP = {"default": 200, "premium": 300}  # 2% domestic, 3% Amex / Diners
 PREMIUM = ("American Express", "Diners Club")
 OVERCHARGE_BP = 240
 PRICES = [34900, 49900, 64900, 89900, 119900, 149900, 249900]
+DEMO_SEED = 7
+FILES = {
+    "rp": "razorpay_settlements.csv",
+    "bank": "bank_statement.csv",
+    "orders": "orders.csv",
+}
 
 RP_COLUMNS = [
     "entity_id", "type", "debit", "credit", "amount", "currency", "fee", "tax", "on_hold",
@@ -71,6 +82,54 @@ LAST = [
     "Verma",
     "Joshi",
 ]
+
+
+@dataclass
+class Plan:
+    """What gets planted. Days are October days; amounts are paise."""
+
+    no_payment: int = 3
+    short_capture: int = 2
+    short_by: int = 10000
+    glitch: tuple[int, int] | None = (16, 18)  # card fees at 2.4% on these days
+    dup_refund: int = 1
+    refund_not_in_books: int = 3
+    books_refund_np: int = 2
+    chargeback: int = 2
+    orphans: list[tuple[int, int]] = field(default_factory=lambda: [(11, 129900), (18, 129900)])
+    adjustments: list[tuple[int, int]] = field(default_factory=lambda: [(25, 118000)])
+    missing_days: list[int] = field(default_factory=lambda: [14])  # settlement days
+    short_days: list[tuple[int, int]] = field(default_factory=lambda: [(21, 200000)])
+    split_days: list[int] = field(default_factory=lambda: [9])
+    ghost: int = 2  # paid at Razorpay, order still pending in the store
+    abandoned: int = 4  # pending / failed checkouts with no payment: normal, not a problem
+
+
+def plan_for(seed: int) -> Plan:
+    if seed == DEMO_SEED:
+        return Plan()
+    rng = random.Random(seed * 7919 + 13)
+    n = lambda: rng.randint(0, 3)
+    k_miss, k_short, k_split = n(), n(), n()
+    days = rng.sample(range(1, 31), k_miss + k_short + k_split)
+    start = rng.randint(1, 27)
+    return Plan(
+        no_payment=n(),
+        short_capture=n(),
+        short_by=rng.choice([5000, 10000, 25000]),
+        glitch=(start, start + rng.randint(0, 2)) if rng.random() < 0.6 else None,
+        dup_refund=n(),
+        refund_not_in_books=n(),
+        books_refund_np=n(),
+        chargeback=n(),
+        orphans=[(rng.randint(1, 27), rng.choice(PRICES)) for _ in range(n())],
+        adjustments=[(rng.randint(1, 27), rng.randint(5, 50) * 2360) for _ in range(n())],
+        missing_days=days[:k_miss],
+        short_days=[(d, rng.randint(1, 10) * 25000) for d in days[k_miss : k_miss + k_short]],
+        split_days=days[k_miss + k_short :],
+        ghost=n(),
+        abandoned=n(),
+    )
 
 
 @dataclass
@@ -140,7 +199,8 @@ def _refund(rng, pay: dict, amount: int, created: date) -> dict:
     }  # fmt: skip
 
 
-def build(seed: int = 7) -> World:
+def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
+    plan = plan or plan_for(seed)
     rng = random.Random(seed)
     w = World()
     payments: dict[str, dict] = {}  # order_no -> payment row
@@ -170,19 +230,19 @@ def build(seed: int = 7) -> World:
         w.planted.append({"check": check, "refs": refs, "amount": amount, **facts})
 
     # Planted: order marked paid, payment never captured.
-    no_payment = [next(pick) for _ in range(3)]
+    no_payment = [next(pick) for _ in range(plan.no_payment)]
     for o in no_payment:
         plant("paid_order_no_payment", [o.no], o.amount)
 
     # Planted: captured ₹100 less than the order (coupon applied at checkout, not in books).
-    short_capture = {next(pick).no for _ in range(2)}
+    short_capture = {next(pick).no for _ in range(plan.short_capture)}
 
     for o in live:
         if o in no_payment:
             continue
-        amount = o.amount - 10000 if o.no in short_capture else o.amount
+        amount = o.amount - plan.short_by if o.no in short_capture else o.amount
         pay = _payment(rng, o, o.day, amount=amount)
-        glitch = date(2026, 10, 16) <= o.day <= date(2026, 10, 18)  # pricing glitch, 3 days
+        glitch = plan.glitch and date(2026, 10, plan.glitch[0]) <= o.day <= date(2026, 10, plan.glitch[1])  # fmt: skip
         if glitch and pay["method"] == "card" and pay["card_network"] not in PREMIUM:
             fee, tax = _fee(amount, OVERCHARGE_BP)
             pay |= {"fee": fee, "tax": tax, "credit": amount - fee}
@@ -196,11 +256,12 @@ def build(seed: int = 7) -> World:
         if p["method"] == "card" and p["card_network"] not in PREMIUM
         and p["fee"] != _fee(p["amount"], RATE_BP["default"])[0]
     ]  # fmt: skip
-    plant(
-        "fee_overcharge",
-        sorted(p["entity_id"] for p in overcharged),
-        sum(p["fee"] - _fee(p["amount"], RATE_BP["default"])[0] for p in overcharged),
-    )
+    if overcharged:
+        plant(
+            "fee_overcharge",
+            sorted(p["entity_id"] for p in overcharged),
+            sum(p["fee"] - _fee(p["amount"], RATE_BP["default"])[0] for p in overcharged),
+        )
 
     # Normal refunds: ~4% full, ~2% partial, 1-3 days after the order.
     for o in live:
@@ -225,28 +286,29 @@ def build(seed: int = 7) -> World:
     clean = iter(clean)
 
     # Planted: refund paid twice at Razorpay, once in the books.
-    o = next(clean)
-    o.status, o.refund_amount, o.refund_day = "refunded", o.amount, o.day + timedelta(days=1)
-    first = _refund(rng, payments[o.no], o.amount, o.refund_day)
-    second = _refund(rng, payments[o.no], o.amount, o.refund_day + timedelta(days=1))
-    w.items += [Item(first, o.refund_day), Item(second, o.refund_day + timedelta(days=1))]
-    plant("duplicate_refund", [o.no, second["entity_id"]], o.amount)
+    for _ in range(plan.dup_refund):
+        o = next(clean)
+        o.status, o.refund_amount, o.refund_day = "refunded", o.amount, o.day + timedelta(days=1)
+        first = _refund(rng, payments[o.no], o.amount, o.refund_day)
+        second = _refund(rng, payments[o.no], o.amount, o.refund_day + timedelta(days=1))
+        w.items += [Item(first, o.refund_day), Item(second, o.refund_day + timedelta(days=1))]
+        plant("duplicate_refund", [o.no, second["entity_id"]], o.amount)
 
     # Planted: refunded at Razorpay, books still say paid.
-    for _ in range(3):
+    for _ in range(plan.refund_not_in_books):
         o = next(clean)
         ref = _refund(rng, payments[o.no], o.amount, o.day + timedelta(days=2))
         w.items.append(Item(ref, o.day + timedelta(days=2)))
         plant("refund_not_in_books", [o.no, ref["entity_id"]], o.amount)
 
     # Planted: books say refunded, nothing went out at Razorpay.
-    for _ in range(2):
+    for _ in range(plan.books_refund_np):
         o = next(clean)
         o.status, o.refund_amount, o.refund_day = "refunded", o.amount, o.day + timedelta(days=1)
         plant("books_refund_not_processed", [o.no], o.amount)
 
     # Planted: chargebacks debited, books still say paid.
-    for _ in range(2):
+    for _ in range(plan.chargeback):
         o = next(clean)
         pay = payments[o.no]
         d = o.day + timedelta(days=4)
@@ -262,19 +324,44 @@ def build(seed: int = 7) -> World:
         plant("chargeback", [o.no, row["dispute_id"]], pay["amount"])
 
     # Planted: payments with no order in the books (a second storefront nobody exports).
-    for i in range(2):
-        ghost = Order(f"KK-WEB-{900 + i}", date(2026, 10, 11 + 7 * i), "Guest", 129900, "razorpay")
-        pay = _payment(rng, ghost, ghost.day)
-        w.items.append(Item(pay, ghost.day))
+    for i, (day, amount) in enumerate(plan.orphans):
+        web = Order(f"KK-WEB-{900 + i}", date(2026, 10, day), "Guest", amount, "razorpay")
+        pay = _payment(rng, web, web.day)
+        w.items.append(Item(pay, web.day))
         plant("orphan_payment", [pay["entity_id"]], pay["amount"])
 
     # Planted: an adjustment debit with no reason given.
-    adj = {
-        "entity_id": _id(rng, "adj_"), "type": "adjustment", "debit": 118000, "credit": 0,
-        "amount": 118000, "fee": 0, "tax": 0, "created_at": _epoch(date(2026, 10, 25), 12, 0),
-    }  # fmt: skip
-    w.items.append(Item(adj, date(2026, 10, 25)))
-    plant("unexplained_adjustment", [adj["entity_id"]], 118000)
+    for day, amount in plan.adjustments:
+        d = date(2026, 10, day)
+        adj = {
+            "entity_id": _id(rng, "adj_"), "type": "adjustment", "debit": amount, "credit": 0,
+            "amount": amount, "fee": 0, "tax": 0, "created_at": _epoch(d, 12, 0),
+        }  # fmt: skip
+        w.items.append(Item(adj, d))
+        plant("unexplained_adjustment", [adj["entity_id"]], amount)
+
+    # Last, on their own random stream so everything above is unchanged by them: orders that
+    # were paid but the store never heard (ghost successes, planted), and checkouts that never
+    # paid at all (abandoned, normal). Kept off the days the bank problems and fee glitch use.
+    prng = random.Random(seed * 1009 + 3)
+    used = {r for p in w.planted for r in p["refs"]}
+    busy = {date(2026, 10, d) - timedelta(LAG_DAYS) for d in plan.missing_days + plan.split_days}
+    busy |= {date(2026, 10, d) - timedelta(LAG_DAYS) for d, _ in plan.short_days}
+    if plan.glitch:
+        busy |= {date(2026, 10, d) for d in range(plan.glitch[0], plan.glitch[1] + 1)}
+    cands = [
+        o for o in in_period
+        if o.status == "paid" and o.no in payments and o.no not in used
+        and o.no not in short_capture and o.day not in busy
+    ]  # fmt: skip
+    chosen = prng.sample(cands, plan.ghost + plan.abandoned)
+    for o in chosen[: plan.ghost]:
+        o.status = "pending"
+        plant("ghost_success", [o.no, payments[o.no]["entity_id"]], payments[o.no]["amount"])
+    for i, o in enumerate(chosen[plan.ghost :]):
+        o.status = "failed" if i == 0 else "pending"
+        pay = payments.pop(o.no)
+        w.items = [it for it in w.items if it.row is not pay]
     return w
 
 
@@ -298,10 +385,11 @@ def settle_items(rng, w: World) -> dict[date, tuple[str, str]]:
     return batches
 
 
-def write(out: Path, seed: int = 7) -> dict:
+def write(out: Path, seed: int = DEMO_SEED) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     rng = random.Random(seed + 1)
-    w = build(seed)
+    plan = plan_for(seed)
+    w = build(seed, plan)
     batches = settle_items(rng, w)
 
     report = sorted(
@@ -314,7 +402,7 @@ def write(out: Path, seed: int = 7) -> dict:
             net.get(it.row["settlement_id"], 0) + it.row["credit"] - it.row["debit"]
         )
 
-    with open(out / "razorpay_settlements.csv", "w", newline="") as f:
+    with open(out / FILES["rp"], "w", newline="") as f:
         wr = csv.DictWriter(f, RP_COLUMNS)
         wr.writeheader()
         for it in report:
@@ -328,7 +416,9 @@ def write(out: Path, seed: int = 7) -> dict:
             wr.writerow(base | it.row)
 
     # Bank: one credit per settlement on the settlement day, plus the planted bank problems.
-    missing_day, short_day, split_day = date(2026, 10, 14), date(2026, 10, 21), date(2026, 10, 9)
+    missing = {date(2026, 10, d) for d in plan.missing_days}
+    short = {date(2026, 10, d): gap for d, gap in plan.short_days}
+    split = {date(2026, 10, d) for d in plan.split_days}
     lines = []
     for sday, (sid, utr) in sorted(batches.items()):
         if sid not in net and sday != date(2026, 9, 30):
@@ -341,12 +431,13 @@ def write(out: Path, seed: int = 7) -> dict:
                 if it.row["settlement_id"] == sid
             )
             lines.append((PERIOD_START, narration, utr, 0, amount))
-        elif sday == missing_day:
+        elif sday in missing:
             w.planted.append({"check": "settlement_missing", "refs": [sid], "amount": net[sid]})
-        elif sday == short_day:
-            lines.append((sday, narration, utr, 0, net[sid] - 200000))
-            w.planted.append({"check": "settlement_short", "refs": [sid], "amount": 200000})
-        elif sday == split_day:
+        elif sday in short:
+            gap = min(short[sday], net[sid] // 2)
+            lines.append((sday, narration, utr, 0, net[sid] - gap))
+            w.planted.append({"check": "settlement_short", "refs": [sid], "amount": gap})
+        elif sday in split:
             part = net[sid] // 3
             lines.append((sday, narration, utr, 0, part))
             lines.append((sday, narration + " PART 2", utr, 0, net[sid] - part))
@@ -366,14 +457,14 @@ def write(out: Path, seed: int = 7) -> dict:
     lines.sort(key=lambda r: r[0])
 
     balance = 120000000
-    with open(out / "bank_statement.csv", "w", newline="") as f:
+    with open(out / FILES["bank"], "w", newline="") as f:
         wr = csv.writer(f)
         wr.writerow(BANK_COLUMNS)
         for d, text, ref, debit, credit in lines:
             balance += credit - debit
             wr.writerow([d.strftime("%d/%m/%Y"), text, ref, _r(debit), _r(credit), _r(balance)])
 
-    with open(out / "orders.csv", "w", newline="") as f:
+    with open(out / FILES["orders"], "w", newline="") as f:
         wr = csv.writer(f)
         wr.writerow(ORDER_COLUMNS)
         for o in w.orders:
@@ -397,6 +488,21 @@ def _r(paise: int) -> str:
     return f"{paise / 100:.2f}" if paise else ""
 
 
+def chaos(seed: int) -> tuple[dict[str, Path], dict]:
+    """A fresh random month for the "Inject chaos" button: file paths and the answer key."""
+    out = Path(tempfile.mkdtemp(prefix=f"settle-chaos-{seed}-"))
+    truth = write(out, seed)
+    return {k: out / v for k, v in FILES.items()}, truth
+
+
 if __name__ == "__main__":
-    t = write(Path(__file__).resolve().parent.parent / "data" / "sample")
-    print(f"planted {len(t['planted'])} problems")
+    import sys
+
+    seed = int(sys.argv[1]) if len(sys.argv) > 1 else DEMO_SEED
+    out = (
+        Path(sys.argv[2])
+        if len(sys.argv) > 2
+        else Path(__file__).resolve().parent.parent / "data" / "sample"
+    )
+    t = write(out, seed)
+    print(f"planted {len(t['planted'])} problems in {out}")
