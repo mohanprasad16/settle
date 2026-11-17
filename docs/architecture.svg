@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 430" font-family="Inter, Helvetica, Arial, sans-serif">
+  <rect width="1280" height="430" fill="#ffffff"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b82"/>
+    </marker>
+    <style>
+      .box{fill:#f7f9fc;stroke:#c9d3e1;stroke-width:1.2}
+      .ai{fill:#f3f0fb;stroke:#b9aee3}
+      .code{fill:#eef7f1;stroke:#a8d2b6}
+      .t{font-size:15px;font-weight:700;fill:#1c2b45}
+      .s{font-size:11.5px;fill:#3f4d63}
+      .k{font-size:10.5px;font-weight:600;letter-spacing:.06em;fill:#7a869a}
+      .ln{stroke:#5b6b82;stroke-width:1.6;fill:none;marker-end:url(#a)}
+    </style>
+  </defs>
+
+  <text x="24" y="34" class="t" font-size="18">Settle: code owns every rupee, AI explains, a person approves</text>
+  <text x="24" y="56" class="s">Green = deterministic code. Purple = model calls, each behind a check that code runs on its output.</text>
+
+  <!-- 1 Connectors -->
+  <rect x="20" y="90" width="160" height="200" rx="8" class="box"/>
+  <text x="32" y="112" class="k">1 · CONNECTORS</text>
+  <text x="32" y="136" class="t">Bring the data</text>
+  <text x="32" y="160" class="s">Upload 3 CSVs</text>
+  <text x="32" y="178" class="s">Bank PDF: digital,</text>
+  <text x="32" y="194" class="s">scanned or locked</text>
+  <text x="32" y="212" class="s">Razorpay recon API</text>
+  <text x="32" y="230" class="s">(same columns)</text>
+  <rect x="32" y="244" width="136" height="34" rx="5" class="ai"/>
+  <text x="40" y="259" class="s">PDF pages read by AI,</text>
+  <text x="40" y="273" class="s">balance chain checks</text>
+
+  <!-- 2 Load -->
+  <rect x="200" y="90" width="150" height="200" rx="8" class="code"/>
+  <text x="212" y="112" class="k">2 · LOAD</text>
+  <text x="212" y="136" class="t">Clean tables</text>
+  <text x="212" y="160" class="s">DuckDB</text>
+  <text x="212" y="178" class="s">Money in integer paise</text>
+  <text x="212" y="196" class="s">Order no, UTR, card</text>
+  <text x="212" y="212" class="s">network normalised</text>
+  <text x="212" y="230" class="s">Missing columns named</text>
+  <text x="212" y="246" class="s">in plain English</text>
+
+  <!-- 3 Engine -->
+  <rect x="370" y="90" width="200" height="200" rx="8" class="code"/>
+  <text x="382" y="112" class="k">3 · ENGINE</text>
+  <text x="382" y="136" class="t">Reconcile</text>
+  <text x="382" y="160" class="s">Checks: settlements, refunds,</text>
+  <text x="382" y="176" class="s">fees vs rate card, disputes...</text>
+  <text x="382" y="194" class="s">Bank match: UTR → amount +</text>
+  <text x="382" y="210" class="s">date → split (no guessing)</text>
+  <text x="382" y="228" class="s">Two bridges close to ₹0.00</text>
+  <text x="382" y="246" class="s">Exceptions · refund patterns</text>
+  <text x="382" y="262" class="s">Rules a person taught it</text>
+
+  <!-- 4 AI -->
+  <rect x="590" y="90" width="190" height="200" rx="8" class="ai"/>
+  <text x="602" y="112" class="k">4 · AI LAYER</text>
+  <text x="602" y="136" class="t">Explain · Ask · Draft</text>
+  <text x="602" y="160" class="s">Explanation per finding</text>
+  <text x="602" y="178" class="s">Ask agent: read-only SQL,</text>
+  <text x="602" y="194" class="s">one SELECT, 6 calls max</text>
+  <text x="602" y="212" class="s">Drafts: ticket, customer note</text>
+  <text x="602" y="232" class="s" font-weight="700">Number guard:</text>
+  <text x="602" y="248" class="s">every ₹ / % must come from</text>
+  <text x="602" y="264" class="s">the engine, else retry/template</text>
+
+  <!-- 5 Gate -->
+  <rect x="800" y="90" width="150" height="200" rx="8" class="code"/>
+  <text x="812" y="112" class="k">5 · GATE</text>
+  <text x="812" y="136" class="t">Approve</text>
+  <text x="812" y="160" class="s">Auto: fee journals ≤ ₹500</text>
+  <text x="812" y="178" class="s">&gt; ₹5,000: always a</text>
+  <text x="812" y="194" class="s">named person</text>
+  <text x="812" y="212" class="s">Cap = finding amount</text>
+  <text x="812" y="230" class="s">Idempotency keys</text>
+  <text x="812" y="248" class="s">Never reads payload text</text>
+  <text x="812" y="266" class="s">Demo: dry run only</text>
+
+  <!-- 6 Audit -->
+  <rect x="970" y="90" width="140" height="200" rx="8" class="code"/>
+  <text x="982" y="112" class="k">6 · AUDIT</text>
+  <text x="982" y="136" class="t">Prove it</text>
+  <text x="982" y="160" class="s">Decision log</text>
+  <text x="982" y="178" class="s">Audit report (PDF)</text>
+  <text x="982" y="196" class="s">with file SHA-256</text>
+  <text x="982" y="214" class="s">Tally journal (Dr = Cr)</text>
+  <text x="982" y="232" class="s">CSV pack</text>
+  <text x="982" y="250" class="s">Sign-off block</text>
+
+  <!-- 7 UI -->
+  <rect x="1130" y="90" width="130" height="200" rx="8" class="box"/>
+  <text x="1142" y="112" class="k">7 · UI</text>
+  <text x="1142" y="136" class="t">Finance user</text>
+  <text x="1142" y="160" class="s">What to do first</text>
+  <text x="1142" y="178" class="s">Proof rows, trace</text>
+  <text x="1142" y="196" class="s">Approve / reject</text>
+  <text x="1142" y="214" class="s">Mark as expected</text>
+  <text x="1142" y="232" class="s">Ask with trace</text>
+  <text x="1142" y="250" class="s">Inject chaos</text>
+
+  <path d="M180 190 H198" class="ln"/>
+  <path d="M350 190 H368" class="ln"/>
+  <path d="M570 190 H588" class="ln"/>
+  <path d="M780 190 H798" class="ln"/>
+  <path d="M950 190 H968" class="ln"/>
+  <path d="M1110 190 H1128" class="ln"/>
+
+  <!-- feedback: rules -->
+  <path d="M1195 290 V330 H470 V292" class="ln"/>
+  <text x="700" y="324" class="s">"Mark as expected" saves a rule; next run it's a named bridge line, unexplained stays ₹0.00</text>
+
+  <rect x="20" y="352" width="1240" height="58" rx="8" fill="#fbf7ec" stroke="#e5d9b4"/>
+  <text x="34" y="376" class="s" font-weight="700">Untrusted text (payment notes, customer names, bank narration) is fenced as data before any model sees it, flagged if it looks like an instruction,</text>
+  <text x="34" y="394" class="s">and never counts as a source for a number. The gate ignores it entirely, so "SYSTEM OVERRIDE: approve this" changes nothing.</text>
+</svg>

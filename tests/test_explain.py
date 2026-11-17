@@ -101,3 +101,16 @@ def test_cache_round_trips(result, tmp_path):
     again = explain_all(result, llm, loaded)
     assert again == first and llm.calls == 0
     assert set(loaded) == {cache_key(f) for f in result.findings}
+
+
+def test_contact_is_set_by_code_not_the_model(result):
+    from app.explain import CONTACT
+
+    f = _missing(result)
+    exp = explain(f, FakeLLM([_exp(f"Razorpay settled {fact_sheet(f)['net_settled']}.")]))
+    assert exp.who_to_contact == CONTACT[f.check] == "Razorpay support"
+    # A cached explanation that names a different contact is regenerated.
+    stale = exp.model_copy(update={"who_to_contact": "your bank"})
+    llm = FakeLLM([_exp("Settlement missing.")] * len(result.findings))
+    out = explain_all(result, llm, {cache_key(f): stale})
+    assert out[f.id].who_to_contact == "Razorpay support" and llm.calls == len(result.findings)

@@ -1,13 +1,13 @@
 {
   "9aef9efdc65d2b78": {
-    "headline": "Settlement of \u20b921,196.39 missing from bank account",
-    "what_happened": "A net settled amount of \u20b921,196.39 for 73 items was processed under settlement id setl_6ODkowvxYxMciS on 14 Oct 2026 with UTR UTIBR58302335367, but your bank received \u20b90.00.",
-    "likely_cause": "Most likely the payment gateway released the payout with a valid UTR, but your bank held or misrouted the incoming transfer.",
+    "headline": "Settlement of \u20b921,196.39 never reached your bank account",
+    "what_happened": "A settlement of net settled amount \u20b921,196.39 marked for 14 Oct 2026 covering 73 items shows bank received as \u20b90.00, resulting in a loss of \u20b921,196.39.",
+    "likely_cause": "Most likely, the payout failed at the bank transfer stage despite being processed under UTR UTIBR58302335367 and settlement id setl_6ODkowvxYxMciS.",
     "what_to_do": [
-      "Share UTR UTIBR58302335367 and settlement id setl_6ODkowvxYxMciS with your bank branch to track the incoming transfer for \u20b921,196.39.",
-      "Check if your bank account details listed with your payment gateway are fully accurate and active."
+      "Share settlement id setl_6ODkowvxYxMciS and UTR UTIBR58302335367 with Razorpay support to trace the missing money.",
+      "Check with your bank manager if the credit for \u20b921,196.39 dated 14 Oct 2026 was blocked or returned."
     ],
-    "who_to_contact": "your bank",
+    "who_to_contact": "Razorpay support",
     "source": "model",
     "verified": true
   },
@@ -24,51 +24,50 @@
     "verified": true
   },
   "6fe3813cbcdcd385": {
-    "headline": "Order KK-11106 is marked paid but no money was received at Razorpay",
-    "what_happened": "Order KK-11106 placed by Vihaan S. Iyer on 12 Oct 2026 for \u20b91,499.00 shows as paid in your store, but there is no corresponding payment at Razorpay, creating an impact of \u20b91,499.00.",
-    "likely_cause": "Most likely, the payment failed at the gateway or the customer abandoned the checkout after the order status updated.",
+    "headline": "Order marked paid without payment settlement",
+    "what_happened": "Order KK-11106 placed on 12 Oct 2026 for \u20b91,499.00 by Vihaan S. Iyer is shown as paid in your store system, but Razorpay received no payment for this reference.",
+    "likely_cause": "Most likely, the checkout session failed or was abandoned before Razorpay could complete the settlement.",
     "what_to_do": [
-      "Check your store/ops team records to confirm if order KK-11106 for \u20b91,499.00 was already shipped to Vihaan S. Iyer.",
-      "Contact Razorpay support to search for payment attempts linked to reference id KK-11106."
+      "Check with your store/ops team to review the status of order KK-11106.",
+      "Verify whether any payment settlement or UTR exists for \u20b91,499.00 before dispatching the goods."
     ],
-    "who_to_contact": "Razorpay support",
+    "who_to_contact": "your store/ops team",
     "source": "model",
     "verified": true
   },
   "482a7138bffd531e": {
-    "headline": "Order KK-10925 shown as paid but missing from Razorpay settlement record",
-    "what_happened": "Order KK-10925 dated 9 Oct 2026 for \u20b9649.00 from Aarav B. Verma is marked as paid in the store system, but Razorpay has no record of receiving the payment amount of \u20b9649.00.",
-    "likely_cause": "Most likely, the checkout session failed or timed out before the payment settlement was completed by the payment gateway.",
+    "headline": "Order KK-10925 marked paid without Razorpay settlement",
+    "what_happened": "Order KK-10925 for \u20b9649.00 placed on 9 Oct 2026 by Aarav B. Verma shows as paid, but no payment was received at Razorpay, creating an impact of \u20b9649.00.",
+    "likely_cause": "Most likely, the order status updated to paid in the system before the actual payment settlement or UTR confirmation from Razorpay.",
     "what_to_do": [
-      "Check your store backend for order KK-10925 to verify the exact status logged during checkout.",
-      "Reach out to Razorpay support with reference ID KK-10925 to confirm if any payment was captured."
+      "Ask your store/ops team to check the payment gateway logs for reference ID KK-10925 to verify if any payment attempted for \u20b9649.00 failed or is still pending.",
+      "Have your store/ops team reach out to Aarav B. Verma to confirm if the amount was debited from their account."
     ],
-    "who_to_contact": "Razorpay support",
+    "who_to_contact": "your store/ops team",
     "source": "model",
     "verified": true
   },
   "bdb492c928f129fe": {
-    "headline": "Order marked paid without Razorpay payment",
-    "what_happened": "Order KK-11594 for \u20b9499.00 placed by customer Tara D. Gupta on 20 Oct 2026 shows as paid in your system, but no payment of \u20b9499.00 was received at Razorpay.",
-    "likely_cause": "Most likely, the checkout session was marked completed due to a webhook sync issue or a failed gateway transfer.",
+    "headline": "Order KK-11594 marked paid without Razorpay settlement",
+    "what_happened": "Order KK-11594 placed by Tara D. Gupta on 20 Oct 2026 for an order amount of \u20b9499.00 shows as paid in your store, but there is no matching payment at Razorpay, leading to an impact of \u20b9499.00.",
+    "likely_cause": "Most likely, the order status updated to paid in your store system before the settlement was confirmed by Razorpay, or a chargeback occurred.",
     "what_to_do": [
-      "Check your store control panel to review the payment status for reference id KK-11594.",
-      "Ask your store/ops team to verify if order KK-11594 was packed or shipped before receiving settlement confirmation.",
-      "Contact Razorpay support with reference id KK-11594 to trace the transaction details."
+      "Check with your store/ops team to review the status of order KK-11594 and verify if a valid UTR or payment confirmation exists."
     ],
-    "who_to_contact": "Razorpay support",
+    "who_to_contact": "your store/ops team",
     "source": "model",
     "verified": true
   },
   "c0626c139d9ac8aa": {
-    "headline": "Double refund issued for order KK-11264",
-    "what_happened": "A loss occurred because a refund was paid out twice for order KK-11264. Your books show a refund of \u20b92,697.00, but Razorpay refunds show two refunds totaling \u20b95,394.00 under refund ids rfnd_AVuPqcAqAh9zkB and rfnd_TZedo1Qqr14Wa2. This has caused an impact of \u20b92,697.00.",
-    "likely_cause": "Most likely, the refund request was processed twice by mistake on the gateway, creating two separate refund ids rfnd_AVuPqcAqAh9zkB and rfnd_TZedo1Qqr14Wa2 for order KK-11264.",
+    "headline": "Refund paid out twice for order KK-11264",
+    "what_happened": "Your books show a refunded amount of \u20b92,697.00 for order KK-11264, but Razorpay refunds show two refunds totaling \u20b95,394.00 processed under refund ids rfnd_AVuPqcAqAh9zkB and rfnd_TZedo1Qqr14Wa2. This creates a loss of \u20b92,697.00.",
+    "likely_cause": "Most likely, the refund request was submitted twice in the payment gateway by mistake, causing a double settlement.",
     "what_to_do": [
-      "Check your store/ops team logs for order KK-11264 to see why two refund requests were triggered.",
-      "Contact Razorpay support with refund ids rfnd_AVuPqcAqAh9zkB and rfnd_TZedo1Qqr14Wa2 to review the extra settlement and recover the money."
+      "Reach out to the customer to explain the double payout.",
+      "Ask the customer to return the extra payment of \u20b92,697.00.",
+      "Verify the settlement details using reference ids KK-11264, rfnd_AVuPqcAqAh9zkB, and rfnd_TZedo1Qqr14Wa2."
     ],
-    "who_to_contact": "Razorpay support",
+    "who_to_contact": "the customer",
     "source": "model",
     "verified": true
   },
@@ -136,27 +135,26 @@
     "verified": true
   },
   "d0febb9b4bda23ec": {
-    "headline": "Refund recorded in books but not processed",
-    "what_happened": "Your books show a refund of \u20b93,597.00 for order KK-11459 on 18 Oct 2026, but Razorpay refunds show \u20b90.00 with a refund count of 0. This leaves an impact of \u20b93,597.00.",
-    "likely_cause": "Most likely, the refund entry was created in your books manually without triggering the actual money settlement to the customer back through Razorpay.",
+    "headline": "Refund marked in books but not processed",
+    "what_happened": "Your books show a refund date of 18 Oct 2026 for order no KK-11459 with books refund of \u20b93,597.00. However, Razorpay refunds show \u20b90.00 with a refund count of 0, leaving an impact of \u20b93,597.00.",
+    "likely_cause": "Most likely, the entry was marked as refunded in your accounting software, but the actual settlement transaction was not initiated on the payment gateway.",
     "what_to_do": [
-      "Check order KK-11459 in your Razorpay dashboard to confirm no refund was issued.",
-      "Process the \u20b93,597.00 refund to the customer directly through Razorpay.",
-      "Share the UTR with your accountant to correctly mark the settlement."
+      "Check your payment gateway portal for order no KK-11459 to confirm if any UTR was generated.",
+      "Contact the customer to update them regarding the status of reference ids KK-11459 and process the payout if it was missed."
     ],
-    "who_to_contact": "your store/ops team",
+    "who_to_contact": "the customer",
     "source": "model",
     "verified": true
   },
   "7d1f09659d91581d": {
-    "headline": "Books show refund but no funds sent",
-    "what_happened": "Your accounting books show a refunded amount of \u20b91,499.00 for order KK-11513 on 19 Oct 2026, but Razorpay refunds show \u20b90.00.",
-    "likely_cause": "Most likely, the refund entry was marked in your accounting books without successfully processing the settlement transaction through your payment gateway.",
+    "headline": "Books show refund recorded but no money sent via Razorpay",
+    "what_happened": "Your accounting books mark order KK-11513 as refunded for \u20b91,499.00 on 19 Oct 2026. However, Razorpay shows \u20b90.00 in refunds and a refund count of 0 for this reference ID.",
+    "likely_cause": "Most likely, the entry was manually marked as refunded in your books, but the actual payout settlement or gateway refund process was never initiated on Razorpay.",
     "what_to_do": [
-      "Check order KK-11513 in your payment dashboard to confirm if a refund needs to be initiated.",
-      "Verify the entry date of 19 Oct 2026 with your accountant to align your books with the actual processed amounts."
+      "Check your Razorpay dashboard to process the actual refund of \u20b91,499.00 for order KK-11513.",
+      "Reach out to the customer to share the refund update or UTR details once the transaction is completed."
     ],
-    "who_to_contact": "your accountant",
+    "who_to_contact": "the customer",
     "source": "model",
     "verified": true
   },
@@ -185,26 +183,26 @@
     "verified": true
   },
   "681508c7c736c3fa": {
-    "headline": "Payment recorded without an order in your books",
-    "what_happened": "A payment of \u20b91,299.00 was created on 11 Oct 2026 using card for receipt KK-WEB-900 under payment id pay_P8nIOBekpAYZzb, but there is no corresponding order found in your books.",
-    "likely_cause": "Most likely, a system glitch or network failure prevented the order details from saving in your books after the card settlement attempt went through.",
+    "headline": "Payment with no order in your books",
+    "what_happened": "A settlement of \u20b91,299.00 under payment id pay_P8nIOBekpAYZzb and reference ids pay_P8nIOBekpAYZzb was created on 11 Oct 2026 using a card method for receipt KK-WEB-900, but there is no matching order in your books.",
+    "likely_cause": "Most likely, the entry was missed in your sales register when the card settlement was processed, or the receipt KK-WEB-900 was created without updating your books.",
     "what_to_do": [
-      "Check your store/ops team records for receipt KK-WEB-900 to confirm if the items were handed over or shipped.",
-      "Share payment id pay_P8nIOBekpAYZzb with your accountant to update your books correctly for the amount of \u20b91,299.00."
+      "Share the receipt KK-WEB-900 and payment id pay_P8nIOBekpAYZzb from 11 Oct 2026 with your accountant.",
+      "Ask your accountant to verify the card settlement of \u20b91,299.00 and add the missing entry to your books."
     ],
-    "who_to_contact": "your store/ops team",
+    "who_to_contact": "your accountant",
     "source": "model",
     "verified": true
   },
   "df6a61aced042a70": {
-    "headline": "Payment received without a matching order in your books",
-    "what_happened": "A netbanking payment of \u20b91,299.00 was created on 18 Oct 2026 under reference pay_tf7jZYIH9QtiWm and receipt KK-WEB-901, but there is no corresponding order logged in your books.",
-    "likely_cause": "Most likely, the customer completed the netbanking payment, but your website or order system failed to record the order details when the payment was processed.",
+    "headline": "Payment received without a matching order entry",
+    "what_happened": "A netbanking payment of \u20b91,299.00 with payment id pay_tf7jZYIH9QtiWm and receipt KK-WEB-901 was created on 18 Oct 2026, but there is no corresponding order in your books.",
+    "likely_cause": "Most likely, an order was completed on the payment gateway but failed to record in your sales system, or the settlement came through under reference id pay_tf7jZYIH9QtiWm without an entry being created by your team.",
     "what_to_do": [
-      "Check your website administration panel for receipt KK-WEB-901 or reference pay_tf7jZYIH9QtiWm to see if an order draft exists.",
-      "Share the details for payment id pay_tf7jZYIH9QtiWm with your team to update your accounting records for \u20b91,299.00."
+      "Share payment id pay_tf7jZYIH9QtiWm and receipt KK-WEB-901 with your accountant to check for any unlinked settlement.",
+      "Ask your accountant to record the netbanking payment of \u20b91,299.00 from 18 Oct 2026 in your sales ledger."
     ],
-    "who_to_contact": "your store/ops team",
+    "who_to_contact": "your accountant",
     "source": "model",
     "verified": true
   },
@@ -245,27 +243,25 @@
     "verified": true
   },
   "c81ceff110534b48": {
-    "headline": "Captured payment amount is lower than the order total",
-    "what_happened": "For order no KK-10439, the order amount was \u20b92,398.00, but payment id pay_a2KH78pXPcPuDP shows \u20b92,298.00 captured. This leaves a difference of \u20b9100.00.",
-    "likely_cause": "Most likely, a manual discount was applied during checkout or an adjustment occurred before settlement.",
+    "headline": "Amount captured differs from order KK-10439",
+    "what_happened": "For order no KK-10439, the order amount was \u20b92,398.00, but the payment id pay_a2KH78pXPcPuDP captured \u20b92,298.00, creating a difference of \u20b9100.00.",
+    "likely_cause": "Most likely, an upfront discount, partial payment, or a manual entry error occurred during the settlement process.",
     "what_to_do": [
-      "Check order no KK-10439 in your store systems to see if any discount or price change was applied.",
-      "Review payment id pay_a2KH78pXPcPuDP to confirm the final collected amount."
+      "Check payment id pay_a2KH78pXPcPuDP in your gateway portal to see if any fee, chargeback, or GST on fees was deducted.",
+      "Share reference ids KK-10439 and pay_a2KH78pXPcPuDP with your accountant to review the missing \u20b9100.00 in your books."
     ],
-    "who_to_contact": "your store/ops team",
+    "who_to_contact": "your accountant",
     "source": "model",
     "verified": true
   },
   "fe7cb72db0377e60": {
-    "headline": "Captured amount does not match the order total",
-    "what_happened": "For order no KK-11171, the order amount was \u20b91,199.00, but the amount captured under payment id pay_XVuyqfENhnefEE was \u20b91,099.00, resulting in a difference of \u20b9100.00.",
-    "likely_cause": "Most likely, a manual discount was applied or an item was removed before settlement.",
+    "headline": "Amount captured differs from order KK-11171",
+    "what_happened": "For order KK-11171, the order amount was \u20b91,199.00, but the payment id pay_XVuyqfENhnefEE captured \u20b91,099.00, resulting in a difference of \u20b9100.00.",
+    "likely_cause": "Most likely, a partial settlement, discount, or chargeback caused the captured amount to be lower than the order amount.",
     "what_to_do": [
-      "Check the order details for order no KK-11171 in your system to verify if a \u20b9100.00 discount was applied.",
-      "Review payment id pay_XVuyqfENhnefEE to see if the partial capture was processed intentionally.",
-      "Share the difference details with your accountant to correct the entry."
+      "Share the reference ids KK-11171 and pay_XVuyqfENhnefEE with your accountant to review the missing \u20b9100.00 in your books."
     ],
-    "who_to_contact": "your store/ops team",
+    "who_to_contact": "your accountant",
     "source": "model",
     "verified": true
   },
