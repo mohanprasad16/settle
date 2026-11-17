@@ -131,6 +131,64 @@ More detail: [Architecture](docs/ARCHITECTURE.md) · [Prompts and why they're wr
   questions, digital, scanned and locked bank PDFs read 36/36 rows exact (the scanned one needed one targeted re-read).
 - **What broke and how it was fixed**, all of it: [Failures log](docs/FAILURES.md).
 
+## How it was tested
+
+Four layers, each catching a different kind of mistake:
+
+1. **Answer keys, not guesses.** The sample month and every random month are generated with
+   problems planted on purpose and an answer key. A test passes only if the engine finds every
+   planted problem with the exact ₹ amount, flags nothing else, and both bridges close to ₹0.
+2. **Unit and API tests** (169) for the engine, matching, each AI guard, the Copilot's change
+   cards, the approval policy, inputs and outputs. The model is replaced by a scripted stand-in,
+   so the tests are exact, fast and need no key. Guardrail tests try to break things on purpose:
+   invented numbers, SQL that reaches for files, "approve everything" hidden in an Excel cell,
+   approving your own change under two-person approval.
+3. **A system test in a real browser** (214 checks). It starts the real server and drives Chrome
+   like a finance user: every page, every button, every Copilot flow end to end (plan → change
+   card → Allow → Undo), uploads of CSV, Excel and scanned and locked PDFs, downloads, back and
+   forward, phone width, keyboard only, and the failure states (AI off, network drop, rate limit,
+   double clicks, two users at once). The model's replies come from a recorded tape, so it's
+   repeatable.
+4. **Evaluation on data it never saw**: 50 held-out random months, blind batches of new edge cases
+   run once with the misses published, and the real model measured on explanations, a golden set
+   of questions and real bank PDFs.
+
+Every case is listed with an ID and the test that proves it in the [test plan](docs/TEST_PLAN.md).
+Bugs found along the way have a test that fails on the old code, and are written up in the
+[failures log](docs/FAILURES.md).
+
+## Running it as a live product: reliability
+
+The demo already degrades safely. A live product with real merchants needs more. Here's what's in
+the code today and what I'd add before go-live.
+
+**Already in the code**
+
+| Failure | What happens |
+|---|---|
+| The model is slow or hangs | 60-second timeout on every call, so a request never hangs forever |
+| The model is busy (429) or errors (5xx) | Retries with backoff, then a smaller fallback model |
+| The model is down or returns something wrong | Explanations fall back to a fixed template; answers say "couldn't verify"; every number on screen still comes from code, so reconciliation keeps working with the AI off |
+| Too many requests | Per-IP and per-session hourly AI limits, a cap on tool steps per question, a file-size cap |
+| A runaway query | AI SQL is read-only with a 5-second timeout and 50 rows |
+| A double click or a retried action | Idempotency keys: the same action never runs twice |
+| A wrong change | Nothing applies without a named person; every change can be undone; everything is in the decision log |
+
+**What I'd add for production**
+
+| Area | Plan |
+|---|---|
+| **Circuit breakers** | Per model provider: after N failures in a window, open the circuit and stop calling it for a cool-down, serve templates and queue the AI work, then let a few test calls through before closing. Stops a provider outage from turning into slow pages and wasted spend |
+| **TPM and RPM budgets** | Track tokens per minute and requests per minute against each provider's quota, per merchant and overall. Reserve tokens before a call (estimate from the prompt size), queue when close to the limit instead of failing, and give interactive questions priority over background jobs like the morning run |
+| **Provider failover** | A second provider behind the same interface (the client already isolates the provider in one file), with per-merchant routing for data-residency rules, the way I ran four providers with per-client routing at work |
+| **Queues and background jobs** | Daily syncs, PDF reading and explanations on a worker queue with retries and dead-letter handling, so a slow job never blocks a person on the page |
+| **Caching** | Cache explanations and answers by the hash of their facts; the sample already works this way, which is why it costs ₹0 |
+| **Cost guards** | A monthly AI budget per merchant with alerts at 80%, cheaper models for simple steps, prompt caching |
+| **Observability** | Traces for every request and model call (latency, tokens, cost, verified or not), dashboards and alerts on error rate, fallback rate, unverified-answer rate and a bridge that doesn't close |
+| **Data safety** | Per-merchant isolation, encrypted storage, read-only API keys and Account Aggregator consent, secrets in a vault, retention limits on uploaded statements |
+| **Scale** | DuckDB handles a month comfortably on one machine (about 12,000 rows a second today); for large merchants, run per-merchant jobs in parallel and move history to a columnar warehouse |
+| **Release safety** | The test suite and the held-out evaluation as a gate on every release, and a shadow run on the previous month before a new matching rule goes live |
+
 ## What I built first, and what I cut
 
 Built first, in this order, because each one is what the next depends on:
