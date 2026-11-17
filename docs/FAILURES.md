@@ -121,3 +121,39 @@ twin refunds in the same minute and three-decimal amounts all came out right.
   selection's facts (amount, date, reference) go to the model up front, and ids quoted from the
   prompt count for the guard (bare numbers still don't). Measured after: 5 of 5 runs proposed,
   5 of 5 verified.
+
+## Independent QA pass (adversarial, real Chrome)
+
+Found by trying to break the app as a hostile or careless user, not by the existing suite. Each is
+fixed at the source and has a test that fails on the old code (case IDs from `docs/TEST_PLAN.md`).
+
+- **A misspelt policy setting was silently ignored** (`60c3a0a`, POL-08). Posting
+  `maker_checker_above` instead of `maker_checker_over` returned 200 and changed nothing, so an
+  admin would believe a control was on when it wasn't. Unknown settings are now refused with a
+  validation error.
+- **The two-person rule asked for three people** (`60c3a0a`, POL-05). On a change a person
+  prepared, the preparer couldn't approve (right) but two *more* approvals were still needed. The
+  preparer now counts as the first of the two people; one other person completes it.
+- **A double-clicked Approve showed "can't run: executed"** (`1f08615`, COP-08). The second click
+  raced the first and surfaced a scary error on a decision that had worked. Decision buttons
+  (issue drawer and change cards) now send once and ignore clicks while it's in flight.
+- **A sheet with headers and no rows got a "use as orders" card** (`4dfd523`, IN-11). Using it would
+  have reconciled against nothing. It's refused with a plain reason.
+- **Exports could hand Excel a formula** (`656bf15`, AI-17). An order number or note like
+  `=HYPERLINK("http://…")` went into the CSV pack, the Tally journal, the BRS and the decision log
+  as-is; opened in Excel it becomes a live formula (CSV injection). Every export now writes text
+  starting with `= + - @` as text; real negative numbers stay numbers.
+- **The top bar wrapped to two rows on a 1366px laptop, then chips wrapped inside themselves**, and
+  **the selection bar sat under the open Copilot, hiding "Clear"** (`176022b`, UI-14). Buttons and
+  chips no longer shrink (the breadcrumb and merchant name truncate instead), and the selection
+  bar centres in the space left of the Copilot.
+- **Every "Inject chaos" click leaked ~1 MB into /tmp forever** (`a81e7fb`). Fine on a laptop,
+  unbounded on a public demo. The random month now lives in the session's folder.
+
+Tried and held (no change needed): Copilot asked to write code, send email, change an amount,
+answer trivia or "approve everything" (refuses; `/approve` only makes pending cards); confirming
+another session's card (404); confirm or undo twice (409); raising the hard cap or making a locked
+kind automatic through the API (422); self-approval with case and spacing tricks; an approver
+name with `<script>` (shown as text); SQL reaching files, URLs, S3 or globs; refresh with a
+drawer open, Back/Forward, Stop mid-answer, phone-width Copilot, rapid chaos clicks; a fake
+`.xlsm`, an `.exe`, an empty and an oversized sheet.
