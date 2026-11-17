@@ -190,9 +190,9 @@ and alerts you on new problems. This demo runs on sample data." The key fields a
 disabled, with a small "How it connects" diagram: Razorpay API · bank via Account Aggregator ·
 books via store APIs or a Tally ODBC connector. No real key entry in the public demo.
 
-## Copilot, manual matches, approval policy
+## Settle AI, manual matches, approval policy
 
-See ARCHITECTURE.md, "Settle Copilot". In short: the model reads and proposes; change cards are
+See ARCHITECTURE.md, "Settle AI". In short: the model reads and proposes; change cards are
 built and applied by code after a named person allows them; manual matches must tie to the
 paisa; the approval policy in Settings decides what may ever run without a person.
 

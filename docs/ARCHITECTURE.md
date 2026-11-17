@@ -68,13 +68,18 @@ to the paisa and shows what's left for a person to decide.
   accepted. Model-backed endpoints are rate limited per IP (20 per 10 minutes); uploads are capped
   at 15 MB per file.
 
-## Settle Copilot: a coding agent, but for the finance team
+## Settle AI: a coding agent, but for the finance team
 
 Like a coding agent, but for your finance team: it does the work, you approve every change.
 
-The Copilot is on every page (bottom right, or ⌘K → Ask Settle). It knows which page, issue or
-payout is open and which rows are ticked. It runs the same agent loop as Ask, with the same
-read-only SQL sandbox and number guard, plus tools that can only *propose*:
+Settle AI is a floater on every page: a bubble at the bottom right that opens a chat window (a
+full-screen sheet on a phone). Finance people ask while they look at something, so KPI tiles,
+waterfall bars, BRS lines, settlement rows, the issue drawer, the refunds chart and approval rows
+each have a small **✦ Ask** that opens it with that item as context and a question filled in (not
+sent). ⌘K lists "Ask Settle AI" first when the text reads like a question. It knows which page,
+issue or payout is open and which rows are ticked. It runs the same agent loop as the question
+answerer in `app/ask.py`, with the same read-only SQL sandbox and number guard, plus tools that
+can only *propose*:
 
 | Read | Propose (a change card; never applied by the model) |
 |---|---|
@@ -97,13 +102,18 @@ The interaction borrows from coding agents:
   values (no free SQL). Confirm to use it as the orders / bank / gateway input.
 - **Undo:** every confirmed change can be undone from the card or the audit trail; code reverses
   it and the month reconciles again. Stop cancels a request in flight.
+- **Feedback:** 👍 / 👎 on every answer; a 👎 asks what was wrong. The rating names an answer id,
+  so the question and answer stored with it come from the session, not the browser. Ratings go to
+  the decision log and `feedback.csv` in the export, the raw material for new golden questions.
+- **Follow-ups:** 2–3 chips under each answer, built by code from the issues the answer cited and
+  the page (`copilot.follow_ups`), never from model text.
 - **Memory:** "What Settle remembers" holds the rules and a person's manual matches, each with
   who and why, and suggests rules for small books-side differences that repeat.
 
 ### Manual matches
 
 When the engine won't guess (two credits fit one payout, a credit from last month), a person
-ticks the lines and either hands them to the Copilot or fills a short form. A match links bank
+ticks the lines and either hands them to Settle AI or fills a short form. A match links bank
 lines to a payout only if they add up exactly, or explains them with a named reason. It never
 changes an amount; the bridge is rebuilt by code and still closes to ₹0.00.
 
@@ -112,7 +122,7 @@ changes an amount; the bridge is rebuilt by code and still closes to ₹0.00.
 Like a coding agent's permission settings, enforced by `app/gate.py`; only a person edits it
 (logged with name and before/after):
 
-- Copilot mode: ask before every change (default), auto-accept low-risk, or read-only.
+- Settle AI mode: ask before every change (default), auto-accept low-risk, or read-only.
 - Per kind: ask every time, auto-allow up to ₹X, or never. Tickets to Razorpay, Razorpay API
   calls, customer notes and webhook replays are locked to ask.
 - Hard cap ₹5,000: above it a named person always approves; it can be lowered, never raised.

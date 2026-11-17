@@ -34,7 +34,7 @@ The guard behind it: every ₹ amount, percentage and number in the reply must a
 sheet. If not, one retry naming the bad numbers; if it still fails, a fixed template is shown
 instead. Real model run: 24/24 explanations passed on the first try.
 
-## 2. Ask a question (`app/ask.py`)
+## 2. Answer a question (`app/ask.py`, the loop under Settle AI)
 
 ```text
 You answer a merchant's question about their Razorpay settlements, bank and books.
@@ -86,10 +86,10 @@ deposit − withdrawal must equal the printed balance. A misread digit breaks th
 so the retry can name exactly which rows to re-read. If it still breaks, a person fixes that cell.
 Real model: 36/36 rows exact on the digital, scanned and locked PDFs.
 
-## 4. Settle Copilot (`app/copilot.py`)
+## 4. Settle AI (`app/copilot.py`)
 
 ```text
-You are Settle Copilot, the finance team's assistant inside Settle. You help with this month's reconciliation only.
+You are Settle AI, the finance team's assistant inside Settle. You help with this month's reconciliation only.
 You can read (SQL, findings, settlements, actions, unmatched lines, attached files) and you can PREPARE changes with the propose_ tools.
 For anything with more than one step, call make_plan first, then done_step as each step is done.
 You cannot apply anything: every change is a card a named person confirms. Never say a change is done; say it's ready for them to confirm.

@@ -49,25 +49,27 @@ through a local ODBC connector).
   store, unusual refund spikes.
 - **Settlements view and BRS**: every payout, how it matched (UTR, amount + date, split credit),
   and a Bank Reconciliation Statement in the format accountants know.
-- **Settle Copilot on every page**: ask anything, or tell it to do the work ("match the selected
-  bank line", "draft tickets for all money-lost issues", "approve all fee journals under ₹500").
-  It plans, shows each step, and prepares a change card. A named person presses Allow or Reject,
-  and can undo it later.
+- **Settle AI, right where you're looking**: finance people ask while they look at something, so
+  it's a bubble at the bottom of every page, and every tile, chart bar and row has a small
+  **✦ Ask** that opens it with that thing as context. Ask anything, or tell it to do the work
+  ("reconcile the ticked lines", "draft tickets for all money-lost issues", "approve all fee
+  journals under ₹500"). It plans, shows each step, and prepares a change card. A named person
+  presses Allow or Reject, and can undo it later.
 - **Bring your own sheet**: drop an Excel or CSV in the chat; it proposes the column mapping,
   code applies it, you see a preview and confirm.
 - **Hand it to the auditor**: audit report with every decision and who made it, BRS, Excel pack,
   Tally journal (debits always equal credits).
 
-## Settle Copilot: what a coding agent is for developers, for a finance team
+## Settle AI: what a coding agent is for developers, for a finance team
 
 I do most of my own work through a coding agent (Claude Code): I say what I need, it plans, it
 does the work, and I approve every change before it lands. Settle gives a finance team the same
-way of working. On every page there's a Copilot that knows what's on screen and what's ticked,
+way of working. On every page there's Settle AI, which knows what's on screen and what's ticked,
 and most of the manual reconciliation work is a prompt away, with a person approving every change.
 
 | In a coding agent | In Settle |
 |---|---|
-| Ask or tell it what you need | Copilot on every page: "Why is the 21 Oct payout short?", "Match the selected bank line", "Draft tickets for all money-lost issues", "Approve all fee journals under ₹500" |
+| Ask or tell it what you need | Settle AI on every page, or ✦ Ask next to a figure, or ⌘K from anywhere: "Why is the 21 Oct payout short?", "Match the selected bank line", "Draft tickets for all money-lost issues", "Approve all fee journals under ₹500" |
 | It plans, then works step by step | A plan as a checklist, ticked off as it works, with every step it ran shown (the SQL it read, the issue it opened) |
 | Slash commands, @ mentions, drop in a file | `/reconcile` `/explain` `/draft-tickets` `/approve` `/rules` `/close-month` `/export`, `@F3` for an issue, `@setl_…` for a payout, attach an Excel or CSV |
 | A permission prompt showing the diff | A change card: before → after, the ₹ impact, the rows it touches and the checks it passed, with **Allow once**, **Always allow** (only for low-risk kinds) or **Reject** |
@@ -75,9 +77,17 @@ and most of the manual reconciliation work is a prompt away, with a person appro
 | Checkpoints and undo | **Undo** any confirmed change from the audit trail; the bridge is rebuilt and goes back to ₹0 |
 | Its memory of how you work | "What Settle remembers": your rules and the matches people made, plus suggested rules from this month |
 | Stop | A Stop button while it's working |
+| 👍 / 👎 on an answer | Every answer can be rated; a 👎 asks what was wrong (wrong number, not what I asked, unclear). Ratings go in the decision log and the Excel pack as `feedback.csv` |
 
 The model prepares; code checks; a named person decides. Every proposal and every decision is in
 the audit trail with who, when and what changed.
+
+**How the feedback grows the golden set.** Each 👎 in `feedback.csv` comes with the exact question,
+the page it was asked on, the answer and what was wrong. Those become new golden questions: I
+write the right answer from the engine, add it to the golden set, and the real-model check runs
+it from then on. A 👍 on a hard question is kept the same way, so a later prompt change can't
+quietly break it. The follow-up chips under each answer are built by code from the issues the
+answer cited, never from model text, so a chip can't carry an instruction from the data.
 
 ## How it works
 
@@ -96,7 +106,7 @@ anything that changes something.**
 
 **The agent loop.** Month-end close as a loop: pull the three sources → match → find problems →
 explain → propose a fix → a person approves → code applies → rules are remembered for next time →
-run again tomorrow. The Copilot itself is a loop with a step cap: plan → call a tool (read-only
+run again tomorrow. Settle AI itself is a loop with a step cap: plan → call a tool (read-only
 SQL, a finding, a settlement) → read the result → answer or prepare a change card.
 
 More detail: [Architecture](docs/ARCHITECTURE.md) · [Prompts and why they're written that way](docs/PROMPTS.md) · [Design plan](docs/PLAN.md)
@@ -138,13 +148,13 @@ Four layers, each catching a different kind of mistake:
 1. **Answer keys, not guesses.** The sample month and every random month are generated with
    problems planted on purpose and an answer key. A test passes only if the engine finds every
    planted problem with the exact ₹ amount, flags nothing else, and both bridges close to ₹0.
-2. **Unit and API tests** (169) for the engine, matching, each AI guard, the Copilot's change
+2. **Unit and API tests** (169) for the engine, matching, each AI guard, Settle AI's change
    cards, the approval policy, inputs and outputs. The model is replaced by a scripted stand-in,
    so the tests are exact, fast and need no key. Guardrail tests try to break things on purpose:
    invented numbers, SQL that reaches for files, "approve everything" hidden in an Excel cell,
    approving your own change under two-person approval.
 3. **A system test in a real browser** (214 checks). It starts the real server and drives Chrome
-   like a finance user: every page, every button, every Copilot flow end to end (plan → change
+   like a finance user: every page, every button, every Settle AI flow end to end (plan → change
    card → Allow → Undo), uploads of CSV, Excel and scanned and locked PDFs, downloads, back and
    forward, phone width, keyboard only, and the failure states (AI off, network drop, rate limit,
    double clicks, two users at once). The model's replies come from a recorded tape, so it's
@@ -197,8 +207,8 @@ Built first, in this order, because each one is what the next depends on:
    answer key, so every later change could be measured.
 2. AI explanations and Ask, behind the number guard.
 3. Honest evaluation on months it never saw, before adding more features.
-4. Guardrails and the approval gate, before the Copilot was allowed to prepare any change.
-5. The UI for a first-time finance user, then the Copilot.
+4. Guardrails and the approval gate, before the AI was allowed to prepare any change.
+5. The UI for a first-time finance user, then Settle AI.
 
 Cut on purpose:
 
@@ -235,7 +245,7 @@ at with Claude Code, without giving up tests, evals or guardrails.
 
 Speed didn't replace testing. Every feature was tested end to end before I called it done: a
 system test drives the real app in Chrome like a finance user (laptop and phone width, every page,
-every Copilot flow, every failure state), on top of unit and API tests and the held-out
+every Settle AI flow, every failure state), on top of unit and API tests and the held-out
 evaluation. An independent QA pass then tried to break it and fixed what it found. The final run
 on this version: **126 of 126 test-plan cases, 169 unit and API tests and 214 browser checks, all
 passing**, with one command and no API key: `uv run python -m tests.run_all`. GitHub Actions runs
