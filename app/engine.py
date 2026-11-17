@@ -18,6 +18,7 @@ import duckdb
 
 from app.load import Period
 from app.rules import Rule
+from app.sanitize import scan
 
 KINDS = {
     "settlement_missing": ("loss", "Settlement never reached your bank"),
@@ -431,6 +432,11 @@ def run(
                     exceptions=exceptions)  # fmt: skip
     result.totals = _totals(con, result)
     result.handled = _handled(con, pr, sb, resolved)
+    # Instruction-like text in a record changes nothing above; it's shown so a person sees it.
+    result.totals["suspicious_text"] = scan(con)
+    if result.totals["suspicious_text"]:
+        result.handled.append({"label": "Records with instruction-like text: read as data, flagged for a look",
+                               "count": len(result.totals["suspicious_text"])})  # fmt: skip
     _persist(con, f)
     return result
 

@@ -149,8 +149,6 @@ def test_figure_from_injected_text_is_not_verified(attacked):
     assert not _ask_about_note(con, after, planted["rp"]).verified
 
 
-@pytest.mark.xfail(strict=True, reason="gap: the Ask guard accepts any bare number in the "
-                   "research, so 'Rs 85000' typed into a note verifies '₹85,000'")  # fmt: skip
 def test_bare_number_in_injected_text_is_not_verified(tmp_path):
     sample.write(tmp_path)
     h, rp = _rows(tmp_path / sample.FILES["rp"])
@@ -161,8 +159,6 @@ def test_bare_number_in_injected_text_is_not_verified(tmp_path):
     assert not _ask_about_note(con, result, i + 1).verified
 
 
-@pytest.mark.xfail(strict=True, reason="gap: a customer name is part of the fact sheet, so a "
-                   "figure typed into it passes the explanation guard")  # fmt: skip
 def test_figure_in_customer_name_cannot_reach_an_explanation(tmp_path):
     sample.write(tmp_path)
     h, orders = _rows(tmp_path / sample.FILES["orders"])
@@ -172,3 +168,10 @@ def test_figure_in_customer_name_cannot_reach_an_explanation(tmp_path):
     _, result = _run(tmp_path)
     f = next(x for x in result.findings if x.check == "paid_order_no_payment")
     assert explain(f, Obedient()).source == "template"
+
+
+def test_attempt_is_surfaced_in_the_result(attacked):
+    before, after, _, planted = attacked
+    assert len(after.totals["suspicious_text"]) == len(planted)
+    assert not before.totals["suspicious_text"]
+    assert any(h["label"].startswith("Records with instruction-like text") for h in after.handled)

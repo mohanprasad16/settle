@@ -11,15 +11,16 @@ import logging
 import re
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import duckdb
 from pydantic import BaseModel
 
 from app.engine import Result
-from app.explain import _TOKEN, Explained, _norm, fact_sheet
+from app.explain import _TOKEN, UNTRUSTED, Explained, _norm, allowed_numbers, fact_sheet
 from app.llm import LLM, LLMError, ToolSpec, Usage
 from app.money import rupees
+from app.sanitize import as_data
 
 log = logging.getLogger(__name__)
 
@@ -121,7 +122,12 @@ def run_sql(con: duckdb.DuckDBPyConnection, query: str) -> str:
         return f"error: {e}"
     finally:
         timer.cancel()
-    out = {"columns": cols, "rows": [list(r) for r in rows[:MAX_ROWS]]}
+    types = [str(d[1]) for d in cur.description]
+    rows = [[as_data(v) if c in UNTRUSTED and isinstance(v, str) else v for c, v in zip(cols, r)]
+            for r in rows]  # fmt: skip
+    out = {"columns": cols, "rows": rows[:MAX_ROWS],
+           # text columns (names, notes, ids): only id-like tokens count as figures
+           "text_columns": [c for c, ty in zip(cols, types) if "VARCHAR" in ty or ty == "JSON"]}  # fmt: skip
     if len(rows) > MAX_ROWS:
         out["truncated"] = f"only the first {MAX_ROWS} rows shown; aggregate or filter"
     return json.dumps(out, default=str)
@@ -133,13 +139,14 @@ def get_finding(con, result: Result, fid: str) -> str:
         return f"error: no finding {fid}"
     return json.dumps(
         {"id": f.id, "title": f.title, "kind": f.kind, "amount": rupees(f.amount),
-         "refs": f.refs[:20], "evidence_rows": f.rows, "facts": f.facts},
+         "refs": f.refs[:20], "evidence_rows": f.rows,
+         "facts": {k: as_data(v) if k in UNTRUSTED else v for k, v in f.facts.items()}},
         default=str,
     )  # fmt: skip
 
 
 def _allowed(*texts: str) -> set[str]:
-    """Every figure the answer may use. Paise integers also count in their rupee form."""
+    """Figures in trusted text (the question, our own prompt). Integers also count as paise."""
     ok = set()
     for text in texts:
         for t in _TOKEN.findall(text):
@@ -147,6 +154,51 @@ def _allowed(*texts: str) -> set[str]:
         for d in re.findall(r"\d+", text):
             ok.add(d)
             ok.add(_norm(f"{int(d) / 100:.2f}"))
+    return ok
+
+
+def _walk(v, ok: set[str], text: bool = False, key: str = "") -> None:
+    """Collect figures from a tool result. Numbers count, also as paise -> rupees. In text a
+    third party could have typed (text columns, untrusted fact keys) only id-like tokens count."""
+    if isinstance(v, dict):
+        for k, x in v.items():
+            _walk(x, ok, text, k)
+    elif isinstance(v, list):
+        for x in v:
+            _walk(x, ok, text, key)
+    elif isinstance(v, bool) or v is None:
+        return
+    elif isinstance(v, int | float):
+        ok.add(_norm(str(v)))
+        if isinstance(v, int):
+            ok.add(_norm(f"{v / 100:.2f}"))
+    else:
+        untrusted = text or key in UNTRUSTED
+        for t in _TOKEN.findall(str(v)):
+            if not untrusted or re.search(r"[A-Za-z]", t):
+                ok.add(_norm(t))
+
+
+def _research_allowed(outputs: list[tuple[str, str]]) -> set[str]:
+    """outputs: (tool, full output) for every tool call the agent made."""
+    ok: set[str] = set()
+    for tool, output in outputs:
+        if output.startswith("error"):
+            continue
+        out = json.loads(output)
+        if tool != "run_sql":
+            _walk(out, ok)
+            continue
+        text = set(out.get("text_columns", []))
+        for row in out["rows"]:
+            for col, v in zip(out["columns"], row):
+                if col in text and isinstance(v, str) and v.lstrip().startswith(("{", "[")):
+                    try:  # JSON column (findings.facts): numbers inside are engine-computed
+                        _walk(json.loads(v), ok)
+                        continue
+                    except ValueError:
+                        pass
+                _walk(v, ok, text=col in text)
     return ok
 
 
@@ -166,7 +218,8 @@ def system_prompt(result: Result, explanations: dict[str, Explained] | None = No
     lines = []
     for f in result.findings:
         sheet = fact_sheet(f)
-        facts = "; ".join(f"{k.replace('_', ' ')}: {v}" for k, v in sheet.items()
+        facts = "; ".join(f"{k.replace('_', ' ')}: {as_data(v) if k in UNTRUSTED else v}"
+                          for k, v in sheet.items()
                           if k not in ("finding", "kind", "impact", "reference_ids"))  # fmt: skip
         contact = explanations[f.id].who_to_contact if explanations and f.id in explanations else ""
         lines.append(f"- {f.id}: {f.title}, {rupees(f.amount)} ({facts})"
@@ -190,6 +243,7 @@ def ask(
     usage = Usage()
     history: list[dict] = [{"role": "user", "text": question}]
     steps: list[dict] = []
+    outputs: list[tuple[str, str]] = []  # untruncated, for the number guard
     trace: list[dict] = []
     for _ in range(MAX_CALLS):
         try:
@@ -212,6 +266,7 @@ def ask(
             else:
                 arg, out = "", f"error: unknown tool {call.name}"
             steps.append({"tool": call.name, "args": call.args, "output": out[:4000]})
+            outputs.append((call.name, out))
             trace.append(_trace(len(trace) + 1, call.name, arg, out, start))
             results.append((call, out))
         history.append({"role": "tool", "results": results})
@@ -220,7 +275,11 @@ def ask(
 
     research = "\n\n".join(f"{s['tool']}({json.dumps(s['args'])}) ->\n{s['output']}" for s in steps)
     prompt = f"Question: {question}\n\nResearch:\n{research or '(no queries ran)'}"
-    allowed = _allowed(system, question, research)
+    # Figures from our own prompt and engine facts count; from free text only ids do.
+    base = system_prompt(replace(result, findings=[]), None)
+    allowed = _allowed(base, question) | _research_allowed(outputs)
+    for f in result.findings:
+        allowed |= allowed_numbers(fact_sheet(f))
     for attempt in range(2):
         try:
             ans = llm.json(system + "\n\n" + FINAL, prompt, Answer, usage=usage)
