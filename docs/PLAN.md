@@ -91,6 +91,20 @@ webhook secret; the demo uses a demo secret). Nothing is sent without the user c
 5. Bring your own files: model maps unfamiliar column headers, the user confirms before loading.
 6. UI + deploy: one page, "Try with sample data", Hugging Face Spaces, per-IP limits.
 
+## Messy bank PDFs
+
+Indian banks send statements as PDFs: digital, scanned and printed, or locked with the customer
+ID or date of birth. `app/pdf_bank.py` unlocks the file, sends each page to the model to read,
+and then code checks every row: previous balance + deposit - withdrawal must equal the printed
+balance, and the printed totals and closing balance must add up. A row that breaks the chain is
+re-read once with the model told which rows failed; if it still breaks, the preview highlights
+that row and the likely wrong field for a person to fix. Only verified rows go to the engine,
+through the same bank CSV columns as an upload.
+
+Samples: `data/sample/bank_statement.pdf`, `_scanned.pdf` (image only, tilted, noisy) and
+`_locked.pdf` (AES-256, password `KAAPI1234`), made by `uv run python -m app.sample_pdf`.
+`uv run python -m evals.pdf_eval` scores the real model against the CSV.
+
 ## Live mode
 
 Upload is one connector. The engine reads three tables and doesn't care where they came from.

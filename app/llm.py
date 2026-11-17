@@ -86,6 +86,18 @@ class LLM(Protocol):
         self, system: str, prompt: str, *, think: str = "minimal", usage: Usage | None = None
     ) -> str: ...
 
+    def json_file(
+        self,
+        system: str,
+        data: bytes,
+        mime: str,
+        prompt: str,
+        schema: type[T],
+        *,
+        think: str = "low",
+        usage: Usage | None = None,
+    ) -> T: ...
+
     def agent_step(
         self,
         system: str,
@@ -147,6 +159,24 @@ class GeminiLLM:
 
     def text(self, system, prompt, *, think="minimal", usage=None):
         return self._generate(settings.answer_model, system, prompt, think, usage).text or ""
+
+    def json_file(self, system, data, mime, prompt, schema, *, think="low", usage=None):
+        """Structured output from a file (a PDF page, a scan). The file goes inline."""
+        parts = [types.Part.from_bytes(data=data, mime_type=mime), prompt]
+        response = self._generate(
+            settings.answer_model,
+            system,
+            parts,
+            think,
+            usage,
+            response_mime_type="application/json",
+            response_schema=schema,
+            max_output_tokens=16_000,  # a scan once made the model loop inside one cell
+        )
+        try:
+            return schema.model_validate_json(response.text)
+        except Exception as e:
+            raise LLMError(f"Model returned invalid JSON: {e}") from e
 
     def agent_step(self, system, history, tools, *, final=False, usage=None):
         """One model turn with native function calling. `final` forbids further calls."""
