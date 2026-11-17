@@ -1189,6 +1189,22 @@ def native(page, ctx):
         document.getElementById('cp-q').value = q; cp.busy = true;  // don't call the model; just check the echo path
         const before = log.children.length; cp.busy = false; return q; }""")
     check(A, "Copilot echo path keeps the typed text", echo == "Reconcile the selected rows please")
+    # Stop: a slow answer can be cancelled, and cancelling changes nothing.
+    held = []  # hold the request open (never sent to the server) so Stop has something to stop
+    page.route("**/api/copilot", lambda r: held.append(r))
+    page.click("#cp-launch")
+    page.fill("#cp-q", "What should I do first?")
+    page.click("#cp-send")
+    page.wait_for_selector("#cp-stop:visible", timeout=3000)
+    page.click("#cp-stop")
+    page.wait_for_timeout(500)
+    log_text = page.locator("#cp-log").inner_text()
+    check(A, "Stop cancels a running Copilot request and says nothing changed", "Stopped." in log_text and "Nothing was changed" in log_text, log_text[-200:])  # fmt: skip
+    page.unroute("**/api/copilot")
+    for r in held:
+        with contextlib.suppress(Exception):
+            r.abort()
+    page.locator("#copilot header button[aria-label='Close Copilot']").click()
 
     # Manual match through a change card (built by code from the form; no model needed).
     page.evaluate("go('patterns')")

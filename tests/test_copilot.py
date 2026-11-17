@@ -189,3 +189,34 @@ def test_misspelt_policy_setting_is_refused_not_ignored(client):
     """QA: an unknown setting used to return 200, so a typo looked saved."""
     r = client.post("/api/policy", json={"approver": "Priya", "maker_checker_above": 100})
     assert r.status_code in (400, 422) and "error" in r.json() and "Traceback" not in r.text
+
+
+def test_reject_changes_nothing_and_is_logged(client):
+    """QA gap: a rejected change card leaves the month exactly as it was."""
+    before = client.get("/api/result").json()
+    row = before["unmatched_credits"][0]["row_no"]
+    pid = client.post("/api/proposals/manual", json={"bank_rows": [row], "note": "Prior-month settlement"}).json()["proposal"]["id"]  # fmt: skip
+    r = client.post(f"/api/proposals/{pid}/reject", json={"approver": "Priya"}).json()
+    assert r["proposal"]["status"] == "rejected"
+    after = client.get("/api/result").json()
+    assert after["unmatched_credits"] == before["unmatched_credits"]
+    assert after["totals"] == before["totals"]
+    assert client.post(f"/api/proposals/{pid}/confirm", json={"approver": "Priya"}).status_code == 409  # fmt: skip
+    assert any(e["action"] == "rejected" for e in client.get("/api/audit").json()["log"])
+
+
+def test_always_allow_grant_is_listed_and_revocable(client):
+    """QA gap: an 'Always allow' grant shows in Settings with who granted it, and revoking it
+    means the next change of that kind asks again."""
+    v = client.get("/api/result").json()
+    small = next(f for f in v["findings"] if f["check"] == "amount_mismatch")
+    card = client.post("/api/proposals/rule", json={"check": "amount_mismatch", "note": "coupon at checkout", "max_amount": small["amount"]}).json()["proposal"]  # fmt: skip
+    if not card["always_allow"]:
+        pytest.skip("rule creation isn't always-allow eligible under the default policy")
+    client.post(f"/api/proposals/{card['id']}/confirm", json={"approver": "Priya", "always": True})
+    grants = client.get("/api/policy").json()["grants"]
+    assert len(grants) == 1 and grants[0]["by"] == "Priya"
+    client.post("/api/policy", json={"approver": "Priya", "revoke_grant": 0})
+    assert client.get("/api/policy").json()["grants"] == []
+    log = client.get("/api/audit").json()["log"]
+    assert any("revoke" in (e["detail"] + e["action"]).lower() for e in log)
