@@ -145,7 +145,7 @@ Upload is one connector. The Razorpay connector already calls the Settlement Rec
 pages through results and handles bad keys, rate limits and network errors; a test runs its output
 through the unchanged engine and gets the same findings. The bank side would come from the RBI
 Account Aggregator framework, the bank's own API or a RazorpayX current account; the books from
-Shopify, Zoho Books or Tally. In production Settle runs daily after the settlement lands and alerts
+Shopify or Zoho Books by API, or Tally through a local ODBC connector (Tally has no cloud API). In production Settle runs daily after the settlement lands and alerts
 only on new findings, so a missing settlement is seen the same day, not at month end. In the demo,
 "Connect Razorpay" shows this with the key fields disabled.
 

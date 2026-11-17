@@ -179,7 +179,7 @@ Upload is one connector. The engine reads three tables and doesn't care where th
 |---|---|
 | Razorpay | Settlement Recon API (`app/connectors/razorpay.py`, built): pulls every day of the month, writes the same columns as the upload |
 | Bank | Account Aggregator (RBI consent framework), the bank's own API, or a RazorpayX current account |
-| Books | Shopify, WooCommerce, Zoho Books, Tally |
+| Books | Shopify, WooCommerce, Zoho Books (cloud APIs); Tally has no cloud API, so a small connector on the Tally machine reads it through ODBC or Tally's XML port and pushes to Settle |
 
 In production Settle runs every day after the settlement lands and alerts only on new findings,
 so a missing settlement is seen the same day, not at month end.
@@ -188,7 +188,7 @@ Public demo (`demo_mode = True`): a "Connect Razorpay" button opens a panel that
 mode you'd enter your Razorpay API key (read-only); Settle pulls the settlement recon every day
 and alerts you on new problems. This demo runs on sample data." The key fields are shown
 disabled, with a small "How it connects" diagram: Razorpay API · bank via Account Aggregator ·
-books via Shopify/Tally. No real key entry in the public demo.
+books via store APIs or a Tally ODBC connector. No real key entry in the public demo.
 
 ## Stack
 

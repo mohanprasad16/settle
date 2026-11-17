@@ -217,8 +217,8 @@
         <div class="conn-top"><span class="conn-ico" aria-hidden="true">≡</span><div><h2>Books and orders</h2><p class="small muted">Store or accounting system</p></div></div>
         <div><span class="kind timing conn-status">Demo: sample data</span></div>
         <p><b>Pulls:</b> orders with their amount, status and refunds.</p>
-        <p><b>Connects with:</b> Shopify, WooCommerce, Zoho Books or Tally. Or upload an orders export.</p>
-        <div class="field"><label for="k-books">Store or accounts</label><select id="k-books" disabled><option>Shopify</option><option>WooCommerce</option><option>Zoho Books</option><option>Tally</option></select></div>
+        <p><b>Connects with:</b> Shopify, WooCommerce or Zoho Books by their APIs. Tally has no cloud API: a small connector on the Tally machine reads it through ODBC (or Tally's XML port) and sends it to Settle. Or upload an orders export.</p>
+        <div class="field"><label for="k-books">Store or accounts</label><select id="k-books" disabled><option>Shopify</option><option>WooCommerce</option><option>Zoho Books</option><option>Tally (connector on the Tally machine, via ODBC)</option></select></div>
         <p class="small muted conn-synced">Last synced: never</p>
       </article>
     </div>
@@ -227,8 +227,8 @@
       <p class="small muted" style="margin:6px 0 0">Switched off in the demo.</p>
     </div>
     <h2 style="margin-top:24px">How it connects</h2>
-    <div class="flow" aria-label="Payment gateway API, bank through Account Aggregator and books from Shopify or Tally feed Settle every morning">
-      <div class="src"><div>Payment gateway: Razorpay settlement API</div><div>Bank: Account Aggregator, bank API or RazorpayX</div><div>Books: Shopify, WooCommerce, Zoho Books, Tally</div></div>
+    <div class="flow" aria-label="Payment gateway API, bank through Account Aggregator and books from store APIs or a Tally ODBC connector feed Settle every morning">
+      <div class="src"><div>Payment gateway: Razorpay settlement API</div><div>Bank: Account Aggregator, bank API or RazorpayX</div><div>Books: Shopify, WooCommerce, Zoho Books APIs; Tally via ODBC connector</div></div>
       <div class="arrow" aria-hidden="true">→</div>
       <div class="dst">Settle, every morning</div>
     </div>
