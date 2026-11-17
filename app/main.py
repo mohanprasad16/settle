@@ -352,6 +352,12 @@ def _view(s: Session) -> dict:
         "seed": s.truth.get("seed") if s.truth else None,
         "rules": [{"check": x.check, "note": x.note, "ref": x.ref} for x in s.rules],
         "demo_mode": settings.demo_mode,
+        # [day, refunds, paise] for the refunds-per-day chart on Patterns.
+        "refunds_by_day": s.con.execute(
+            """SELECT CAST(created_at AS DATE), count(*), sum(amount) FROM rp WHERE type = 'refund'
+               AND CAST(created_at AS DATE) BETWEEN ? AND ? GROUP BY 1 ORDER BY 1""",
+            [r.period.start, r.period.end],
+        ).fetchall(),
     }
 
 
@@ -833,6 +839,16 @@ def _report_html(s: Session) -> str:
         s.log,
         _usage(s),
         merchant=MERCHANT.get(s.source, "Your business"),
+    )
+
+
+@app.get("/api/audit")
+def audit_trail(request: Request):
+    """Every proposed action and the decision log, for the Approvals & audit trail page."""
+    s = _loaded(request)
+    acts = [_action(a) | {"finding_id": a.finding_id} for a in s.gate.actions.values()]
+    return JSONResponse(
+        jsonable_encoder({"actions": acts, "log": [vars(e) for e in s.log.entries[-300:]]})
     )
 
 

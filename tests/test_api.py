@@ -125,6 +125,15 @@ def test_gate_needs_a_name_runs_dry_and_rejects(client):
     _error(client.post(f"/api/actions/{a['id']}/approve", json={"approver": "Asha"}), 403)
     assert client.post(f"/api/actions/{b['id']}/reject", json={"approver": "Asha"}).json()["action"]["status"] == "rejected"  # fmt: skip
     _error(client.post(f"/api/actions/{b['id']}/approve", json={"approver": "Asha"}), 403)
+    trail = client.get("/api/audit").json()
+    mine = {x["id"]: x for x in trail["actions"]}
+    assert mine[a["id"]]["status"] == "executed" and mine[b["id"]]["finding_id"] == fid
+    assert any(e["actor"] == "human" and e["action"] == "rejected" for e in trail["log"])
+
+
+def test_sample_has_refunds_per_day(client):
+    days = client.post("/api/sample").json()["refunds_by_day"]
+    assert len(days) > 20 and all(n > 0 and paise > 0 for _, n, paise in days)
 
 
 def test_downloads(client):
