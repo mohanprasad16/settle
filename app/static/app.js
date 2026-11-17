@@ -175,7 +175,7 @@ function render(v) {
 
   const r = v.roi;
   const roi = el("details", { class: "roi" },
-    el("summary", {}, `Found ${rupees(r.leakage_found)} · saves about ${r.hours_saved} hours of ticking by hand · AI cost so far ${rupees(r.ai_cost)}`),
+    el("summary", {}, `Found ${rupees(r.leakage_found)} · saves about ${r.hours_saved} hours of ticking by hand · AI cost so far ${rupees(r.ai_cost)}${v.source === "sample" && !r.ai_cost ? " (explanations cached for the sample)" : ""}`),
     el("p", { class: "formula" }, "Money found: ", r.formulas.leakage_found),
     el("p", { class: "formula" }, "Hours saved: ", r.formulas.hours_saved),
     el("p", { class: "formula" }, "AI cost: ", r.formulas.ai_cost));
