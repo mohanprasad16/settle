@@ -288,9 +288,12 @@ def guidance(page):
 
 def drawers(page, exp):
     A = "3 Finding drawers"
-    n = len(exp["_result"].findings)
+    # Risk patterns live on their own page; the Issues list (and its badge) is everything to fix.
+    n = sum(f.kind != "risk" for f in exp["_result"].findings)
     entries = page.locator("button.entry")
-    check(A, f"all {n} findings listed", entries.count() == n, f"{entries.count()} buttons")
+    check(A, f"all {n} issues to fix listed", entries.count() == n, f"{entries.count()} buttons")
+    badge = page.locator("#nav-issues .count").inner_text().strip()
+    check(A, "sidebar badge matches the Issues list", badge == str(n), badge)
     stats = {
         "explained": 0,
         "verified": 0,
@@ -311,6 +314,7 @@ def drawers(page, exp):
             page.eval_on_selector("#drawer-sheet", "s => s.scrollTop") == 0
         )
         if not first_loss_shot and label.startswith("Money lost"):
+            page.wait_for_timeout(450)  # let the slide-in finish so the shot isn't half-transparent
             shot(page, "finding_drawer_desktop")
             page.click("#t-trace")
             shot(page, "finding_trace_tab")

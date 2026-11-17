@@ -505,7 +505,8 @@ function chaosPanel(v) {
 // ---- issues ------------------------------------------------------------------------------------
 
 function issuesPage(v) {
-  const all = [...issues(), ...v.findings.filter((f) => f.kind === "risk")];
+  // Patterns ("worth a look") live on their own page, so this list and the sidebar badge agree.
+  const all = issues();
   const counts = { all: all.length };
   for (const f of all) counts[f.kind] = (counts[f.kind] || 0) + 1;
   const body = el("tbody");
@@ -531,13 +532,13 @@ function issuesPage(v) {
   }
   body.append(empty);
   const filters = el("div", { class: "inline", role: "group", "aria-label": "Show" },
-    ...[["all", "All"], ["loss", "Money lost"], ["customer", "Owed to customers"], ["books", "Fix in your books"], ["risk", "Worth a look"]].map(([k, label]) =>
+    ...[["all", "All"], ["loss", "Money lost"], ["customer", "Owed to customers"], ["books", "Fix in your books"]].map(([k, label]) =>
       el("button", { class: "chip", type: "button", "aria-pressed": String(state.filter === k), onclick: (e) => { state.filter = k; $$(".chip", filters).forEach((c) => c.setAttribute("aria-pressed", String(c === e.currentTarget))); apply(); } },
         label, el("span", { class: "n" }, counts[k] || 0))));
   const search = el("input", { type: "search", id: "issue-search", placeholder: "Search by order no, UTR, amount…", "aria-label": "Search issues", value: state.query, oninput: (e) => { state.query = e.target.value; apply(); } });
   setTimeout(apply);
   const legend = el("div", { class: "legend small", style: "margin:0" }, "What the labels mean:",
-    ...["loss", "customer", "books", "risk"].map((k) => el("span", {}, el("span", { class: `kind ${k}` }, KIND[k].label), el("button", { class: "help", type: "button", "aria-label": `What does “${KIND[k].label}” mean?`, "data-help": `kind-${k}` }, "?"))));
+    ...["loss", "customer", "books"].map((k) => el("span", {}, el("span", { class: `kind ${k}` }, KIND[k].label), el("button", { class: "help", type: "button", "aria-label": `What does “${KIND[k].label}” mean?`, "data-help": `kind-${k}` }, "?"))));
   return el("div", {},
     pageHead("Issues to fix", "Everything Settle found, biggest first. Open a line to see why it happened, the proof from your files, and the fix waiting for your approval."),
     el("div", { class: "stack" },
@@ -671,7 +672,7 @@ async function runAsk(q, chat, btn) {
       cites.length ? el("div", {}, el("b", { class: "small" }, "Proof"), el("ul", { class: "cites" }, ...cites)) : null,
       a.trace?.length ? el("details", { style: "margin-top:10px" }, el("summary", { class: "small" }, `How I worked it out (${a.trace.length} step${a.trace.length > 1 ? "s" : ""})`),
         el("ol", { class: "timeline" }, ...a.trace.map((t) => el("li", {},
-          el("b", {}, t.tool === "run_sql" ? "Looked up the data" : "Opened an issue"), ` · ${t.rows_returned ?? 0} rows · ${t.ms} ms`,
+          el("b", {}, t.tool === "run_sql" ? "Looked up the data" : "Opened an issue"), ` · ${t.rows_returned ?? 0} row${(t.rows_returned ?? 0) === 1 ? "" : "s"} · ${t.ms} ms`,
           el("pre", {}, t.input || ""))))) : null));
   } catch (e) {
     pending.replaceWith(el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint)));

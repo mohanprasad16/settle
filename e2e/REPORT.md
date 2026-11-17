@@ -1,6 +1,6 @@
 # Settle system test
 
-Run 2026-11-17 16:14 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 164/164 checks passed.
+Run 2026-11-17 16:20 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 165/165 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
@@ -9,7 +9,7 @@ Run 2026-11-17 16:14 · real Chrome via Playwright · desktop 1366×900 and phon
 | 10 Quality | 16 | 0 |
 | 11 Guidance | 10 | 0 |
 | 2 Sample results | 9 | 0 |
-| 3 Finding drawers | 8 | 0 |
+| 3 Finding drawers | 9 | 0 |
 | 4 Actions and rules | 14 | 0 |
 | 5 Ask | 21 | 0 |
 | 6 Chaos | 6 | 0 |
@@ -21,18 +21,18 @@ Run 2026-11-17 16:14 · real Chrome via Playwright · desktop 1366×900 and phon
 
 | Step | Seconds |
 |---|---|
-| sample (click to results) | 0.84 |
-| ask: Why did a settlement never reach my bank? | 7.18 |
-| ask: How much did I lose to chargebacks this month? | 9.52 |
-| ask: Which day had the most refunds? | 8.54 |
-| ask: What should I do first? | 9.17 |
+| sample (click to results) | 0.83 |
+| ask: Why did a settlement never reach my bank? | 7.70 |
+| ask: How much did I lose to chargebacks this month? | 9.76 |
+| ask: Which day had the most refunds? | 8.76 |
+| ask: What should I do first? | 9.31 |
 | chaos month 1 | 0.84 |
 | chaos month 2 | 0.83 |
-| chaos month 3 | 0.82 |
+| chaos month 3 | 0.83 |
 | CSV upload (submit to results) | 0.84 |
-| locked PDF (submit to review) | 8.43 |
-| scanned PDF (submit to review) | 9.45 |
-| digital PDF (submit to review) | 8.44 |
+| locked PDF (submit to review) | 10.48 |
+| scanned PDF (submit to review) | 8.49 |
+| digital PDF (submit to review) | 8.42 |
 
 ## Every check
 
@@ -105,7 +105,8 @@ Run 2026-11-17 16:14 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 3 Finding drawers
 
-- ✅ all 24 findings listed
+- ✅ all 22 issues to fix listed
+- ✅ sidebar badge matches the Issues list
 - ✅ every drawer has an explanation
 - ✅ every explanation shows the verified badge
 - ✅ every drawer shows proof rows
@@ -157,12 +158,12 @@ Run 2026-11-17 16:14 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #466524: every hidden problem found, nothing extra
-- ✅ Random month #466524: unexplained ₹0.00 on both bridges
-- ✅ Random month #735033: every hidden problem found, nothing extra
-- ✅ Random month #735033: unexplained ₹0.00 on both bridges
-- ✅ Random month #222357: every hidden problem found, nothing extra
-- ✅ Random month #222357: unexplained ₹0.00 on both bridges
+- ✅ Random month #954746: every hidden problem found, nothing extra
+- ✅ Random month #954746: unexplained ₹0.00 on both bridges
+- ✅ Random month #394487: every hidden problem found, nothing extra
+- ✅ Random month #394487: unexplained ₹0.00 on both bridges
+- ✅ Random month #749040: every hidden problem found, nothing extra
+- ✅ Random month #749040: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
