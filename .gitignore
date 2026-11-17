@@ -5,3 +5,4 @@ __pycache__/
 .ruff_cache/
 *.duckdb
 e2e/tour_raw/
+reports/

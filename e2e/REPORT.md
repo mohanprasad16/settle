@@ -1,18 +1,18 @@
 # Settle system test
 
-Run 2026-11-17 19:58 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 208/208 checks passed.
+Run 2026-11-17 20:14 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 212/212 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
 | 0 Setup | 2 | 0 |
 | 1 Landing | 21 | 0 |
-| 10 Quality | 18 | 0 |
-| 11 AI-native | 27 | 0 |
+| 10 Quality | 20 | 0 |
+| 11 AI-native | 28 | 0 |
 | 11 Guidance | 10 | 0 |
 | 2 Sample results | 11 | 0 |
 | 3 Finding drawers | 9 | 0 |
 | 3b Settlements | 5 | 0 |
-| 4 Actions and rules | 14 | 0 |
+| 4 Actions and rules | 15 | 0 |
 | 5 Ask | 21 | 0 |
 | 6 Chaos | 6 | 0 |
 | 7 Upload | 40 | 0 |
@@ -24,11 +24,11 @@ Run 2026-11-17 19:58 · real Chrome via Playwright · desktop 1366×900 and phon
 | Step | Seconds |
 |---|---|
 | sample (click to results) | 0.83 |
-| ask: Why did a settlement never reach my bank? | 0.07 |
-| ask: How much did I lose to chargebacks this month? | 0.05 |
-| ask: Which day had the most refunds? | 0.06 |
+| ask: Why did a settlement never reach my bank? | 0.06 |
+| ask: How much did I lose to chargebacks this month? | 0.07 |
+| ask: Which day had the most refunds? | 0.07 |
 | ask: What should I do first? | 0.06 |
-| chaos month 1 | 0.84 |
+| chaos month 1 | 0.83 |
 | chaos month 2 | 0.82 |
 | chaos month 3 | 0.81 |
 | CSV upload (submit to results) | 0.85 |
@@ -86,6 +86,8 @@ Run 2026-11-17 19:58 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ phone header: every action is still reachable
 - ✅ phone issues: no sideways scroll
 - ✅ phone drawer: no sideways scroll
+- ✅ desktop 1280px: top bar stays one row on every page
+- ✅ selection bar stays clear of the open Copilot
 - ✅ no console errors or page errors anywhere
 
 ### 11 AI-native
@@ -102,6 +104,7 @@ Run 2026-11-17 19:58 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ slash-command menu
 - ✅ @-mention suggests issues
 - ✅ Copilot echo path keeps the typed text
+- ✅ Stop cancels a running Copilot request and says nothing changed
 - ✅ selecting a line shows the action bar
 - ✅ change card shows before → after and its checks
 - ✅ Always allow isn't offered above the cap
@@ -170,6 +173,7 @@ Run 2026-11-17 19:58 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ Start here ticks 'Review the biggest issue' after opening one
 - ✅ settlement drawer proposes fixes
 - ✅ approve without a name is blocked
+- ✅ double-clicking Approve records it once, with no error
 - ✅ approve with a name gives a dry-run record
 - ✅ after approving, the confirmation says what's next
 - ✅ reject works
@@ -208,12 +212,12 @@ Run 2026-11-17 19:58 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #111188: every hidden problem found, nothing extra
-- ✅ Random month #111188: unexplained ₹0.00 on both bridges
-- ✅ Random month #636278: every hidden problem found, nothing extra
-- ✅ Random month #636278: unexplained ₹0.00 on both bridges
-- ✅ Random month #842042: every hidden problem found, nothing extra
-- ✅ Random month #842042: unexplained ₹0.00 on both bridges
+- ✅ Random month #348194: every hidden problem found, nothing extra
+- ✅ Random month #348194: unexplained ₹0.00 on both bridges
+- ✅ Random month #181965: every hidden problem found, nothing extra
+- ✅ Random month #181965: unexplained ₹0.00 on both bridges
+- ✅ Random month #401210: every hidden problem found, nothing extra
+- ✅ Random month #401210: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 

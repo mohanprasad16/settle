@@ -10,6 +10,7 @@ failed. Uses about 20 model calls (4 Ask questions, 1 injection attempt, 3 PDF r
 import contextlib
 import csv
 import io
+import json
 import os
 import subprocess
 import sys
@@ -1391,6 +1392,13 @@ def write_report() -> None:
     if notes.exists():
         lines += ["", notes.read_text()]
     (ROOT / "e2e" / "REPORT.md").write_text("\n".join(lines) + "\n")
+    # Machine-readable copy for tests/run_all.py.
+    out = ROOT / "reports"
+    out.mkdir(exist_ok=True)
+    (out / "e2e.json").write_text(json.dumps({
+        "llm": LLM_MODE, "checks": [{"area": a, "name": n, "ok": ok, "detail": d} for a, n, ok, d in checks],
+        "timings": timings, "screenshots": shots,
+    }, ensure_ascii=False, indent=1))  # fmt: skip
 
 
 if __name__ == "__main__":
