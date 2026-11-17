@@ -69,7 +69,7 @@ class Policy:
         if any(v < 0 or v > self.approval_over for v in self.auto_max.values()):
             errs.append("an auto limit can't be above the hard cap")
         if self.copilot_mode not in MODES:
-            errs.append("unknown Copilot mode")
+            errs.append("unknown Settle AI mode")
         if self.maker_checker_over is not None and self.maker_checker_over < 0:
             errs.append("the two-person threshold can't be negative")
         return errs

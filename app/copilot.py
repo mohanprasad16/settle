@@ -1,4 +1,4 @@
-"""Settle Copilot: the finance team's assistant on every page. It reads, explains and prepares
+"""Settle AI: the finance team's assistant on every page. It reads, explains and prepares
 work, but it can't change anything on its own.
 
 It runs the Ask agent loop (same read-only SQL sandbox, same number guard) with extra tools.
@@ -98,7 +98,7 @@ class Refused(ValueError):
 
 def _add(ctx: Ctx, p: Proposal) -> Proposal:
     if ctx.policy.copilot_mode == "read_only" and p.proposed_by == "ai":
-        raise Refused("Copilot is set to read-only in Settings: it can explain but not prepare changes")  # fmt: skip
+        raise Refused("Settle AI is set to read-only in Settings: it can explain but not prepare changes")  # fmt: skip
     if ctx.policy.kinds.get(p.kind) == "never":
         raise Refused(f"your approval policy never allows {p.kind.replace('_', ' ')}")
     p.id = f"P{len(ctx.proposals) + 1}"
@@ -342,7 +342,7 @@ TOOLS_EXTRA = [
 
 COPILOT = """
 
-You are Settle Copilot, the finance team's assistant inside Settle. You help with this month's reconciliation only.
+You are Settle AI, the finance team's assistant inside Settle. You help with this month's reconciliation only.
 You can read (SQL, findings, settlements, actions, unmatched lines, attached files) and you can PREPARE changes with the propose_ tools.
 For anything with more than one step, call make_plan first, then done_step as each step is done.
 You cannot apply anything: every change is a card a named person confirms. Never say a change is done; say it's ready for them to confirm.
@@ -496,3 +496,42 @@ def copilot(ctx: Ctx, message: str, llm: LLM, explanations=None, page: str = "ov
               dispatch=dispatcher(ctx, made, plan), extra=extra, max_calls=ctx.policy.max_tool_steps)  # fmt: skip
     out.plan = plan
     return out, made
+
+
+# Follow-up suggestions are built by code from what the answer touched, never from model text,
+# so a chip can't carry an instruction smuggled in through the data.
+PAGE_FOLLOW = {
+    "overview": ["What should I fix first?", "Walk me through the Bank Reconciliation Statement"],
+    "settlements": ["Which payouts need a person?", "Reconcile the ticked lines"],
+    "issues": ["Which issues are probably expected?", "Draft tickets for all money-lost issues"],
+    "flow": [
+        "What makes up the timing lines?",
+        "Walk me through the Bank Reconciliation Statement",
+    ],
+    "patterns": ["Is the refund spike a problem?", "Explain the bank credit that matches nothing"],
+    "audit": ["Approve all fee journals under ₹500", "Summarise what was approved today"],
+    "rules": ["Suggest rules", "Which issues keep repeating?"],
+    "settings": ["Which of this month's changes would auto-apply?"],
+}
+
+
+def follow_ups(result: Result, page: str, citations: list, proposals: list, asked: str = "") -> list[str]:  # fmt: skip
+    """Two or three next questions: about the issues the answer cited, then the page's own."""
+    known = {f.id: f for f in result.findings}
+    out: list[str] = []
+    for c in citations:
+        ref = getattr(c, "ref", None) if not isinstance(c, dict) else c.get("ref")
+        src = getattr(c, "source", None) if not isinstance(c, dict) else c.get("source")
+        f = known.get(str(ref)) if src == "finding" else None
+        if f and f.kind != "risk":
+            out += [f"Draft the fix for {f.id}", f"Why did {f.id} happen?"]
+            break
+    if proposals:
+        out.append("What happens if I allow this change?")
+    out += PAGE_FOLLOW.get(page, PAGE_FOLLOW["overview"])
+    seen, clean = {asked.strip().lower()}, []
+    for s in out:
+        if s.lower() not in seen:
+            seen.add(s.lower())
+            clean.append(s)
+    return clean[:3]

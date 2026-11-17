@@ -87,10 +87,18 @@ class DecisionLog:
 LOG_ROWS = 40  # decision-log rows printed in the report's appendix; the CSV has them all
 
 
+FEEDBACK_COLS = ["ts", "rating", "reason", "note", "page", "question", "answer", "verified"]
+
+
 def pack(
-    result: Result, journals: list[Entry], out: Path, log: DecisionLog | None = None
+    result: Result,
+    journals: list[Entry],
+    out: Path,
+    log: DecisionLog | None = None,
+    feedback: list[dict] | None = None,
 ) -> list[Path]:
-    """CSV pack for Excel: findings, both bridges, journals, and the full decision log."""
+    """CSV pack for Excel: findings, both bridges, journals, the full decision log, and the
+    👍 / 👎 people gave Settle AI's answers (the raw material for growing the golden set)."""
     out.mkdir(parents=True, exist_ok=True)
     paths = [out / "findings.csv", out / "bridges.csv", out / "journals.csv"]
     with open(paths[0], "w", newline="") as fh:
@@ -109,6 +117,12 @@ def pack(
     if log is not None:
         paths.append(out / "decision_log.csv")
         log.export(paths[-1])
+    if feedback is not None:
+        paths.append(out / "feedback.csv")
+        with open(paths[-1], "w", newline="") as fh:
+            w = CsvWriter(fh)
+            w.writerow(FEEDBACK_COLS)
+            w.writerows([f.get(c, "") for c in FEEDBACK_COLS] for f in feedback)
     return paths
 
 

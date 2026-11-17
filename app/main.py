@@ -20,6 +20,7 @@ import uuid
 import zipfile
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -109,6 +110,8 @@ class Session:
     proposals: dict = field(default_factory=dict)  # Copilot / form change cards, id -> Proposal
     sheets: dict = field(default_factory=dict)  # files attached in the Copilot, id -> sheet
     policy: Policy = field(default_factory=Policy)  # the approval policy; only a person edits it
+    answers: dict = field(default_factory=dict)  # Settle AI answer id -> {q, answer, page}
+    feedback: list = field(default_factory=list)  # 👍 / 👎 on answers: the start of an eval set
     ai_times: deque = field(
         default_factory=deque
     )  # this session's model calls, for its hourly limit
@@ -990,7 +993,7 @@ def journal_csv(request: Request):
 def export(request: Request):
     s = _loaded(request)
     out = s.dir / "pack"
-    paths = pack(s.result, s.journals, out, s.log)
+    paths = pack(s.result, s.journals, out, s.log, s.feedback)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for p in paths:
@@ -1050,12 +1053,53 @@ def copilot_chat(request: Request, body: CopilotIn):
     for p in made:  # a granted kind, or auto-accept mode within the policy: code applies it
         if copilot_mod.auto_applies(s.policy, p):
             _apply(s, p, "auto-accept (your approval policy)")
+    aid = uuid.uuid4().hex[:10]
+    s.answers[aid] = {"q": q[:800], "answer": out.answer[:4000], "page": body.page[:30], "verified": out.verified}  # fmt: skip
+    while len(s.answers) > 200:  # ponytail: oldest answers can't be rated after 200 more
+        s.answers.pop(next(iter(s.answers)))
     sid, _ = _session(request)
     return _respond(sid, {
-        "answer": out.answer, "verified": out.verified,
+        "answer_id": aid, "answer": out.answer, "verified": out.verified,
         "citations": [c.model_dump() for c in out.citations], "trace": out.trace,
         "plan": out.plan, "proposals": [_card(p, s.policy) for p in made],
+        "follow_ups": copilot_mod.follow_ups(s.result, body.page[:30], out.citations, made, q),
         "view": _view(s) | {"loaded": True}})  # fmt: skip
+
+
+FEEDBACK_REASONS = {"wrong_number": "Wrong number", "not_asked": "Not what I asked", "unclear": "Unclear", "other": "Other"}  # fmt: skip
+
+
+class FeedbackIn(BaseModel):
+    answer_id: str
+    rating: str  # up | down
+    reason: str = ""
+    note: str = ""
+
+
+@app.post("/api/feedback")
+def feedback(request: Request, body: FeedbackIn):
+    """👍 / 👎 on a Settle AI answer. The question and answer come from the session, not the
+    browser, so a rating can't smuggle in text that was never said."""
+    s = _loaded(request)
+    a = s.answers.get(body.answer_id)
+    if a is None:
+        raise Oops(
+            404, "That answer can't be rated any more.", "Ask again and rate the new answer."
+        )
+    if body.rating not in ("up", "down"):
+        raise Oops(422, "A rating is up or down.", "Use 👍 or 👎.")
+    if body.reason and body.reason not in FEEDBACK_REASONS:
+        raise Oops(422, "That reason isn't one of the options.", "Pick wrong number, not what I asked, unclear or other.")  # fmt: skip
+    note = " ".join(body.note.split())[:300]
+    s.feedback = [
+        f for f in s.feedback if f["answer_id"] != body.answer_id
+    ]  # changing your mind replaces it
+    s.feedback.append({"ts": datetime.now().isoformat(timespec="seconds"), "answer_id": body.answer_id,
+                       "rating": body.rating, "reason": FEEDBACK_REASONS.get(body.reason, ""), "note": note,
+                       "page": a["page"], "question": a["q"], "answer": a["answer"], "verified": a["verified"]})  # fmt: skip
+    s.log.log("human", "rated an answer", f"{'👍' if body.rating == 'up' else '👎'} {FEEDBACK_REASONS.get(body.reason, '')} {note}".strip()[:200])  # fmt: skip
+    sid, _ = _session(request)
+    return _respond(sid, {"ok": True, "count": len(s.feedback)})
 
 
 @app.post("/api/copilot/file")
@@ -1128,7 +1172,7 @@ def propose_rule(request: Request, body: RuleProposalIn):
 def _proposal(s: Session, pid: str):
     p = s.proposals.get(pid)
     if p is None:
-        raise Oops(404, "That change card no longer exists.", "Ask the Copilot again.")
+        raise Oops(404, "That change card no longer exists.", "Ask Settle AI again.")
     if p.status != "pending":
         raise Oops(409, f"That change was already {p.status}.", "Nothing changed.")
     return p
@@ -1140,7 +1184,7 @@ def _apply(s: Session, p, who: str) -> None:
     if p.type == "manual_match":
         why = check_manual(s.con, s.result, d["settlement_id"], d["bank_rows"])
         if why:
-            raise Oops(409, f"This match no longer fits: {why}.", "Ask the Copilot to look again.")
+            raise Oops(409, f"This match no longer fits: {why}.", "Ask Settle AI to look again.")
         m = ManualMatch(d["note"], who, d["bank_rows"], d["settlement_id"])
         s.manual.append(m)
         _reconcile(s, keep=True, why=f"manual match confirmed by {who}")
@@ -1329,7 +1373,7 @@ def _policy_diff(old: dict, new: dict) -> list[str]:
             out.append(f"{name}: {b['mode']} → {k['mode']}")
         elif b["auto_max"] != k["auto_max"] and k["mode"] == "auto":
             out.append(f"{name} auto limit: {rupees(b['auto_max'])} → {rupees(k['auto_max'])}")
-    for key, label, fmt in [("copilot_mode", "Copilot mode", str), ("hard_cap", "Hard cap", rupees),
+    for key, label, fmt in [("copilot_mode", "Settle AI mode", str), ("hard_cap", "Hard cap", rupees),
                             ("maker_checker_over", "Two-person rule above", lambda v: "off" if v is None else rupees(v)),
                             ("ai_calls_per_hour", "AI requests per hour", str), ("max_tool_steps", "Max tool steps", str),
                             ("max_file_mb", "Max file MB", str), ("ai_enabled", "AI on", str)]:  # fmt: skip
