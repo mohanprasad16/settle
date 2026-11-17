@@ -5,7 +5,6 @@ hash of its inputs, so a reviewer can see why each line in the report is there. 
 single self-contained HTML page that prints cleanly to PDF, plus a CSV pack for Excel.
 """
 
-import csv
 import hashlib
 import html
 import json
@@ -17,6 +16,7 @@ from app.engine import Result, brs
 from app.gate import Action
 from app.journal import Entry, to_csv
 from app.money import rupees
+from app.sanitize import CsvWriter
 
 
 def file_hash(path: Path) -> str:
@@ -78,9 +78,10 @@ class DecisionLog:
 
     def export(self, path: Path) -> None:
         with open(path, "w", newline="") as fh:
-            w = csv.DictWriter(fh, ["ts", "actor", "action", "finding_id", "detail", "inputs"])
-            w.writeheader()
-            w.writerows(asdict(d) for d in self.entries)
+            cols = ["ts", "actor", "action", "finding_id", "detail", "inputs"]
+            w = CsvWriter(fh)
+            w.writerow(cols)
+            w.writerows([asdict(d)[c] for c in cols] for d in self.entries)
 
 
 LOG_ROWS = 40  # decision-log rows printed in the report's appendix; the CSV has them all
@@ -93,13 +94,13 @@ def pack(
     out.mkdir(parents=True, exist_ok=True)
     paths = [out / "findings.csv", out / "bridges.csv", out / "journals.csv"]
     with open(paths[0], "w", newline="") as fh:
-        w = csv.writer(fh)
+        w = CsvWriter(fh)
         w.writerow(["id", "kind", "problem", "amount_inr", "references", "evidence_rows"])
         for f in result.findings:
             rows = "; ".join(f"{src} {', '.join(map(str, r))}" for src, r in f.rows.items() if r)
             w.writerow([f.id, f.kind, f.title, f"{f.amount / 100:.2f}", " ".join(r for r in f.refs[:20] if r), rows])  # fmt: skip
     with open(paths[1], "w", newline="") as fh:
-        w = csv.writer(fh)
+        w = CsvWriter(fh)
         w.writerow(["bridge", "line", "kind", "count", "amount_inr"])
         for name, steps in (("Books to Razorpay", result.books_to_razorpay), ("Razorpay to Bank", result.razorpay_to_bank)):  # fmt: skip
             for s in steps:

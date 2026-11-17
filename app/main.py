@@ -8,7 +8,6 @@ only called when a person asks (Ask, "Explain with AI", reading a PDF), behind a
 Every error leaves as {"error": plain English, "hint": what to do next}; never a stack trace.
 """
 
-import csv
 import io
 import json
 import logging
@@ -49,6 +48,7 @@ from app.money import rupees, to_paise
 from app.pdf_bank import PdfLocked, check, extract, pages, write_csv
 from app.roi import roi
 from app.rules import ManualMatch, Rule, suggest_rules
+from app.sanitize import CsvWriter
 from app.trace import trace
 
 log = logging.getLogger(__name__)
@@ -962,7 +962,7 @@ def brs_csv(request: Request):
     """The Bank Reconciliation Statement in the layout an accountant files, as CSV."""
     s = _loaded(request)
     buf = io.StringIO()
-    w = csv.writer(buf)
+    w = CsvWriter(buf)
     p = s.result.period
     w.writerow([f"Bank Reconciliation Statement, {p.start:%d %b %Y} to {p.end:%d %b %Y}", ""])
     w.writerow(["Particulars", "Amount (INR)"])

@@ -6,12 +6,12 @@ GST on gateway fees is one "Input GST" line; split it into CGST + SGST (same sta
 when posting, depending on where Razorpay bills from.
 """
 
-import csv
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.engine import Result
 from app.money import rupees
+from app.sanitize import CsvWriter
 
 CLEARING = "Razorpay Clearing"
 CUSTOMER = "Sundry Debtors (customers)"
@@ -94,7 +94,7 @@ def entries(con, result: Result) -> list[Entry]:
 def to_csv(es: list[Entry], path: Path, on) -> None:
     """Tally-friendly voucher rows: one row per ledger line, entries numbered JV-1, JV-2..."""
     with open(path, "w", newline="") as fh:
-        w = csv.writer(fh)
+        w = CsvWriter(fh)
         w.writerow(["Date", "Voucher Type", "Voucher No", "Ledger", "Dr", "Cr", "Narration"])
         for i, e in enumerate(es, 1):
             for ledger, dr, cr in e.lines:

@@ -2,6 +2,7 @@
 bridges, no approvals, and the attempt itself is flagged for a person."""
 
 import csv
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -175,3 +176,30 @@ def test_attempt_is_surfaced_in_the_result(attacked):
     assert len(after.totals["suspicious_text"]) == len(planted)
     assert not before.totals["suspicious_text"]
     assert any(h["label"].startswith("Records with instruction-like text") for h in after.handled)
+
+
+def test_exports_never_hand_excel_a_formula(tmp_path):
+    """QA: order numbers, notes and names come from files and people; a cell like
+    =HYPERLINK(...) in an exported CSV would run when an accountant opens it in Excel."""
+    import csv as _csv
+
+    from app.audit import DecisionLog, pack
+    from app.journal import entries
+    from app.sanitize import csv_cell
+
+    assert csv_cell('=HYPERLINK("http://x","y")') == '\'=HYPERLINK("http://x","y")'
+    assert csv_cell("+cmd") == "'+cmd" and csv_cell("@SUM(A1)") == "'@SUM(A1)"
+    assert csv_cell("-1234.50") == "-1234.50" and csv_cell("-1,234.50") == "-1,234.50"
+    assert csv_cell(-5) == -5 and csv_cell("KK-10427") == "KK-10427"
+
+    con = duckdb.connect()
+    s = Path(__file__).resolve().parent.parent / "data" / "sample"
+    period = load(con, s / "razorpay_settlements.csv", s / "bank_statement.csv", s / "orders.csv")
+    result = run(con, period)
+    result.findings[0].refs[0] = '=HYPERLINK("http://evil","x")'
+    log = DecisionLog()
+    log.log("human", "rule", "=1+1 note from a person")
+    for path in pack(result, entries(con, result), tmp_path, log):
+        for row in _csv.reader(path.read_text().splitlines()):
+            for cell in row:
+                assert not (cell[:1] in ("=", "+", "@") and cell[1:2] not in ("", " ")), (path.name, cell)  # fmt: skip

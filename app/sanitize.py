@@ -5,6 +5,7 @@ outsiders: a customer can type anything into a UPI note. It is data, never instr
 instruction to an AI, so a person sees the attempt; it changes nothing else in the run.
 """
 
+import csv
 import re
 import unicodedata
 
@@ -43,3 +44,31 @@ def scan(con) -> list[dict]:
                         "source": table, "row_no": row_no, "field": col, "text": as_data(text),
                     })  # fmt: skip
     return flags
+
+
+_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_cell(v):
+    """A cell Excel would run as a formula (=HYPERLINK..., +cmd...) gets a leading apostrophe.
+    Numbers like -1234.50 stay numbers. Order numbers and notes come from files and people."""
+    if isinstance(v, str) and v.startswith(_FORMULA):
+        try:
+            float(v.replace(",", ""))
+        except ValueError:
+            return "'" + v
+    return v
+
+
+class CsvWriter:
+    """csv.writer for anything a person will open in Excel: every cell goes through csv_cell."""
+
+    def __init__(self, fh):
+        self.w = csv.writer(fh)
+
+    def writerow(self, row) -> None:
+        self.w.writerow([csv_cell(v) for v in row])
+
+    def writerows(self, rows) -> None:
+        for r in rows:
+            self.writerow(r)
