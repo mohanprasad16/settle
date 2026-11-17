@@ -233,3 +233,12 @@ def test_chaos_months_live_in_the_session_folder(client):
     assert after == before
     s = main.SESSIONS[client.cookies.get("settle_sid")]
     assert len(list((s.dir / "chaos").glob("*.csv"))) == 3  # one month's files, not three
+
+
+def test_llms_txt_is_served():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    r = TestClient(app).get("/llms.txt")
+    assert r.status_code == 200 and r.text.startswith("# Settle")

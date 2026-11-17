@@ -8,6 +8,14 @@ Like a coding agent, but for a finance team: it does the reconciliation work, an
 
 **Live demo:** _link coming with the deploy_ · press **Try it with a sample month**, nothing to sign up for.
 
+> **For reviewers, in 30 seconds**
+> - **Problem:** a merchant's books, Razorpay settlements and bank never match. Finance teams tie them out by hand every month, and real losses hide in the normal differences.
+> - **What Settle does:** reconciles all three to the paisa (every rupee ends on a named line, Unexplained ₹0.00), finds the leaks, explains them, and drafts the fixes.
+> - **AI's role:** reads messy bank PDFs, explains issues, answers questions, and does the work through Settle AI on every page. Code computes every rupee; the AI never does the maths.
+> - **Guardrails:** the AI can't apply anything. Every change is a card a named person approves; an approval policy in code decides what may run alone; every figure the AI writes is checked.
+> - **Measured:** 50 held-out months at 100% precision and recall; blind edge-case batches run once with the misses published (6/11, then 5/8); 137/137 test-plan cases, 177 unit tests, 252 browser checks.
+> - **Built** in one day with Claude Code, alongside my day job. Start with the [tour](docs/tour.gif), the [test report](docs/test-report.html) and the [failures log](docs/FAILURES.md).
+
 ![Settle tour](docs/tour.gif)
 
 ---
@@ -128,8 +136,8 @@ More detail: [Architecture](docs/ARCHITECTURE.md) · [Prompts and why they're wr
 
 ## How I know it works
 
-- **139 test-plan cases, all passing**, each with an ID and the test that proves it:
-  [Test plan](docs/TEST_PLAN.md) · [Test report](docs/test-report.html) (175 unit and API tests,
+- **137 of 137 test-plan cases pass** (plus 2 measured in the evals), each with an ID and the test that proves it:
+  [Test plan](docs/TEST_PLAN.md) · [Test report](docs/test-report.html) (177 unit and API tests,
   252 browser checks in real Chrome on laptop and phone width).
 - **Held-out months**: 50 random months never used while building or tuning: precision 100%,
   recall 100%, both bridges at ₹0 in every month, about 12,000 rows a second.
@@ -148,7 +156,7 @@ Four layers, each catching a different kind of mistake:
 1. **Answer keys, not guesses.** The sample month and every random month are generated with
    problems planted on purpose and an answer key. A test passes only if the engine finds every
    planted problem with the exact ₹ amount, flags nothing else, and both bridges close to ₹0.
-2. **Unit and API tests** (175) for the engine, matching, each AI guard, Settle AI's change
+2. **Unit and API tests** (177) for the engine, matching, each AI guard, Settle AI's change
    cards, the approval policy, inputs and outputs. The model is replaced by a scripted stand-in,
    so the tests are exact, fast and need no key. Guardrail tests try to break things on purpose:
    invented numbers, SQL that reaches for files, "approve everything" hidden in an Excel cell,
@@ -247,7 +255,7 @@ Speed didn't replace testing. Every feature was tested end to end before I calle
 system test drives the real app in Chrome like a finance user (laptop and phone width, every page,
 every Settle AI flow, every failure state), on top of unit and API tests and the held-out
 evaluation. An independent QA pass then tried to break it and fixed what it found. The final run
-on this version: **137 of 137 test-plan cases (plus 2 measured in evals), 175 unit and API tests and 252 browser checks, all
+on this version: **137 of 137 test-plan cases (plus 2 measured in evals), 177 unit and API tests and 252 browser checks, all
 passing**, with one command and no API key: `uv run python -m tests.run_all`. GitHub Actions runs
 the same suite on every push.
 

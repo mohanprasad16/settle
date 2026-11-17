@@ -448,6 +448,12 @@ def health():
     return {"ok": True, "ai": _ai_on(), "demo_mode": settings.demo_mode}
 
 
+@app.get("/llms.txt")
+def llms_txt():
+    """Plain-text summary for AI tools that read a site before a person does."""
+    return FileResponse(ROOT / "llms.txt", media_type="text/plain; charset=utf-8")
+
+
 @app.post("/api/sample")
 def load_sample(request: Request):
     sid, s = _session(request, create=True)

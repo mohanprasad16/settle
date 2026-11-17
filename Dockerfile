@@ -10,6 +10,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app ./app
 COPY data/sample ./data/sample
+COPY llms.txt ./
 
 # Sessions live in /tmp and are deleted when they expire; nothing else is written.
 ENV PATH="/app/.venv/bin:$PATH"

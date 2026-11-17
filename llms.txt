@@ -1,0 +1,28 @@
+# Settle
+
+> AI reconciliation for finance teams: ties a merchant's books, payment gateway settlements (Razorpay) and bank statement to the paisa, finds the money that leaked, explains it, and drafts fixes that a named person approves. Like a coding agent, but for a finance team.
+
+Built in one day (17 Nov 2026) by Mohanprasad S with Claude Code, alongside a day job. Source: https://github.com/mohanprasad16/settle
+
+## What it does
+- Two bridges (books → gateway → bank) that end at "Unexplained ₹0.00"; anything it can't place is flagged, never hidden.
+- Finds: settlements that never reached the bank, short/over/reversed bank credits, refunds paid twice, chargebacks the books don't know, fees above the contracted rate, debit cards charged the credit rate, orders paid but still pending, refund spikes.
+- Settlements view and a Bank Reconciliation Statement (BRS); audit report, Excel pack, Tally journal.
+- Reads bank statement PDFs (digital, scanned, password-locked); a balance-chain check catches any misread row.
+- Settle AI on every page (floating chat, "Ask" next to any figure, ⌘K): answers with cited rows, and prepares changes (manual matches, rules, approvals, drafts) as change cards: Allow once / Always allow / Reject / Undo.
+
+## Design rule
+Code computes every rupee (DuckDB SQL, integer paise). The AI reads, explains and proposes; it has no apply tool. An approval policy in code decides what may run alone; money movement, customer- and Razorpay-facing actions and anything over ₹5,000 always need a named person. Every figure the AI writes is checked against the engine. Text inside files is data, never instructions.
+
+## Evidence
+- 50 held-out random months: 100% precision, 100% recall, both bridges at ₹0 every month, ~12,000 rows/sec.
+- Blind edge-case batches run once, misses published: 6/11 (then fixed), 5/8 (known limits listed).
+- Tests: 137/137 test-plan cases, 177 unit and API tests, 252 browser checks in real Chrome; CI on every push.
+- Real model: 24/24 explanations verified, 11/11 golden questions, 36/36 bank-PDF rows exact.
+
+## Key docs
+- README: https://github.com/mohanprasad16/settle#readme
+- Architecture: docs/ARCHITECTURE.md
+- Prompts and why: docs/PROMPTS.md
+- Test plan: docs/TEST_PLAN.md · Test report: docs/test-report.html
+- Evaluation: evals/results.md · Failures log: docs/FAILURES.md

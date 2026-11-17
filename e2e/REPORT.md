@@ -1,6 +1,6 @@
 # Settle system test
 
-Run 2026-11-18 00:34 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 252/252 checks passed.
+Run 2026-11-18 00:48 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 252/252 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
@@ -27,12 +27,12 @@ Run 2026-11-18 00:34 · real Chrome via Playwright · desktop 1366×900 and phon
 | sample (click to results) | 0.82 |
 | Settle AI: Why did a settlement never reach my bank? | 0.86 |
 | Settle AI: How much did I lose to chargebacks this month? | 0.93 |
-| Settle AI: Which day had the most refunds? | 0.57 |
-| Settle AI: What should I do first? | 0.53 |
-| chaos month 1 | 0.84 |
+| Settle AI: Which day had the most refunds? | 0.56 |
+| Settle AI: What should I do first? | 0.51 |
+| chaos month 1 | 0.83 |
 | chaos month 2 | 0.84 |
-| chaos month 3 | 0.83 |
-| CSV upload (submit to results) | 0.84 |
+| chaos month 3 | 0.82 |
+| CSV upload (submit to results) | 0.86 |
 | locked PDF (submit to review) | 0.13 |
 | scanned PDF (submit to review) | 0.13 |
 | digital PDF (submit to review) | 0.13 |
@@ -256,12 +256,12 @@ Run 2026-11-18 00:34 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #499277: every hidden problem found, nothing extra
-- ✅ Random month #499277: unexplained ₹0.00 on both bridges
-- ✅ Random month #877594: every hidden problem found, nothing extra
-- ✅ Random month #877594: unexplained ₹0.00 on both bridges
-- ✅ Random month #725475: every hidden problem found, nothing extra
-- ✅ Random month #725475: unexplained ₹0.00 on both bridges
+- ✅ Random month #492513: every hidden problem found, nothing extra
+- ✅ Random month #492513: unexplained ₹0.00 on both bridges
+- ✅ Random month #503806: every hidden problem found, nothing extra
+- ✅ Random month #503806: unexplained ₹0.00 on both bridges
+- ✅ Random month #781703: every hidden problem found, nothing extra
+- ✅ Random month #781703: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
