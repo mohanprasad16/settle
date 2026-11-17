@@ -111,7 +111,7 @@ def record() -> Path:
 
             # 1. Landing
             t.cap("Your books, Razorpay and your bank never match. Settle finds out why.")
-            t.show(page.locator(".hero .ledger"), 3.2)
+            t.show(page.locator(".hero .preview"), 3.2)
 
             # 2. Sample
             t.cap("")
@@ -120,61 +120,65 @@ def record() -> Path:
             page.evaluate("window.__tour.ring(null)")
             start_t = time.perf_counter()
             page.locator("#try-sample").click(force=True)
-            page.wait_for_selector(".statement")
+            page.wait_for_selector("#results:not([hidden]) .statement")
             secs = time.perf_counter() - start_t
-            meta = page.locator(".runhead .meta").inner_text()
-            rows = meta.split("·")[-1].strip().split(" ")[0]
+            sub = page.locator("[data-kpi=auto] .sub").inner_text()  # "3,559 of 3,741 rows"
+            rows = sub.split(" of ")[1].split(" ")[0]
             took = "in under a second" if secs < 1 else f"in {secs:.1f} seconds"
             t.cap(f"{rows} rows reconciled {took}")
-            t.show(page.locator(".runhead .meta"), 2.4)
+            t.show(page.locator(".statement"), 2.4)
 
             # 3. Summary
             lost = page.locator(".statement .loss .fig").inner_text()
             unexpl = page.locator(".statement .tied .fig").inner_text()
             t.cap(f"{lost} lost · Unexplained {unexpl}: every rupee lands on a named line")
-            t.show(page.locator(".statement"), 3.4)
+            t.show(page.locator("[data-kpi=unexplained]"), 2.6)
 
-            # 4. A finding
-            entry = page.locator(
-                "button.entry", has_text="Settlement never reached your bank"
-            ).first
+            # 4. The bridge
+            t.cap("Books → Razorpay → Bank, closed to the paisa")
+            t.show(page.locator("section[aria-labelledby=wf-h]"), 3.2)
+
+            # 5. Guidance
+            t.cap("A first-time user knows what to do: three steps, ticked off as you go")
+            t.show(page.locator("#start-here"), 2.8)
+
+            # 6. The biggest issue
             t.cap("")
-            t.click(entry, 1.0)
+            t.click(page.locator("#page-overview .page-head .btn.primary"), 1.0)
+            page.wait_for_selector("#tab-summary h3")
             t.cap("Plain-English reason, proof rows, and where the money stopped")
-            t.show(page.locator("#drawer-sheet .body > h3").first, 1.6)
-            t.show(page.locator("#drawer-sheet ol.chain"), 2.0)
-            t.show(page.locator("#drawer-sheet table.ev").first, 1.8)
+            t.show(page.locator("#tab-summary h3").first, 1.8)
+            t.click(page.locator("#t-trace"), 0.3)
+            t.show(page.locator("#tab-trace ol.chain"), 1.8)
+            t.click(page.locator("#t-evidence"), 0.3)
+            t.show(page.locator("#tab-evidence table.ev").first, 1.6)
 
-            # 7 comes before 5 so the drawer is used once: approve a draft with a name.
+            # 7. Approve a fix with a name
+            t.click(page.locator("#t-fix"), 0.3)
             card = page.locator("#drawer-sheet .action").first
             t.cap("Nothing moves money without a named approver")
-            t.show(card, 1.2)
+            t.show(card, 1.0)
             page.locator("#approver").fill("")
             t.click(page.locator("#approver"), 0.2)
             page.locator("#approver").type("Priya, Finance", delay=70)
-            t.click(card.locator("button.btn.ok"), 2.4)
+            t.click(card.locator("button.btn.ok"), 2.6)
             page.keyboard.press("Escape")
             t.wait(0.6)
 
-            # 5. Bridges
-            t.cap("Books → Razorpay → Bank, closed to the paisa")
-            t.show(page.locator("#bridges-h"), 1.0, ring=False)
-            page.mouse.wheel(0, 380)
-            t.wait(2.6)
-
-            # 6. Ask (real model; the wait is real too)
-            panel = page.locator("aside.side")
+            # 8. Ask (real model; the wait is real too)
             t.cap("Ask anything. Every figure is checked.")
+            t.click(page.locator("#nav-ask"), 0.4)
             t.click(
-                panel.locator(
-                    ".suggest button", has_text="Why did a settlement never reach my bank?"
+                page.locator(
+                    "#page-ask .suggest button",
+                    has_text="Why did a settlement never reach my bank?",
                 ),
                 0,
             )
-            panel.locator(".answer").wait_for(timeout=90_000)
-            t.show(panel.locator(".answer"), 3.4)
+            page.locator("#chat > .answer:not(.pending)").first.wait_for(timeout=90_000)
+            t.show(page.locator("#chat > .answer:not(.pending)").first, 3.4)
 
-            # 8. Scanned PDF
+            # 9. Scanned PDF
             t.cap("Scanned or locked bank PDFs: read by AI, verified by the balance chain")
             t.click(page.locator("#nav-new"), 0.4)
             t.click(page.locator("#go-upload"), 0.6)
@@ -186,10 +190,10 @@ def record() -> Path:
             page.wait_for_selector("#review-summary .banner", timeout=120_000)
             t.show(page.locator("#review-summary"), 2.6)
             t.click(page.locator("#review-go"), 0)
-            page.wait_for_selector(".statement", timeout=60_000)
+            page.wait_for_selector("#results:not([hidden]) .statement", timeout=60_000)
             t.wait(1.0)
 
-            # 9. Chaos
+            # 10. Chaos
             t.cap("A brand-new random month. Every hidden problem found.")
             t.click(page.locator("#nav-chaos"), 0)
             page.wait_for_selector("#answer-key")
@@ -199,7 +203,7 @@ def record() -> Path:
             page.mouse.wheel(0, 300)
             t.wait(2.4)
 
-            # 10. Audit report + end card
+            # 11. Audit report + end card
             page.goto(f"{url}/api/report")
             page.wait_for_load_state()
             t.cap("Audit-ready report, Tally journal, Excel pack")
