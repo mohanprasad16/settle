@@ -1198,7 +1198,9 @@ function actionCard(a, nameInput) {
         el("button", { class: "btn ok small", type: "button", onclick: () => decide(a, "approve") }, a.status === "auto" ? "Run it" : "Approve"),
         el("button", { class: "btn danger small", type: "button", onclick: () => decide(a, "reject") }, "Reject")) : null);
   };
+  let busy = false; // a double-click must not send the decision twice
   const decide = async (a, how) => {
+    if (busy) return;
     const who = nameInput.value.trim();
     if (!who && how === "approve") {
       nameInput.focus(); redraw(a, null);
@@ -1206,6 +1208,7 @@ function actionCard(a, nameInput) {
       return;
     }
     store.set("settle_name", who);
+    busy = true;
     try {
       const r = await api("POST", `/api/actions/${a.id}/${how}`, { approver: who || "a reviewer" });
       redraw(r.action, how === "approve"
@@ -1213,6 +1216,7 @@ function actionCard(a, nameInput) {
         : "Rejected. Nothing will be sent.");
       markStep("decide");
     } catch (e) { redraw(a, null); card.append(el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint))); }
+    finally { busy = false; }
   };
   redraw(a, null);
   return card;
@@ -1653,12 +1657,15 @@ function stepLabel(t) {
 
 function changeCard(p) {
   const card = el("div", { class: "change", "data-pid": p.id });
+  let busy = false; // a double-click must not confirm (or undo) twice
   const draw = (p, note) => {
     const name = el("input", { type: "text", class: "cc-name", value: store.get("settle_name"), placeholder: "Your name", "aria-label": "Your name", autocomplete: "name" });
     const decide = async (how, always = false) => {
+      if (busy) return;
       const who = name.value.trim();
       if (!who && how !== "reject") { name.focus(); draw(p, ["err", "Type your name to allow it.", "Every change is recorded with who allowed it."]); return; }
       store.set("settle_name", who);
+      busy = true;
       try {
         const r = await api("POST", `/api/proposals/${p.id}/${how}`, { approver: who || "a reviewer", always });
         if (r.view) applyView(r.view);
@@ -1668,6 +1675,7 @@ function changeCard(p) {
           : ["ok", always ? "Allowed, and remembered for this kind." : "Done.", "It's in the audit trail. You can undo it there or here."]);
         if (how === "confirm") markStep("decide");
       } catch (e) { draw(p, ["err", e.error, e.hint]); }
+      finally { busy = false; }
     };
     put(card,
       el("div", { class: "cc-head" }, el("span", { class: "cc-tag" }, p.status === "pending" ? "Change waiting for you" : `Change ${p.status}${p.decided_by ? " by " + p.decided_by : ""}`), el("b", {}, p.title)),

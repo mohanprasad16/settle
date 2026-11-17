@@ -493,9 +493,12 @@ def actions(page, ctx):
         "Type your name to approve" in cards.nth(0).inner_text(),
     )
     page.fill("#approver", "Priya, Finance")
-    cards.nth(0).locator("button.btn.ok").click()
+    # A double-click (QA found it showed "can't run: already executed" over a done action).
+    cards.nth(0).locator("button.btn.ok").dblclick()
     page.wait_for_selector("#drawer-sheet .action .banner.okb")
+    page.wait_for_timeout(600)
     txt = cards.nth(0).inner_text()
+    check(A, "double-clicking Approve records it once, with no error", "can't run" not in txt and "Done" in txt, txt[:200])  # fmt: skip
     check(
         A,
         "approve with a name gives a dry-run record",
