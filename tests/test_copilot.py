@@ -55,6 +55,9 @@ def test_manual_match_card_confirm_and_undo(client, monkeypatch):
     assert [p["done"] for p in out["plan"]] == [False, True]
     card = out["proposals"][0]
     assert card["status"] == "pending" and card["changes"]
+    assert (
+        card["changes"][0]["label"] == f"Bank row {row}, 1 Oct 2026"
+    )  # read like a person writes dates
     assert out["view"]["unmatched_credits"]  # nothing changed until a person confirms
     assert (
         client.post(f"/api/proposals/{card['id']}/confirm", json={"approver": ""}).status_code

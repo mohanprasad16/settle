@@ -124,7 +124,7 @@ def propose_manual_match(ctx: Ctx, bank_rows: list[int], note: str, settlement_i
         rows,
     ).fetchall()  # fmt: skip
     total = sum(a for _, _, a in lines)
-    changes = [{"label": f"Bank row {n}, {d}", "before": f"{rupees(a)}, not matched", "after": "matched"} for n, d, a in lines]  # fmt: skip
+    changes = [{"label": f"Bank row {n}, {d.day} {d:%b %Y}", "before": f"{rupees(a)}, not matched", "after": "matched"} for n, d, a in lines]  # fmt: skip
     if settlement_id:
         s = next(x for x in settlements(ctx.con, ctx.result) if x["settlement_id"] == settlement_id)
         before = {"missing": "Missing", "needs_person": "Needs a person"}.get(
