@@ -6,6 +6,7 @@ refunds...). The two bridges add the buckets up; if anything was missed, the "un
 line is not zero, and the tests fail.
 """
 
+import json
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -251,7 +252,18 @@ def run(con: duckdb.DuckDBPyConnection, period: Period, pricing: Pricing | None 
     result = Result(period, f, *_bridges(con, f, pr))
     result.totals = _totals(con, result)
     result.handled = _handled(con, pr, sb)
+    _persist(con, f)
     return result
+
+
+def _persist(con, findings: list[Finding]) -> None:
+    """Findings as a table, so questions can be answered with SQL next to the source rows."""
+    con.execute("""CREATE OR REPLACE TABLE findings (id VARCHAR, check_name VARCHAR,
+        kind VARCHAR, title VARCHAR, amount_paise BIGINT, refs VARCHAR[], facts JSON)""")
+    rows = [(x.id, x.check, x.kind, x.title, x.amount, x.refs, json.dumps(x.facts, default=str))
+            for x in findings]  # fmt: skip
+    if rows:
+        con.executemany("INSERT INTO findings VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
 
 
 def _sum(con, sql: str) -> tuple[int, int]:

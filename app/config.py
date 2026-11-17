@@ -10,5 +10,7 @@ class Settings(BaseSettings):
     fallback_model: str = "gemini-3.5-flash-lite"  # when the main model is busy (503)
     llm_timeout_ms: int = 60_000
 
+    demo_mode: bool = True  # public demo: sample data, "Connect Razorpay" is shown but disabled
+
 
 settings = Settings()
