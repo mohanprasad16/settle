@@ -1,6 +1,6 @@
 # Settle system test
 
-Run 2026-11-17 12:10 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 142/142 checks passed.
+Run 2026-11-17 15:33 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 143/143 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
@@ -9,7 +9,7 @@ Run 2026-11-17 12:10 · real Chrome via Playwright · desktop 1366×900 and phon
 | 10 Quality | 14 | 0 |
 | 2 Sample results | 7 | 0 |
 | 3 Finding drawers | 8 | 0 |
-| 4 Actions and rules | 9 | 0 |
+| 4 Actions and rules | 10 | 0 |
 | 5 Ask | 20 | 0 |
 | 6 Chaos | 6 | 0 |
 | 7 Upload | 40 | 0 |
@@ -21,17 +21,17 @@ Run 2026-11-17 12:10 · real Chrome via Playwright · desktop 1366×900 and phon
 | Step | Seconds |
 |---|---|
 | sample (click to results) | 0.83 |
-| ask: Why did a settlement never reach my bank? | 7.22 |
-| ask: How much did I lose to chargebacks this month? | 9.90 |
-| ask: Which day had the most refunds? | 6.76 |
-| ask: What should I do first? | 7.28 |
+| ask: Why did a settlement never reach my bank? | 9.26 |
+| ask: How much did I lose to chargebacks this month? | 12.62 |
+| ask: Which day had the most refunds? | 10.61 |
+| ask: What should I do first? | 8.00 |
 | chaos month 1 | 0.83 |
 | chaos month 2 | 0.83 |
-| chaos month 3 | 0.82 |
-| CSV upload (submit to results) | 0.84 |
-| locked PDF (submit to review) | 7.93 |
-| scanned PDF (submit to review) | 7.44 |
-| digital PDF (submit to review) | 9.96 |
+| chaos month 3 | 0.80 |
+| CSV upload (submit to results) | 0.85 |
+| locked PDF (submit to review) | 10.41 |
+| scanned PDF (submit to review) | 8.95 |
+| digital PDF (submit to review) | 7.92 |
 
 ## Every check
 
@@ -46,7 +46,7 @@ Run 2026-11-17 12:10 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ button 'Try with sample data' visible
 - ✅ button 'Upload your files' visible
 - ✅ button 'Connect Razorpay' visible
-- ✅ tour video slot
+- ✅ tour video plays (or its fallback shows)
 - ✅ How it works has 3 steps
 - ✅ trust strip has 4 points
 - ✅ hero net sales matches the sample (₹22,87,307.00)
@@ -102,6 +102,7 @@ Run 2026-11-17 12:10 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ approve without a name is blocked
 - ✅ approve with a name gives a dry-run record
 - ✅ reject works
+- ✅ no stray null / undefined text after decisions
 - ✅ running the same action twice is blocked with a reason
 - ✅ over-cap action blocked (tests/test_act.py::test_gate_routes_and_blocks; no UI path can create one)
 - ✅ mark as expected removes the matching findings
@@ -133,12 +134,12 @@ Run 2026-11-17 12:10 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #241580: every hidden problem found, nothing extra
-- ✅ Random month #241580: unexplained ₹0.00 on both bridges
-- ✅ Random month #934075: every hidden problem found, nothing extra
-- ✅ Random month #934075: unexplained ₹0.00 on both bridges
-- ✅ Random month #711025: every hidden problem found, nothing extra
-- ✅ Random month #711025: unexplained ₹0.00 on both bridges
+- ✅ Random month #329760: every hidden problem found, nothing extra
+- ✅ Random month #329760: unexplained ₹0.00 on both bridges
+- ✅ Random month #616164: every hidden problem found, nothing extra
+- ✅ Random month #616164: unexplained ₹0.00 on both bridges
+- ✅ Random month #283885: every hidden problem found, nothing extra
+- ✅ Random month #283885: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 

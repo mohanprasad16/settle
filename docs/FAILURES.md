@@ -90,3 +90,10 @@ twin refunds in the same minute and three-decimal amounts all came out right.
   step: any finding the answer names by id, reference or exact amount is attached.
 - **Contrast below AA.** The "owed to a customer" amber was 4.14:1; darkened to 4.94:1.
 - **Unreadable narration on the PDF review.** Widened so a person can recognise the row they are fixing.
+- **A stray "null" after approving a fix.** Seen while reviewing frames of the product tour video, not
+  by the test suite: the action card rebuilt itself with `replaceChildren()`, which prints `null` as
+  text, so "null" sat next to the dry-run record. Fixed once for every call site with a `put()`
+  helper that drops empty values like `el()` already did, and the browser suite now checks for stray
+  "null" / "undefined" text (it fails on the old code, passes on the fix).
+- **The tour claimed 2.4 seconds to reconcile.** The timer included the fake cursor's glide. It now
+  times only the click to the results, so the caption shows the real figure for that run.

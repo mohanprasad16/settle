@@ -6,6 +6,11 @@
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 
+// replaceChildren() prints null/false as text; put() drops them like el() does.
+function put(n, ...kids) {
+  n.replaceChildren(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
+}
+
 function el(tag, attrs = {}, ...kids) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -100,7 +105,7 @@ function notice(kind, title, text = "", retry = null) {
     el("div", { class: "inline" },
       retry ? el("button", { class: "btn small", type: "button", onclick: () => { box.remove(); retry(); } }, "Try again") : null,
       el("button", { class: "btn quiet small", type: "button", "aria-label": "Dismiss", onclick: () => box.remove() }, "Dismiss")));
-  alerts.replaceChildren(box);
+  put(alerts, box);
   box.scrollIntoView({ behavior: "smooth", block: "nearest" });
   return box;
 }
@@ -133,7 +138,7 @@ let state = { view: null, filter: "all" };
 
 async function loadSample() {
   loading(["Loading the sample month…", "Matching 3,700 rows across three files…", "Building the bridge…"]);
-  try { render(await api("POST", "/api/sample")); alerts.replaceChildren(); }
+  try { render(await api("POST", "/api/sample")); put(alerts); }
   catch (e) { fail(e, loadSample); }
   finally { loading(false); }
 }
@@ -201,7 +206,7 @@ function render(v) {
 
   const side = el("aside", { class: "side", "aria-label": "Ask and download" }, askPanel(v));
 
-  root.replaceChildren(head, statement, roi, ...banners,
+  put(root, head, statement, roi, ...banners,
     el("div", { class: "grid2" }, main, side),
     bridgesSection(v), patternsSection(v), exceptionsSection(v), handledSection(v));
   show("results");
@@ -345,15 +350,15 @@ function askPanel(v) {
 
 async function runAsk(q, out, btn) {
   q = (q || "").trim();
-  if (!q) { out.replaceChildren(el("p", { class: "small", role: "alert" }, "Type a question first.")); return; }
+  if (!q) { put(out, el("p", { class: "small", role: "alert" }, "Type a question first.")); return; }
   btn.disabled = true; btn.textContent = "Working it out…";
-  out.replaceChildren(el("p", { class: "small muted" }, "Looking through your files…"));
+  put(out, el("p", { class: "small muted" }, "Looking through your files…"));
   try {
     const a = await api("POST", "/api/ask", { question: q });
     const cites = a.citations.map((c) => c.source === "finding"
       ? el("li", {}, el("button", { class: "linkish", type: "button", onclick: (e) => openFinding(c.ref, e.currentTarget) }, `Problem ${c.ref}`))
       : el("li", {}, `${sourceName(c.source)}, row ${c.ref}`));
-    out.replaceChildren(el("div", { class: "answer" },
+    put(out, el("div", { class: "answer" },
       el("span", { class: a.verified ? "badge ok" : "badge warn" }, a.verified ? "✓ Figures checked against your files" : "Couldn't verify every figure: double-check"),
       el("p", { style: "margin-top:8px" }, a.answer),
       cites.length ? el("div", {}, el("b", { class: "small" }, "Proof"), el("ul", { class: "small" }, ...cites)) : null,
@@ -362,7 +367,7 @@ async function runAsk(q, out, btn) {
           el("b", {}, t.tool === "run_sql" ? "Looked up the data" : "Opened a problem"), ` · ${t.rows_returned ?? 0} rows · ${t.ms} ms`,
           el("pre", {}, t.input || ""))))) : null));
   } catch (e) {
-    out.replaceChildren(el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint)));
+    put(out, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint)));
   } finally { btn.disabled = false; btn.textContent = "Ask"; }
 }
 
@@ -377,10 +382,10 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !drawer.
 async function openFinding(id, opener) {
   lastOpener = opener || document.activeElement;
   drawer.hidden = false; document.body.style.overflow = "hidden";
-  sheet.replaceChildren(el("div", { class: "body" }, el("p", { class: "muted", style: "padding-top:20px" }, "Opening…")));
+  put(sheet, el("div", { class: "body" }, el("p", { class: "muted", style: "padding-top:20px" }, "Opening…")));
   try { drawFinding(await api("GET", `/api/finding/${encodeURIComponent(id)}`)); }
   catch (e) {
-    sheet.replaceChildren(el("div", { class: "body" }, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint)),
+    put(sheet, el("div", { class: "body" }, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint)),
       el("button", { class: "btn", type: "button", onclick: closeDrawer }, "Close")));
   }
 }
@@ -440,7 +445,7 @@ function drawFinding(d) {
     const pick = (i) => {
       $$("button", bar).forEach((b, j) => b.setAttribute("aria-selected", String(i === j)));
       const t = tabs[i];
-      pane.replaceChildren(el("pre", { tabindex: "0" }, t.text),
+      put(pane, el("pre", { tabindex: "0" }, t.text),
         el("div", { class: "inline" }, el("button", { class: "btn small", type: "button", onclick: (e) => copy(t.text, e.currentTarget) }, "Copy"),
           el("span", { class: "small muted" }, t.ai ? "Drafted by AI with every figure checked. Edit before sending." : "Built from your data.")));
     };
@@ -452,7 +457,7 @@ function drawFinding(d) {
   if (d.actions?.length) body.append(actionsBlock(d.actions, f));
   if (f.kind !== "risk") body.append(expectedBlock(f));
 
-  sheet.replaceChildren(header, body);
+  put(sheet, header, body);
   close.focus();
 }
 
@@ -469,7 +474,7 @@ function actionCard(a, nameInput) {
   const card = el("div", { class: "action" });
   const redraw = (a, note) => {
     const can = a.status === "needs_approval" || a.status === "auto";
-    card.replaceChildren(
+    put(card, 
       el("div", { class: "row" }, el("b", {}, ACTION[a.type] || a.type), a.amount ? el("span", { class: "num" }, rupees(a.amount)) : null),
       el("div", { class: `status ${a.status}` }, STATUS[a.status] || a.status, a.reason && a.status !== "executed" ? el("span", { class: "muted", style: "font-weight:400" }, ` · ${a.reason}`) : "", a.approved_by ? ` · by ${a.approved_by}` : ""),
       note ? el("div", { class: "banner okb", role: "status" }, el("div", {}, note)) : null,
@@ -498,13 +503,13 @@ function expectedBlock(f) {
   const msg = el("div", { "aria-live": "polite" });
   const go = el("button", { class: "btn small", type: "button" }, "Mark as expected");
   go.addEventListener("click", async () => {
-    if (!note.value.trim()) { msg.replaceChildren(el("p", { class: "small", role: "alert" }, "Add a short note saying why.")); note.focus(); return; }
+    if (!note.value.trim()) { put(msg, el("p", { class: "small", role: "alert" }, "Add a short note saying why.")); note.focus(); return; }
     go.disabled = true;
     try {
       const v = await api("POST", "/api/rules", { finding_id: f.id, note: note.value, scope: scope ? scope.value : "this" });
       closeDrawer(); render(v);
       notice("okb", `Marked as expected: “${note.value.trim()}”.`, `It moved to "What we checked and left alone". The bridge still ties out at ${rupees(v.totals.unexplained)} unexplained.`);
-    } catch (e) { msg.replaceChildren(el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint))); }
+    } catch (e) { put(msg, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint))); }
     finally { go.disabled = false; }
   });
   return el("div", {}, el("h3", {}, "Not a problem?"),
@@ -549,7 +554,7 @@ form.addEventListener("submit", async (e) => {
   loading(pdf ? ["Unlocking the statement…", "Reading each page with AI…", "Checking every running balance adds up…", "Almost there…"] : ["Reading your files…", "Matching every row…", "Building the bridge…"]);
   try {
     const v = await api("POST", "/api/upload", new FormData(form), true);
-    alerts.replaceChildren();
+    put(alerts);
     if (v.needs_review) showReview(v); else render(v);
   } catch (err) {
     if (err.needs_password) { $("#pw-field").hidden = false; $("#f-password").focus(); }
@@ -571,7 +576,7 @@ function fmtAmount(x) {
 
 function showReview(v) {
   const breaks = new Map(v.breaks.map((b) => [b.row, b]));
-  $("#review-summary").replaceChildren(v.verified
+  put($("#review-summary"), v.verified
     ? el("div", { class: "banner okb" }, el("div", {}, el("b", { text: `All ${v.rows.length} rows read from ${v.pages} page${v.pages > 1 ? "s" : ""}, and every running balance adds up.` }), "Check anything you like, then continue."))
     : el("div", { class: "banner warn" }, el("div", {}, el("b", { text: `${v.breaks.length} row${v.breaks.length > 1 ? "s don't" : " doesn't"} add up to the printed balance.` }),
         "They're highlighted, with the box most likely misread outlined. Fix them from your PDF, then continue.")));
@@ -581,7 +586,7 @@ function showReview(v) {
 
 function fillReview(rows, breaks) {
   const table = $("#review-table");
-  table.replaceChildren(
+  put(table, 
     el("thead", {}, el("tr", {}, el("th", {}, "#"), ...FIELDS.map(([, l]) => el("th", {}, l)))),
     el("tbody", {}, ...rows.map((r, i) => {
       const b = breaks.get(i + 1);
@@ -599,16 +604,20 @@ function fillReview(rows, breaks) {
 $("#review-go").addEventListener("click", async () => {
   const rows = $$("#review-table tbody tr").map((tr) => Object.fromEntries($$("input, textarea", tr).map((i) => [i.dataset.k, i.value])));
   loading(["Checking the balances again…", "Reconciling…"]);
-  try { render(await api("POST", "/api/bank-preview/confirm", { rows })); alerts.replaceChildren(); }
+  try { render(await api("POST", "/api/bank-preview/confirm", { rows })); put(alerts); }
   catch (e) {
     if (e.breaks) {
       fillReview(rows, new Map(e.breaks.map((b) => [b.row, b])));
-      $("#review-summary").replaceChildren(el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint)));
+      put($("#review-summary"), el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint)));
     } else fail(e);
   } finally { loading(false); }
 });
 
 // ---- wiring ------------------------------------------------------------------------------------
+
+// If the tour can't load, say so in its place instead of showing a broken player.
+const tourVideo = $("#tour-video");
+tourVideo?.querySelector("source:last-of-type")?.addEventListener("error", () => { tourVideo.hidden = true; $("#tour-frame").hidden = false; });
 
 $("#try-sample").addEventListener("click", loadSample);
 $("#upload-sample").addEventListener("click", loadSample);
@@ -616,7 +625,7 @@ $("#go-upload").addEventListener("click", () => show("upload"));
 $("#upload-back").addEventListener("click", () => show("landing"));
 $("#review-back").addEventListener("click", () => show("upload"));
 $("#nav-chaos").addEventListener("click", loadChaos);
-$("#nav-new").addEventListener("click", () => { alerts.replaceChildren(); show("landing"); });
+$("#nav-new").addEventListener("click", () => { put(alerts); show("landing"); });
 $("#home").addEventListener("click", (e) => { if (state.view) { e.preventDefault(); show("results"); } });
 const connect = $("#connect");
 $("#open-connect").addEventListener("click", () => connect.showModal());

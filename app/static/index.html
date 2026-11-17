@@ -55,7 +55,10 @@
   <section class="tour" aria-labelledby="tour-h">
     <h2 id="tour-h">See it work in 90 seconds</h2>
     <p class="muted">A walk through one month: the money found, the proof behind it, and the fixes.</p>
-    <div class="frame" id="tour-frame"><p>Product tour video coming soon. Meanwhile, press <b>Try with sample data</b> to use the real thing.</p></div>
+    <video id="tour-video" autoplay muted loop playsinline controls preload="metadata" poster="/static/tour.jpg" aria-label="90-second product tour of Settle, silent with captions">
+      <source src="/static/tour.mp4" type="video/mp4">
+    </video>
+    <div class="frame" id="tour-frame" hidden><p>The tour video isn't available right now. Press <b>Try with sample data</b> to use the real thing.</p></div>
   </section>
 
   <section aria-labelledby="how-h">

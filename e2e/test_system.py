@@ -156,7 +156,11 @@ def landing(page, exp):
     for sel, name in [("#try-sample", "Try with sample data"), ("#go-upload", "Upload your files"),
                       ("#open-connect", "Connect Razorpay")]:  # fmt: skip
         check(A, f"button '{name}' visible", page.is_visible(sel))
-    check(A, "tour video slot", page.is_visible("#tour-frame"))
+    check(
+        A,
+        "tour video plays (or its fallback shows)",
+        page.is_visible("#tour-video") or page.is_visible("#tour-frame"),
+    )
     check(A, "How it works has 3 steps", page.locator(".steps > li").count() == 3)
     check(A, "trust strip has 4 points", page.locator(".trust > li").count() == 4)
     r = exp["_result"]
@@ -301,6 +305,9 @@ def actions(page, ctx):
     cards.nth(1).locator("button.btn.danger").click()
     page.wait_for_timeout(300)
     check(A, "reject works", "Rejected" in cards.nth(1).inner_text())
+    # Caught on video, missed by this suite once: replaceChildren() printed a stray "null".
+    words = set(page.locator("#drawer-sheet").inner_text().split())
+    check(A, "no stray null / undefined text after decisions", not words & {"null", "undefined"})
     d = ctx.request.get(base("A") + f"/api/finding/{fid}").json()
     done = next(a for a in d["actions"] if a["status"] == "executed")
     again = ctx.request.post(

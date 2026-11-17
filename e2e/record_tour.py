@@ -1,0 +1,241 @@
+"""Records the landing page's product tour by driving the real app in Chrome.
+
+    uv run python -m e2e.record_tour     # writes app/static/tour.{mp4,jpg} and docs/tour.gif
+
+Real server, real sample, real model for the Ask answer and the scanned PDF, so every figure on
+screen is what the app actually produced. Captions read their numbers off the page. A soft dot
+stands in for the mouse and a ring marks what each caption is about. Re-run after UI changes.
+Needs ffmpeg (the raw WebM is ~25 MB, too heavy to serve).
+"""
+
+import shutil
+import subprocess
+import time
+from pathlib import Path
+
+from playwright.sync_api import sync_playwright
+
+from e2e.test_system import ROOT, SAMPLE, start
+
+PORT = 8790
+SIZE = {"width": 1366, "height": 768}
+STATIC = ROOT / "app" / "static"
+OUT = ROOT / "e2e" / "tour_raw"
+
+OVERLAY = """
+(() => {
+  const css = `
+    #tour-cap { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 99999;
+      background: rgba(20,32,56,.94); color: #fff; font: 600 24px/1.35 system-ui, sans-serif;
+      padding: 14px 26px; border-radius: 12px; max-width: 1100px; text-align: center;
+      box-shadow: 0 8px 30px rgba(0,0,0,.25); transition: opacity .35s; opacity: 0; pointer-events: none; }
+    #tour-dot { position: fixed; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+      border-radius: 50%; background: rgba(231,76,60,.85); border: 3px solid #fff; z-index: 99999;
+      box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .7s cubic-bezier(.4,0,.2,1); pointer-events: none; }
+    #tour-ring { position: fixed; z-index: 99998; border: 3px solid rgba(231,76,60,.75); border-radius: 10px;
+      box-shadow: 0 0 0 6px rgba(231,76,60,.15); transition: all .5s ease; opacity: 0; pointer-events: none; }
+    #tour-end { position: fixed; inset: 0; z-index: 100000; background: #142038; color: #fff;
+      display: grid; place-content: center; text-align: center; font: 600 28px system-ui, sans-serif; }
+    #tour-end b { display: block; font: 700 64px Georgia, serif; margin-bottom: 14px; }
+    section.tour { display: none !important; }  /* don't film the video slot inside the video */`;
+  const add = () => {
+    if (document.getElementById("tour-cap")) return;
+    const s = document.createElement("style"); s.textContent = css; document.head.append(s);
+    for (const id of ["tour-cap", "tour-dot", "tour-ring"]) {
+      const d = document.createElement("div"); d.id = id; document.body.append(d);
+    }
+    document.getElementById("tour-dot").style.transform = "translate(683px, 384px)";
+  };
+  window.__tour = {
+    cap(t) { add(); const c = document.getElementById("tour-cap"); c.textContent = t; c.style.opacity = t ? 1 : 0; },
+    dot(x, y) { add(); document.getElementById("tour-dot").style.transform = `translate(${x}px, ${y}px)`; },
+    ring(r) { add(); const g = document.getElementById("tour-ring");
+      if (!r) { g.style.opacity = 0; return; }
+      Object.assign(g.style, { left: r.x - 8 + "px", top: r.y - 8 + "px", width: r.w + 16 + "px", height: r.h + 16 + "px", opacity: 1 }); },
+    end(title, line) { add(); const e = document.createElement("div"); e.id = "tour-end";
+      e.innerHTML = `<div><b></b><span></span></div>`; e.querySelector("b").textContent = title;
+      e.querySelector("span").textContent = line; document.body.append(e); },
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", add); else add();
+})();
+"""
+
+
+class Tour:
+    def __init__(self, page):
+        self.page = page
+
+    def cap(self, text: str, hold: float = 0) -> None:
+        self.page.evaluate("t => window.__tour.cap(t)", text)
+        self.wait(hold)
+
+    def wait(self, s: float) -> None:
+        self.page.wait_for_timeout(int(s * 1000))
+
+    def show(self, loc, hold: float = 0.8, ring: bool = True) -> None:
+        """Scroll the element into view, glide the dot to it and ring it."""
+        loc.evaluate("e => e.scrollIntoView({behavior: 'smooth', block: 'center'})")
+        self.wait(0.9)
+        b = loc.bounding_box()
+        if b:
+            self.page.evaluate("p => window.__tour.dot(p.x, p.y)", {"x": b["x"] + b["width"] / 2, "y": b["y"] + b["height"] / 2})  # fmt: skip
+            r = {"x": b["x"], "y": b["y"], "w": b["width"], "h": b["height"]}
+            self.page.evaluate("r => window.__tour.ring(r)", r if ring else None)
+        self.wait(hold)
+
+    def click(self, loc, hold: float = 0.6) -> None:
+        self.show(loc, 0.5)
+        self.page.evaluate("window.__tour.ring(null)")
+        # ponytail: force skips Playwright's stability wait, which a smooth scroll can starve.
+        loc.click(force=True)
+        self.wait(hold)
+
+
+def record() -> Path:
+    OUT.mkdir(parents=True, exist_ok=True)
+    for old in OUT.glob("*.webm"):
+        old.unlink()
+    server = start(PORT)
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(channel="chrome")
+            ctx = browser.new_context(
+                viewport=SIZE, record_video_dir=str(OUT), record_video_size=SIZE
+            )
+            ctx.add_init_script(OVERLAY)
+            page = ctx.new_page()
+            t = Tour(page)
+            url = f"http://127.0.0.1:{PORT}"
+            page.goto(url)
+            page.wait_for_selector("#try-sample")
+
+            # 1. Landing
+            t.cap("Your books, Razorpay and your bank never match. Settle finds out why.")
+            t.show(page.locator(".hero .ledger"), 3.2)
+
+            # 2. Sample
+            t.cap("")
+            # Time only the app's work: from the real click to the results, not the dot's glide.
+            t.show(page.locator("#try-sample"), 0.5)
+            page.evaluate("window.__tour.ring(null)")
+            start_t = time.perf_counter()
+            page.locator("#try-sample").click(force=True)
+            page.wait_for_selector(".statement")
+            secs = time.perf_counter() - start_t
+            meta = page.locator(".runhead .meta").inner_text()
+            rows = meta.split("·")[-1].strip().split(" ")[0]
+            took = "in under a second" if secs < 1 else f"in {secs:.1f} seconds"
+            t.cap(f"{rows} rows reconciled {took}")
+            t.show(page.locator(".runhead .meta"), 2.4)
+
+            # 3. Summary
+            lost = page.locator(".statement .loss .fig").inner_text()
+            unexpl = page.locator(".statement .tied .fig").inner_text()
+            t.cap(f"{lost} lost · Unexplained {unexpl}: every rupee lands on a named line")
+            t.show(page.locator(".statement"), 3.4)
+
+            # 4. A finding
+            entry = page.locator(
+                "button.entry", has_text="Settlement never reached your bank"
+            ).first
+            t.cap("")
+            t.click(entry, 1.0)
+            t.cap("Plain-English reason, proof rows, and where the money stopped")
+            t.show(page.locator("#drawer-sheet .body > h3").first, 1.6)
+            t.show(page.locator("#drawer-sheet ol.chain"), 2.0)
+            t.show(page.locator("#drawer-sheet table.ev").first, 1.8)
+
+            # 7 comes before 5 so the drawer is used once: approve a draft with a name.
+            card = page.locator("#drawer-sheet .action").first
+            t.cap("Nothing moves money without a named approver")
+            t.show(card, 1.2)
+            page.locator("#approver").fill("")
+            t.click(page.locator("#approver"), 0.2)
+            page.locator("#approver").type("Priya, Finance", delay=70)
+            t.click(card.locator("button.btn.ok"), 2.4)
+            page.keyboard.press("Escape")
+            t.wait(0.6)
+
+            # 5. Bridges
+            t.cap("Books → Razorpay → Bank, closed to the paisa")
+            t.show(page.locator("#bridges-h"), 1.0, ring=False)
+            page.mouse.wheel(0, 380)
+            t.wait(2.6)
+
+            # 6. Ask (real model; the wait is real too)
+            panel = page.locator("aside.side")
+            t.cap("Ask anything. Every figure is checked.")
+            t.click(
+                panel.locator(
+                    ".suggest button", has_text="Why did a settlement never reach my bank?"
+                ),
+                0,
+            )
+            panel.locator(".answer").wait_for(timeout=90_000)
+            t.show(panel.locator(".answer"), 3.4)
+
+            # 8. Scanned PDF
+            t.cap("Scanned or locked bank PDFs: read by AI, verified by the balance chain")
+            t.click(page.locator("#nav-new"), 0.4)
+            t.click(page.locator("#go-upload"), 0.6)
+            page.set_input_files("#f-razorpay", str(SAMPLE / "razorpay_settlements.csv"))
+            page.set_input_files("#f-bank", str(SAMPLE / "bank_statement_scanned.pdf"))
+            page.set_input_files("#f-orders", str(SAMPLE / "orders.csv"))
+            t.show(page.locator(".slot[data-slot=bank]"), 1.2)
+            t.click(page.locator("#upload-form button[type=submit]"), 0)
+            page.wait_for_selector("#review-summary .banner", timeout=120_000)
+            t.show(page.locator("#review-summary"), 2.6)
+            t.click(page.locator("#review-go"), 0)
+            page.wait_for_selector(".statement", timeout=60_000)
+            t.wait(1.0)
+
+            # 9. Chaos
+            t.cap("A brand-new random month. Every hidden problem found.")
+            t.click(page.locator("#nav-chaos"), 0)
+            page.wait_for_selector("#answer-key")
+            key = page.locator("#answer-key")
+            t.show(key.locator("h2"), 0.8)
+            t.cap(f"A brand-new random month. {key.locator('p b').first.inner_text()}.")
+            page.mouse.wheel(0, 300)
+            t.wait(2.4)
+
+            # 10. Audit report + end card
+            page.goto(f"{url}/api/report")
+            page.wait_for_load_state()
+            t.cap("Audit-ready report, Tally journal, Excel pack")
+            t.wait(1.2)
+            page.mouse.wheel(0, 500)
+            t.wait(2.2)
+            t.cap("")
+            page.evaluate(
+                "window.__tour.end('Settle', 'Account for every rupee · github.com/mohanprasad16/settle')"
+            )
+            t.wait(3.0)
+
+            video = page.video.path()
+            ctx.close()
+            browser.close()
+            return Path(video)
+    finally:
+        server.terminate()
+
+
+def encode(webm: Path) -> None:
+    if not shutil.which("ffmpeg"):
+        raise SystemExit(f"ffmpeg not found; the raw recording is at {webm}")
+    ff = ["ffmpeg", "-y", "-loglevel", "error"]
+    # Skip the blank first moment before the page paints.
+    subprocess.run([*ff, "-ss", "0.6", "-i", str(webm), "-c:v", "libx264", "-preset", "slow", "-crf", "28",
+                    "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", str(STATIC / "tour.mp4")], check=True)  # fmt: skip
+    subprocess.run([*ff, "-ss", "8", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(STATIC / "tour.jpg")], check=True)  # fmt: skip
+    gif = ROOT / "docs" / "tour.gif"
+    vf = "fps=8,scale=760:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer"
+    subprocess.run([*ff, "-ss", "3", "-t", "15", "-i", str(STATIC / "tour.mp4"), "-vf", vf, str(gif)], check=True)  # fmt: skip
+
+
+if __name__ == "__main__":
+    webm = record()
+    encode(webm)
+    for f in [STATIC / "tour.mp4", STATIC / "tour.jpg", ROOT / "docs" / "tour.gif"]:
+        if f.exists():
+            print(f"{f.relative_to(ROOT)}: {f.stat().st_size / 1e6:.1f} MB")
