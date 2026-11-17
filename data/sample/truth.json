@@ -1,0 +1,191 @@
+{
+  "period": [
+    "2026-10-01",
+    "2026-10-31"
+  ],
+  "planted": [
+    {
+      "check": "paid_order_no_payment",
+      "refs": [
+        "KK-11106"
+      ],
+      "amount": 149900
+    },
+    {
+      "check": "paid_order_no_payment",
+      "refs": [
+        "KK-10925"
+      ],
+      "amount": 64900
+    },
+    {
+      "check": "paid_order_no_payment",
+      "refs": [
+        "KK-11594"
+      ],
+      "amount": 49900
+    },
+    {
+      "check": "amount_mismatch",
+      "refs": [
+        "KK-10439"
+      ],
+      "amount": 10000
+    },
+    {
+      "check": "amount_mismatch",
+      "refs": [
+        "KK-11171"
+      ],
+      "amount": 10000
+    },
+    {
+      "check": "fee_overcharge",
+      "refs": [
+        "pay_0M6baMG5e6PdAE",
+        "pay_0wo7EK100v278Y",
+        "pay_1PdaNV0znk84wl",
+        "pay_1RqqDsaWYCwnXt",
+        "pay_2S8MRRxkGFKROZ",
+        "pay_3pSvqzImJ0uxAL",
+        "pay_6QdfT7BCbZI45L",
+        "pay_87bA0DjHcoG3Tq",
+        "pay_90WkRmjcwunBfX",
+        "pay_AXbuVJuUKEhiMA",
+        "pay_EeTq6CyCVXCqia",
+        "pay_GWIygOYWoWY6HE",
+        "pay_IOjk25XGT3Gzta",
+        "pay_JLXgcXhg1HrZD5",
+        "pay_JwE76usPRpExSX",
+        "pay_K1XGYbyslcCzIp",
+        "pay_LQ4pCqIHmX1m9x",
+        "pay_LQQI4pOLT4fsIK",
+        "pay_Mvx0Z0KWE1JlRi",
+        "pay_NyymDaAaPIEJ5h",
+        "pay_PHUVsANsipAJ3K",
+        "pay_QG1tKg6ZYbBOnN",
+        "pay_R8CLpwTFC2CaT7",
+        "pay_TAjzEjXMFSWqL9",
+        "pay_UIFFsGulqOnm5B",
+        "pay_Vhshbhvw98Vsdq",
+        "pay_ZuqwZOyxCdWsIA",
+        "pay_anRB5StMEn3tT2",
+        "pay_cITn8Wc5n596JW",
+        "pay_drJgigyoVmtpuW",
+        "pay_fwYdQV0Fbij9PZ",
+        "pay_hzJaMXB6PdY60W",
+        "pay_j9Zp5ZxH41RZ34",
+        "pay_jHt8UltZ1ybRRU",
+        "pay_jk3uj2z1Ncb69I",
+        "pay_kEM41FTPvru9Pu",
+        "pay_mKfJbnUwJHxpwK",
+        "pay_opJ8HMy0C8B8G9",
+        "pay_qSieHZuKrzq2JC",
+        "pay_r5YJ6x8ePlA1vc",
+        "pay_rcY1ARsAwcWrZS",
+        "pay_uBltVxg67BdWSH",
+        "pay_yeBMcc5cosLyag",
+        "pay_z1MlxdLfg3jD9F",
+        "pay_zXQls4ObynR3Wh"
+      ],
+      "amount": 32116
+    },
+    {
+      "check": "duplicate_refund",
+      "refs": [
+        "KK-11264",
+        "rfnd_TZedo1Qqr14Wa2"
+      ],
+      "amount": 269700
+    },
+    {
+      "check": "refund_not_in_books",
+      "refs": [
+        "KK-10509",
+        "rfnd_68ghYXiVYz2WvW"
+      ],
+      "amount": 49900
+    },
+    {
+      "check": "refund_not_in_books",
+      "refs": [
+        "KK-10583",
+        "rfnd_WW1yotprEoKLm4"
+      ],
+      "amount": 64900
+    },
+    {
+      "check": "refund_not_in_books",
+      "refs": [
+        "KK-11792",
+        "rfnd_9dEoKzBJPtJS05"
+      ],
+      "amount": 64900
+    },
+    {
+      "check": "books_refund_not_processed",
+      "refs": [
+        "KK-11513"
+      ],
+      "amount": 149900
+    },
+    {
+      "check": "books_refund_not_processed",
+      "refs": [
+        "KK-11459"
+      ],
+      "amount": 359700
+    },
+    {
+      "check": "chargeback",
+      "refs": [
+        "KK-11540",
+        "disp_xw6eA83XVg0fv1"
+      ],
+      "amount": 179800
+    },
+    {
+      "check": "chargeback",
+      "refs": [
+        "KK-10427",
+        "disp_jbgbTW0nFS4v7H"
+      ],
+      "amount": 149900
+    },
+    {
+      "check": "orphan_payment",
+      "refs": [
+        "pay_P8nIOBekpAYZzb"
+      ],
+      "amount": 129900
+    },
+    {
+      "check": "orphan_payment",
+      "refs": [
+        "pay_tf7jZYIH9QtiWm"
+      ],
+      "amount": 129900
+    },
+    {
+      "check": "unexplained_adjustment",
+      "refs": [
+        "adj_xhPDpi57077LVy"
+      ],
+      "amount": 118000
+    },
+    {
+      "check": "settlement_missing",
+      "refs": [
+        "setl_6ODkowvxYxMciS"
+      ],
+      "amount": 5365747
+    },
+    {
+      "check": "settlement_short",
+      "refs": [
+        "setl_9rHmNeuxtEjEXM"
+      ],
+      "amount": 200000
+    }
+  ]
+}

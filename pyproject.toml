@@ -1,0 +1,27 @@
+[project]
+name = "settle"
+version = "0.1.0"
+description = "Account for every rupee between your books, Razorpay and your bank."
+requires-python = ">=3.13"
+dependencies = [
+    "duckdb>=1.4.0",
+    "fastapi>=0.162.0",
+    "google-genai>=2.33.0",
+    "pydantic-settings>=2.16.2",
+    "python-multipart>=0.0.32",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
+]
