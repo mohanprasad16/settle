@@ -1,0 +1,53 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Python 3.13 and dependencies
+        run: |
+          uv python install 3.13
+          uv sync --frozen
+
+      - name: Google Chrome for the browser test
+        run: uv run playwright install --with-deps chrome
+
+      - name: Lint
+        run: uv run ruff check .
+
+      # Unit tests + the browser system test in headless Chrome. The model's replies come from
+      # the recorded tape (e2e/llm_tape.json), so no API key or secret is needed.
+      - name: Run every test
+        env:
+          E2E_LLM: replay
+        run: uv run python -m tests.run_all
+
+      - name: Summary
+        if: always()
+        run: cat reports/test-summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload the HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: settle-test-report
+          path: |
+            reports/test-report.html
+            reports/test-summary.md
+            e2e/REPORT.md
+          if-no-files-found: warn
