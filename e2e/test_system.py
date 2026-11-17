@@ -7,6 +7,7 @@ Every check is recorded, not asserted, so one failure doesn't hide the rest; exi
 failed. Uses about 20 model calls (4 Ask questions, 1 injection attempt, 3 PDF reads).
 """
 
+import contextlib
 import csv
 import io
 import os
@@ -854,18 +855,16 @@ def main() -> int:
             for step in steps:
                 try:
                     step()
-                except Exception as e:  # one broken area mustn't hide the others
+                except Exception as e:  # noqa: BLE001 (one broken area mustn't hide the others)
                     check(
                         "crash",
                         f"{step.__code__.co_name if hasattr(step, '__code__') else step}",
                         False,
                         repr(e),
                     )
-                    try:
+                    with contextlib.suppress(Exception):  # best effort: keep the crash screen
                         shot(page, "crash_state")
                         page.keyboard.press("Escape")
-                    except Exception:
-                        pass
             check(
                 "10 Quality",
                 "no console errors or page errors anywhere",
@@ -884,8 +883,8 @@ def write_report() -> None:
     areas: dict[str, list] = {}
     for area, name, ok, detail in checks:
         areas.setdefault(area, []).append((name, ok, detail))
-    lines = ["# Settle system test", "", f"Run {time.strftime('%Y-%m-%d %H:%M')} · real Chrome via Playwright · "
-             f"desktop 1366×900 and phone 375×812 · {sum(ok for *_, ok, _ in checks)}/{len(checks)} checks passed.", "",
+    lines = ["# Settle system test", "", (f"Run {time.strftime('%Y-%m-%d %H:%M')} · real Chrome via Playwright · "
+             f"desktop 1366×900 and phone 375×812 · {sum(ok for *_, ok, _ in checks)}/{len(checks)} checks passed."), "",
              "| Area | Passed | Failed |", "|---|---|---|"]  # fmt: skip
     for area, items in sorted(areas.items()):
         lines.append(
