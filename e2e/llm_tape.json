@@ -1,0 +1,1187 @@
+{
+"53dac6ee153d6d64cf85400e5e93a67302bb8111": [
+{
+"text": "",
+"calls": [
+[
+"get_finding",
+{
+"id": "F1"
+}
+]
+]
+}
+],
+"b76e689b82db2f421bbe0e0aac9c9b92c9e84deb": [
+{
+"text": "",
+"calls": [
+[
+"run_sql",
+{
+"query": "SELECT settlement_id, utr, settled_at, net, received, unmatched_reason FROM settlement_bank WHERE settlement_id = 'setl_6ODkowvxYxMciS'"
+}
+]
+]
+}
+],
+"0bc68306cea7b19a966001c4931f727755215442": [
+{
+"text": "Settlement **`setl_6ODkowvxYxMciS`** (UTR: `UTIBR58302335367`), processed by Razorpay on **14 Oct 2026**, was marked as settled for a net amount of **\u20b921,196.39** across 73 items, but no corresponding deposit was credited to your bank account (\u20b90.00 received).\n\n### Key Details\n- **Settlement ID:** `setl_6ODkowvxYxMciS`\n- **UTR:** `UTIBR58302335367`\n- **Settlement Date:** 14 Oct 2026\n- **Net Settled Amount:** \u20b921,196.39\n- **Amount Received in Bank:** \u20b90.00\n- **Total Items in Settlement:** 73\n\n### Action Required\nPlease contact **Razorpay support** with the Settlement ID (`setl_6ODkowvxYxMciS`) and UTR (`UTIBR58302335367`) to trace why the payout failed or was not credited to your bank account.",
+"calls": []
+}
+],
+"41480c00514f8c1d04567c2a5ffba7cc3edf4cbf": [
+{
+"answer": "Settlement setl_6ODkowvxYxMciS (UTR: UTIBR58302335367) for \u20b921,196.39 was processed on 14 Oct 2026, but your bank received \u20b90.00. Please contact Razorpay support to resolve this uncredited settlement.",
+"citations": [
+{
+"source": "findings",
+"ref": "F1"
+},
+{
+"source": "rp",
+"ref": "745"
+}
+]
+}
+],
+"6c18de9fe68a6b7df2374fadebea863eac43dbb0": [
+{
+"text": "",
+"calls": [
+[
+"run_sql",
+{
+"query": "SELECT row_no, entity_id, type, amount, fee, tax, credit, debit, created_at, settled_at, settlement_id, order_receipt, payment_id, description FROM rp WHERE type = 'dispute' OR entity_id LIKE 'disp_%'"
+}
+]
+]
+}
+],
+"66964d88b5ef39078a49abf75f62c27968f1b136": [
+{
+"text": "You lost a total of **\u20b93,297.00** to chargebacks this month across 2 separate disputes:\n\n1. **\u20b91,499.00** (Finding **F8**, Row 377 in `rp`)\n   - **Dispute ID:** `disp_jbgbTW0nFS4v7H`\n   - **Order No:** `KK-10427` (Payment ID: `pay_Lvl5VJbsAfDDmG`)\n   - **Debited On:** 7 Oct 2026\n   - **Reason:** Chargeback: item not received\n   - **Contact:** Razorpay support\n\n2. **\u20b91,798.00** (Finding **F7**, Row 1407 in `rp`)\n   - **Dispute ID:** `disp_xw6eA83XVg0fv1`\n   - **Order No:** `KK-11540` (Payment ID: `pay_wcQZuUiNQTX4BV`)\n   - **Debited On:** 25 Oct 2026\n   - **Reason:** Chargeback: item not received\n   - **Contact:** Razorpay support",
+"calls": []
+}
+],
+"04c6cbb5ec5b1aadd48b7468bef0041656641590": [
+{
+"answer": "You lost a total of \u20b93,297.00 to chargebacks this month across 2 disputes. This includes \u20b91,499.00 for order KK-10427 (finding F8) and \u20b91,798.00 for order KK-11540 (finding F7). Both disputes were debited due to \"item not received\" claims while the orders still show as paid in your store.",
+"citations": [
+{
+"source": "findings",
+"ref": "F7"
+},
+{
+"source": "findings",
+"ref": "F8"
+},
+{
+"source": "rp",
+"ref": "377"
+},
+{
+"source": "rp",
+"ref": "1407"
+}
+]
+}
+],
+"d06f18c491328fe355ec29100d74b47baacf93b0": [
+{
+"answer": "You lost a total of \u20b93,297.00 to chargebacks this month across two dispute incidents. This includes \u20b91,499.00 debited on 7 Oct 2026 for order KK-10427 and \u20b91,798.00 debited on 25 Oct 2026 for order KK-11540. Please contact Razorpay support regarding these disputes.",
+"citations": [
+{
+"source": "findings",
+"ref": "F7"
+},
+{
+"source": "findings",
+"ref": "F8"
+},
+{
+"source": "rp",
+"ref": "row_no:377"
+},
+{
+"source": "rp",
+"ref": "row_no:1407"
+}
+]
+}
+],
+"e1d0f960f0a33f8a024a79a977e922a9383de5f5": [
+{
+"text": "",
+"calls": [
+[
+"run_sql",
+{
+"query": "SELECT \n    CAST(created_at AS DATE) AS refund_date, \n    COUNT(*) AS refund_count, \n    SUM(debit)/100.0 AS total_refund_amount_rs\nFROM rp \nWHERE type = 'refund'\nGROUP BY CAST(created_at AS DATE)\nORDER BY refund_count DESC, total_refund_amount_rs DESC\nLIMIT 5;"
+}
+]
+]
+}
+],
+"b3164df358e6687b5e58173964f0533621d3e045": [
+{
+"text": "",
+"calls": [
+[
+"run_sql",
+{
+"query": "SELECT \n    CAST(settled_at AS DATE) AS settled_date, \n    COUNT(*) AS refund_count, \n    SUM(debit)/100.0 AS total_refund_amount_rs\nFROM rp \nWHERE type = 'refund'\nGROUP BY CAST(settled_at AS DATE)\nORDER BY refund_count DESC\nLIMIT 5;"
+}
+]
+]
+}
+],
+"066f850ded3c138752eddcec2dad3163969d5916": [
+{
+"text": "",
+"calls": [
+[
+"run_sql",
+{
+"query": "SELECT \n    CAST(refund_date AS DATE) AS order_refund_date, \n    COUNT(*) AS refund_count, \n    SUM(refund_amount)/100.0 AS total_refund_rs\nFROM orders \nWHERE refund_amount > 0\nGROUP BY CAST(refund_date AS DATE)\nORDER BY refund_count DESC\nLIMIT 5;"
+}
+]
+]
+}
+],
+"b75416019a6fdff4edc83ab3c38f18aa0d33f2ea": [
+{
+"text": "The day with the most refunds was **12 October 2026**, which recorded **28 refunds** totaling **\u20b941,008.00** (compared to the usual average of 4 refunds per day).\n\nIf you need to investigate this unusual spike in refunds, please contact **your store/ops team** (Finding F23).",
+"calls": []
+}
+],
+"acac596270914235c1ba19eea535bd9a76fde0f3": [
+{
+"answer": "12 Oct 2026 had the most refunds, with 28 refunds processed totaling \u20b941,008.00. This is also highlighted as an unusual spike in refunds compared to the daily average of 4 refunds.",
+"citations": [
+{
+"source": "findings",
+"ref": "F23"
+}
+]
+}
+],
+"2666c9874ed4e89d41dfd3483e343bd9076348e2": [
+{
+"text": "Based on the analysis of your Razorpay settlements, bank statements, and store records for October 2026, here is the prioritized action plan based on urgency and financial impact:\n\n---\n\n### **1. Urgent Priority: Recover Lost Money (Total: \u20b933,361.49)**\n\n#### **A. Contact Razorpay Support**\n* **Settlement Never Received (\u20b921,196.39)**  \n  * **Finding F1:** Settlement `setl_6ODkowvxYxMciS` (UTR: `UTIBR58302335367`) settled on 14 Oct 2026 was never credited to your bank account (73 items included).  \n  * **Action:** Request Razorpay to trace the payout and re-initiate the transfer.\n\n* **Unauthorized Debits & Excess Fees (\u20b93,322.10)**  \n  * **Finding F11 (\u20b91,180.00):** Unexplained debit adjustment (`adj_xhPDpi57077LVy`) on 27 Oct 2026 (Settlement: `setl_RcMMH6dbSgiYw2`).\n  * **Finding F7 & F8 (\u20b93,297.00 total):** Chargeback debits for orders `KK-11540` (\u20b91,798.00) and `KK-10427` (\u20b91,499.00). Provide delivery proof to contest these disputes.\n  * **Finding F9 (\u20b9169.54):** Charged 2.40% instead of your agreed 1.95% rate on 20 card transactions between 16 Oct & 18 Oct.\n  * **Finding F10 (\u20b9174.56):** Charged credit-card rate (1.95%) instead of debit-card rate (0.90%) on 10 debit card transactions (6 Oct \u2013 7 Oct).\n\n---\n\n#### **B. Contact Your Bank**\n* **Short-Credited Settlement (\u20b92,000.00)**  \n  * **Finding F2:** Settlement `setl_9rHmNeuxtEjEXM` (UTR: `UTIBR59944785665`) on 21 Oct 2026 was for \u20b964,942.62, but your bank credited only \u20b962,942.62.  \n  * **Action:** Request your bank branch/relationship manager to credit the \u20b92,000.00 shortfall using UTR `UTIBR59944785665`.\n\n---\n\n### **2. High Priority: Action Money at Risk with Customers (Total: \u20b95,096.00)**\n\n* **Duplicate Refund Paid to Customer (\u20b92,697.00)**  \n  * **Finding F6:** Order `KK-11264` was refunded twice via Razorpay (`rfnd_AVuPqcAqAh9zkB` and `rfnd_TZedo1Qqr14Wa2`), totaling \u20b95,394.00 instead of \u20b92,697.00.  \n  * **Action:** Contact customer **Vihaan S. Iyer / order contact** to recover the extra \u20b92,697.00 payout.\n\n* **Customer Refunded Books vs. Gateway Mismatch (\u20b95,096.00)**  \n  * **Finding F12 (\u20b93,597.00 - Order KK-11459)** & **Finding F13 (\u20b91,499.00 - Order KK-11513):** Store books show these were refunded, but no refund was actually processed on Razorpay. Verify if the customer was refunded via another mode or if store records need updating.\n\n---\n\n### **3. Operational & Accounting Clean-up**\n\n1. **Pending Orders Paid at Gateway (Store/Ops Team):**\n   * **F14 (\u20b94,998.00 - KK-11306)** & **F15 (\u20b9698.00 - KK-11606):** Payments captured at Razorpay, but orders still show \"Pending\" in your store. Fulfill these orders immediately to avoid customer complaints.\n   \n2. **Bookkeeping Adjustments (Accountant):**\n   * Fix missing orders for orphan payments (`KK-WEB-900` - \u20b91,299.00 & `KK-WEB-901` - \u20b91,299.00).\n   * Update status for orders refunded at Razorpay but still marked paid in store (`KK-10583`, `KK-11792`, `KK-10509`).\n   * Adjust order amount mismatches (`KK-10439` and `KK-11171`).",
+"calls": []
+}
+],
+"8424a8fb93d2fbea5d5ceba2d7c34c9c4802b42f": [
+{
+"answer": "Your most urgent priority is to address the missing settlement of \u20b921,196.39 from 14 Oct 2026 (Settlement ID: setl_6ODkowvxYxMciS, UTR: UTIBR58302335367), which never reached your bank account; you should contact Razorpay support immediately. Next, contact your bank regarding Settlement setl_9rHmNeuxtEjEXM, which credited \u20b92,000.00 less than the net settled amount of \u20b964,942.62.",
+"citations": [
+{
+"source": "findings",
+"ref": "F1"
+},
+{
+"source": "findings",
+"ref": "F2"
+}
+]
+}
+],
+"ce5f97689e854c3db08507767a95d0d5b830864f": [
+{
+"text": "I can only help you reconcile your Razorpay settlements, bank statements, and store order books. Please let me know if you have any questions about your payments, settlements, or identified findings.",
+"calls": []
+}
+],
+"24cde25f983672262c277a1198256c20b616f331": [
+{
+"answer": "I can only assist with questions regarding your Razorpay settlements, bank statements, and store orders. Please let me know if you have a specific reconciliation question about your account.",
+"citations": []
+}
+],
+"d517508eb8eec9023305fde227dd8909281a539f": [
+{
+"rows": [
+{
+"date": "30/10/2026",
+"narration": "SALARY BATCH OCT 2026",
+"ref_no": "",
+"withdrawal": "6,42,000.00",
+"deposit": "",
+"balance": "26,39,870.37"
+}
+],
+"opening_balance": "12,00,000.00",
+"closing_balance": "26,39,870.37",
+"total_withdrawals": "9,41,600.00",
+"total_deposits": "23,81,470.37"
+}
+],
+"a0239cc7840b9a3ae34051d7db0ee4e0461077d5": [
+{
+"rows": [
+{
+"date": "20/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR52796534561",
+"ref_no": "UTIBR52796534561",
+"withdrawal": "",
+"deposit": "70,308.50",
+"balance": "25,28,348.71"
+},
+{
+"date": "21/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59944785665",
+"ref_no": "UTIBR59944785665",
+"withdrawal": "",
+"deposit": "62,942.62",
+"balance": "25,91,291.33"
+},
+{
+"date": "22/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56411783566",
+"ref_no": "UTIBR56411783566",
+"withdrawal": "",
+"deposit": "76,046.06",
+"balance": "26,67,337.39"
+},
+{
+"date": "23/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "76,807.67",
+"balance": "27,44,145.06"
+},
+{
+"date": "24/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54356574641",
+"ref_no": "UTIBR54356574641",
+"withdrawal": "",
+"deposit": "75,632.30",
+"balance": "28,19,777.36"
+},
+{
+"date": "25/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR55589329592",
+"ref_no": "UTIBR55589329592",
+"withdrawal": "",
+"deposit": "66,927.59",
+"balance": "28,86,704.95"
+},
+{
+"date": "26/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59951566479",
+"ref_no": "UTIBR59951566479",
+"withdrawal": "",
+"deposit": "94,679.42",
+"balance": "29,81,384.37"
+},
+{
+"date": "27/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "30,135.02",
+"balance": "30,11,519.39"
+},
+{
+"date": "28/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "45,202.54",
+"balance": "30,56,721.93"
+},
+{
+"date": "28/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR57963028568",
+"ref_no": "UTIBR57963028568",
+"withdrawal": "",
+"deposit": "72,522.07",
+"balance": "31,29,244.00"
+},
+{
+"date": "29/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53814967865",
+"ref_no": "UTIBR53814967865",
+"withdrawal": "",
+"deposit": "71,645.78",
+"balance": "32,00,889.78"
+},
+{
+"date": "30/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56586160339",
+"ref_no": "UTIBR56586160339",
+"withdrawal": "",
+"deposit": "80,980.59",
+"balance": "32,81,870.37"
+}
+],
+"opening_balance": "",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+],
+"28a5f34f045960e5a3fddc2d866aa66ca7b355d9": [
+{
+"rows": [
+{
+"date": "09/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50686309863",
+"ref_no": "UTIBR50686309863",
+"withdrawal": "",
+"deposit": "27,375.30",
+"balance": "15,29,679.39"
+},
+{
+"date": "09/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50686309863PART 2",
+"ref_no": "UTIBR50686309863",
+"withdrawal": "",
+"deposit": "54,750.61",
+"balance": "15,84,430.00"
+},
+{
+"date": "10/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53470221710",
+"ref_no": "UTIBR53470221710",
+"withdrawal": "",
+"deposit": "71,244.78",
+"balance": "16,55,674.78"
+},
+{
+"date": "11/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54170856495",
+"ref_no": "UTIBR54170856495",
+"withdrawal": "",
+"deposit": "91,148.95",
+"balance": "17,46,823.73"
+},
+{
+"date": "12/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59592257861",
+"ref_no": "UTIBR59592257861",
+"withdrawal": "",
+"deposit": "61,139.82",
+"balance": "18,07,963.55"
+},
+{
+"date": "12/10/2026",
+"narration": "NEFT CR-AMAZON SELLER SERVICES-DISB",
+"ref_no": "AMZ88120",
+"withdrawal": "",
+"deposit": "1,87,330.00",
+"balance": "19,95,293.55"
+},
+{
+"date": "13/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54691906693",
+"ref_no": "UTIBR54691906693",
+"withdrawal": "",
+"deposit": "83,080.93",
+"balance": "20,78,374.48"
+},
+{
+"date": "15/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53644357118",
+"ref_no": "UTIBR53644357118",
+"withdrawal": "",
+"deposit": "77,268.13",
+"balance": "21,55,642.61"
+},
+{
+"date": "16/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR57756083849",
+"ref_no": "UTIBR57756083849",
+"withdrawal": "",
+"deposit": "86,634.97",
+"balance": "22,42,277.58"
+},
+{
+"date": "17/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56356261004",
+"ref_no": "UTIBR56356261004",
+"withdrawal": "",
+"deposit": "67,192.49",
+"balance": "23,09,470.07"
+},
+{
+"date": "18/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR58747360358",
+"ref_no": "UTIBR58747360358",
+"withdrawal": "",
+"deposit": "77,381.68",
+"balance": "23,86,851.75"
+},
+{
+"date": "19/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR55265249125",
+"ref_no": "UTIBR55265249125",
+"withdrawal": "",
+"deposit": "71,188.46",
+"balance": "24,58,040.21"
+}
+],
+"opening_balance": "",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+],
+"6dbf3c9acaf51356f607f768a021d63da129e5ab": [
+{
+"rows": [
+{
+"date": "01/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50202493129",
+"ref_no": "UTIBR50202493129",
+"withdrawal": "",
+"deposit": "67,380.05",
+"balance": "12,67,380.05"
+},
+{
+"date": "01/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR51957823817",
+"ref_no": "UTIBR51957823817",
+"withdrawal": "",
+"deposit": "52,404.94",
+"balance": "13,19,784.99"
+},
+{
+"date": "01/10/2026",
+"narration": "IMPS DR-RENT-OCT-INDIRANAGAR UNIT",
+"ref_no": "",
+"withdrawal": "85,000.00",
+"deposit": "",
+"balance": "12,34,784.99"
+},
+{
+"date": "02/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR52203243881",
+"ref_no": "UTIBR52203243881",
+"withdrawal": "",
+"deposit": "83,654.45",
+"balance": "13,18,439.44"
+},
+{
+"date": "03/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54452001538",
+"ref_no": "UTIBR54452001538",
+"withdrawal": "",
+"deposit": "47,209.29",
+"balance": "13,65,648.73"
+},
+{
+"date": "04/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR58097951940",
+"ref_no": "UTIBR58097951940",
+"withdrawal": "",
+"deposit": "50,913.29",
+"balance": "14,16,562.02"
+},
+{
+"date": "05/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "84,358.39",
+"balance": "15,00,920.41"
+},
+{
+"date": "06/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59922593985",
+"ref_no": "UTIBR59922593985",
+"withdrawal": "",
+"deposit": "83,925.09",
+"balance": "15,84,845.50"
+},
+{
+"date": "07/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59786344582",
+"ref_no": "UTIBR59786344582",
+"withdrawal": "",
+"deposit": "72,749.11",
+"balance": "16,57,594.61"
+},
+{
+"date": "07/10/2026",
+"narration": "NEFT DR-GSTN-GST PAYMENT SEP",
+"ref_no": "",
+"withdrawal": "2,14,600.00",
+"deposit": "",
+"balance": "14,42,994.61"
+},
+{
+"date": "08/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59772858377",
+"ref_no": "UTIBR59772858377",
+"withdrawal": "",
+"deposit": "59,309.48",
+"balance": "15,02,304.09"
+}
+],
+"opening_balance": "12,00,000.00",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+],
+"337af8f31fb7c731b6a2ef34c4070b7558f0e06e": [
+{
+"rows": [
+{
+"date": "30/10/2026",
+"narration": "SALARY BATCH OCT 2026",
+"ref_no": "",
+"withdrawal": "6,42,000.00",
+"deposit": "",
+"balance": "26,39,870.37"
+}
+],
+"opening_balance": "12,00,000.00",
+"closing_balance": "26,39,870.37",
+"total_withdrawals": "9,41,600.00",
+"total_deposits": "23,81,470.37"
+}
+],
+"4c32bd8b9d6daecddeb81f6d5d7dc43ac9262d3e": [
+{
+"rows": [
+{
+"date": "01/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50202493129",
+"ref_no": "UTIBR50202493129",
+"withdrawal": "",
+"deposit": "67,380.05",
+"balance": "12,67,380.05"
+},
+{
+"date": "01/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR51957823817",
+"ref_no": "UTIBR51957823817",
+"withdrawal": "",
+"deposit": "52,404.94",
+"balance": "13,19,784.99"
+},
+{
+"date": "01/10/2026",
+"narration": "IMPS DR-RENT-OCT-INDIRANAGAR UNIT",
+"ref_no": "",
+"withdrawal": "85,000.00",
+"deposit": "",
+"balance": "12,34,784.99"
+},
+{
+"date": "02/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR52203243881",
+"ref_no": "UTIBR52203243881",
+"withdrawal": "",
+"deposit": "83,654.45",
+"balance": "13,18,439.44"
+},
+{
+"date": "03/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54452001538",
+"ref_no": "UTIBR54452001538",
+"withdrawal": "",
+"deposit": "47,209.29",
+"balance": "13,65,648.73"
+},
+{
+"date": "04/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR58097951940",
+"ref_no": "UTIBR58097951940",
+"withdrawal": "",
+"deposit": "50,913.29",
+"balance": "14,16,562.02"
+},
+{
+"date": "05/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "84,358.39",
+"balance": "15,00,920.41"
+},
+{
+"date": "06/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59922593985",
+"ref_no": "UTIBR59922593985",
+"withdrawal": "",
+"deposit": "83,925.09",
+"balance": "15,84,845.50"
+},
+{
+"date": "07/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59786344582",
+"ref_no": "UTIBR59786344582",
+"withdrawal": "",
+"deposit": "72,749.11",
+"balance": "16,57,594.61"
+},
+{
+"date": "07/10/2026",
+"narration": "NEFT DR-GSTN-GST PAYMENT SEP",
+"ref_no": "",
+"withdrawal": "2,14,600.00",
+"deposit": "",
+"balance": "14,42,994.61"
+},
+{
+"date": "08/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59772858377",
+"ref_no": "UTIBR59772858377",
+"withdrawal": "",
+"deposit": "59,309.48",
+"balance": "15,02,304.09"
+}
+],
+"opening_balance": "12,00,000.00",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+],
+"c77a135e0f532b682ea2a86086662ebcf1abae2f": [
+{
+"rows": [
+{
+"date": "20/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR52796534561",
+"ref_no": "UTIBR52796534561",
+"withdrawal": "",
+"deposit": "70,308.50",
+"balance": "25,28,348.71"
+},
+{
+"date": "21/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59944785665",
+"ref_no": "UTIBR59944785665",
+"withdrawal": "",
+"deposit": "62,942.62",
+"balance": "25,91,291.33"
+},
+{
+"date": "22/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56411783566",
+"ref_no": "UTIBR56411783566",
+"withdrawal": "",
+"deposit": "76,046.06",
+"balance": "26,67,337.39"
+},
+{
+"date": "23/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "76,807.67",
+"balance": "27,44,145.06"
+},
+{
+"date": "24/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54356574641",
+"ref_no": "UTIBR54356574641",
+"withdrawal": "",
+"deposit": "75,632.30",
+"balance": "28,19,777.36"
+},
+{
+"date": "25/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR55589329592",
+"ref_no": "UTIBR55589329592",
+"withdrawal": "",
+"deposit": "66,927.59",
+"balance": "28,86,704.95"
+},
+{
+"date": "26/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59951566479",
+"ref_no": "UTIBR59951566479",
+"withdrawal": "",
+"deposit": "94,679.42",
+"balance": "29,81,384.37"
+},
+{
+"date": "27/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "30,135.02",
+"balance": "30,11,519.39"
+},
+{
+"date": "28/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "45,202.54",
+"balance": "30,56,721.93"
+},
+{
+"date": "28/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR57963028568",
+"ref_no": "UTIBR57963028568",
+"withdrawal": "",
+"deposit": "72,522.07",
+"balance": "31,29,244.00"
+},
+{
+"date": "29/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53814967865",
+"ref_no": "UTIBR53814967865",
+"withdrawal": "",
+"deposit": "71,645.78",
+"balance": "32,00,889.78"
+},
+{
+"date": "30/10/2026",
+"narration": "NEFT CR-YESB0000000 1-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56586160339",
+"ref_no": "UTIBR56586160339",
+"withdrawal": "",
+"deposit": "80,980.59",
+"balance": "32,81,870.37"
+}
+],
+"opening_balance": "",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+],
+"f3ee79376db618aec4822e11c475b51c403034c2": [
+{
+"rows": [
+{
+"date": "09/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50686309863",
+"ref_no": "UTIBR50686309863",
+"withdrawal": "",
+"deposit": "27,375.30",
+"balance": "15,29,679.39"
+},
+{
+"date": "09/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50686309863PART 2",
+"ref_no": "UTIBR50686309863",
+"withdrawal": "",
+"deposit": "54,750.61",
+"balance": "15,84,430.00"
+},
+{
+"date": "10/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53470221710",
+"ref_no": "UTIBR53470221710",
+"withdrawal": "",
+"deposit": "71,244.78",
+"balance": "16,55,674.78"
+},
+{
+"date": "11/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54170856495",
+"ref_no": "UTIBR54170856495",
+"withdrawal": "",
+"deposit": "91,148.95",
+"balance": "17,46,823.73"
+},
+{
+"date": "12/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59592257861",
+"ref_no": "UTIBR59592257861",
+"withdrawal": "",
+"deposit": "61,139.82",
+"balance": "18,07,963.55"
+},
+{
+"date": "12/10/2026",
+"narration": "NEFT CR-AMAZON SELLER SERVICES-DISB",
+"ref_no": "AMZ88120",
+"withdrawal": "",
+"deposit": "1,87,330.00",
+"balance": "19,95,293.55"
+},
+{
+"date": "13/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54691906693",
+"ref_no": "UTIBR54691906693",
+"withdrawal": "",
+"deposit": "83,080.93",
+"balance": "20,78,374.48"
+},
+{
+"date": "15/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53644357118",
+"ref_no": "UTIBR53644357118",
+"withdrawal": "",
+"deposit": "77,268.13",
+"balance": "21,55,642.61"
+},
+{
+"date": "16/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR57756083849",
+"ref_no": "UTIBR57756083849",
+"withdrawal": "",
+"deposit": "86,634.97",
+"balance": "22,42,277.58"
+},
+{
+"date": "17/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56356261004",
+"ref_no": "UTIBR56356261004",
+"withdrawal": "",
+"deposit": "67,192.49",
+"balance": "23,09,470.07"
+},
+{
+"date": "18/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR58747360358",
+"ref_no": "UTIBR58747360358",
+"withdrawal": "",
+"deposit": "77,381.68",
+"balance": "23,86,851.75"
+},
+{
+"date": "19/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR55265249125",
+"ref_no": "UTIBR55265249125",
+"withdrawal": "",
+"deposit": "71,188.46",
+"balance": "24,58,040.21"
+}
+],
+"opening_balance": "",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+],
+"a697caadbdd78ec382296070a77a5060b64327e1": [
+{
+"rows": [
+{
+"date": "30/10/2026",
+"narration": "SALARY BATCH OCT 2026",
+"ref_no": "",
+"withdrawal": "6,42,000.00",
+"deposit": "",
+"balance": "26,39,870.37"
+}
+],
+"opening_balance": "12,00,000.00",
+"closing_balance": "26,39,870.37",
+"total_withdrawals": "9,41,600.00",
+"total_deposits": "23,81,470.37"
+}
+],
+"876fe4e48f9a32d4f1ef46c47092f99e82b65fce": [
+{
+"rows": [
+{
+"date": "01/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50202493129",
+"ref_no": "UTIBR50202493129",
+"withdrawal": "",
+"deposit": "67,380.05",
+"balance": "12,67,380.05"
+},
+{
+"date": "01/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR51957823817",
+"ref_no": "UTIBR51957823817",
+"withdrawal": "",
+"deposit": "52,404.94",
+"balance": "13,19,784.99"
+},
+{
+"date": "01/10/2026",
+"narration": "IMPS DR-RENT-OCT-INDIRANAGAR UNIT",
+"ref_no": "",
+"withdrawal": "85,000.00",
+"deposit": "",
+"balance": "12,34,784.99"
+},
+{
+"date": "02/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR52203243881",
+"ref_no": "UTIBR52203243881",
+"withdrawal": "",
+"deposit": "83,654.45",
+"balance": "13,18,439.44"
+},
+{
+"date": "03/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54452001538",
+"ref_no": "UTIBR54452001538",
+"withdrawal": "",
+"deposit": "47,209.29",
+"balance": "13,65,648.73"
+},
+{
+"date": "04/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR58097951940",
+"ref_no": "UTIBR58097951940",
+"withdrawal": "",
+"deposit": "50,913.29",
+"balance": "14,16,562.02"
+},
+{
+"date": "05/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "84,358.39",
+"balance": "15,00,920.41"
+},
+{
+"date": "06/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59922593985",
+"ref_no": "UTIBR59922593985",
+"withdrawal": "",
+"deposit": "83,925.09",
+"balance": "15,84,845.50"
+},
+{
+"date": "07/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59786344582",
+"ref_no": "UTIBR59786344582",
+"withdrawal": "",
+"deposit": "72,749.11",
+"balance": "16,57,594.61"
+},
+{
+"date": "07/10/2026",
+"narration": "NEFT DR-GSTN-GST PAYMENT SEP",
+"ref_no": "",
+"withdrawal": "2,14,600.00",
+"deposit": "",
+"balance": "14,42,994.61"
+},
+{
+"date": "08/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59772858377",
+"ref_no": "UTIBR59772858377",
+"withdrawal": "",
+"deposit": "59,309.48",
+"balance": "15,02,304.09"
+}
+],
+"opening_balance": "12,00,000.00",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+],
+"244b3de34ed869ebe9490f621b0ffe82ee7d2949": [
+{
+"rows": [
+{
+"date": "09/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50686309863",
+"ref_no": "UTIBR50686309863",
+"withdrawal": "",
+"deposit": "27,375.30",
+"balance": "15,29,679.39"
+},
+{
+"date": "09/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR50686309863PART 2",
+"ref_no": "UTIBR50686309863",
+"withdrawal": "",
+"deposit": "54,750.61",
+"balance": "15,84,430.00"
+},
+{
+"date": "10/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53470221710",
+"ref_no": "UTIBR53470221710",
+"withdrawal": "",
+"deposit": "71,244.78",
+"balance": "16,55,674.78"
+},
+{
+"date": "11/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54170856495",
+"ref_no": "UTIBR54170856495",
+"withdrawal": "",
+"deposit": "91,148.95",
+"balance": "17,46,823.73"
+},
+{
+"date": "12/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59592257861",
+"ref_no": "UTIBR59592257861",
+"withdrawal": "",
+"deposit": "61,139.82",
+"balance": "18,07,963.55"
+},
+{
+"date": "12/10/2026",
+"narration": "NEFT CR-AMAZON SELLER SERVICES-DISB",
+"ref_no": "AMZ88120",
+"withdrawal": "",
+"deposit": "1,87,330.00",
+"balance": "19,95,293.55"
+},
+{
+"date": "13/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54691906693",
+"ref_no": "UTIBR54691906693",
+"withdrawal": "",
+"deposit": "83,080.93",
+"balance": "20,78,374.48"
+},
+{
+"date": "15/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53644357118",
+"ref_no": "UTIBR53644357118",
+"withdrawal": "",
+"deposit": "77,268.13",
+"balance": "21,55,642.61"
+},
+{
+"date": "16/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR57756083849",
+"ref_no": "UTIBR57756083849",
+"withdrawal": "",
+"deposit": "86,634.97",
+"balance": "22,42,277.58"
+},
+{
+"date": "17/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56356261004",
+"ref_no": "UTIBR56356261004",
+"withdrawal": "",
+"deposit": "67,192.49",
+"balance": "23,09,470.07"
+},
+{
+"date": "18/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR58747360358",
+"ref_no": "UTIBR58747360358",
+"withdrawal": "",
+"deposit": "77,381.68",
+"balance": "23,86,851.75"
+},
+{
+"date": "19/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR55265249125",
+"ref_no": "UTIBR55265249125",
+"withdrawal": "",
+"deposit": "71,188.46",
+"balance": "24,58,040.21"
+}
+],
+"opening_balance": "",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+],
+"a365f10bcac0930cb5277110c4f21a9b7e59cd9b": [
+{
+"rows": [
+{
+"date": "20/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR52796534561",
+"ref_no": "UTIBR52796534561",
+"withdrawal": "",
+"deposit": "70,308.50",
+"balance": "25,28,348.71"
+},
+{
+"date": "21/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59944785665",
+"ref_no": "UTIBR59944785665",
+"withdrawal": "",
+"deposit": "62,942.62",
+"balance": "25,91,291.33"
+},
+{
+"date": "22/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56411783566",
+"ref_no": "UTIBR56411783566",
+"withdrawal": "",
+"deposit": "76,046.06",
+"balance": "26,67,337.39"
+},
+{
+"date": "23/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "76,807.67",
+"balance": "27,44,145.06"
+},
+{
+"date": "24/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR54356574641",
+"ref_no": "UTIBR54356574641",
+"withdrawal": "",
+"deposit": "75,632.30",
+"balance": "28,19,777.36"
+},
+{
+"date": "25/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR55589329592",
+"ref_no": "UTIBR55589329592",
+"withdrawal": "",
+"deposit": "66,927.59",
+"balance": "28,86,704.95"
+},
+{
+"date": "26/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR59951566479",
+"ref_no": "UTIBR59951566479",
+"withdrawal": "",
+"deposit": "94,679.42",
+"balance": "29,81,384.37"
+},
+{
+"date": "27/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "30,135.02",
+"balance": "30,11,519.39"
+},
+{
+"date": "28/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART",
+"ref_no": "",
+"withdrawal": "",
+"deposit": "45,202.54",
+"balance": "30,56,721.93"
+},
+{
+"date": "28/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR57963028568",
+"ref_no": "UTIBR57963028568",
+"withdrawal": "",
+"deposit": "72,522.07",
+"balance": "31,29,244.00"
+},
+{
+"date": "29/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR53814967865",
+"ref_no": "UTIBR53814967865",
+"withdrawal": "",
+"deposit": "71,645.78",
+"balance": "32,00,889.78"
+},
+{
+"date": "30/10/2026",
+"narration": "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART-UTIBR56586160339",
+"ref_no": "UTIBR56586160339",
+"withdrawal": "",
+"deposit": "80,980.59",
+"balance": "32,81,870.37"
+}
+],
+"opening_balance": "",
+"closing_balance": "",
+"total_withdrawals": "",
+"total_deposits": ""
+}
+]
+}

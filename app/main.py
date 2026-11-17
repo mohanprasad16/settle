@@ -43,7 +43,7 @@ from app.config import settings
 from app.engine import KINDS, SETTLEMENT_STATUS, Result, brs, check_manual, run, settlements
 from app.gate import HARD_CAP, LOCKED, MODES, Gate, Policy
 from app.gate import KINDS as POLICY_KINDS
-from app.llm import GeminiLLM, Usage
+from app.llm import GeminiLLM, TapeLLM, Usage
 from app.load import REQUIRED, LoadError, load
 from app.money import rupees, to_paise
 from app.pdf_bank import PdfLocked, check, extract, pages, write_csv
@@ -61,6 +61,15 @@ MAX_SESSIONS = 200
 MAX_UPLOAD = 15 * 1024 * 1024  # bytes per file
 AI_CALLS_PER_WINDOW = int(os.environ.get("SETTLE_AI_CALLS", "20"))  # per IP, model-backed requests
 AI_WINDOW = 10 * 60  # ... per 10 minutes
+# Browser system test: replay recorded model replies (no key, no network) or record them.
+TAPE = os.environ.get("SETTLE_TAPE"), os.environ.get("SETTLE_TAPE_MODE", "replay")
+_tape: TapeLLM | None = None
+
+
+def _ai_on() -> bool:
+    return bool(settings.gemini_api_key) or bool(TAPE[0] and TAPE[1] == "replay")
+
+
 SLOTS = {"razorpay": "rp", "bank": "bank", "orders": "orders"}
 SLOT_LABEL = {
     "rp": "Razorpay settlement report",
@@ -216,12 +225,16 @@ def _llm(s: "Session | None" = None) -> GeminiLLM:
         if len(s.ai_times) >= s.policy.ai_calls_per_hour:
             raise Oops(429, "This session reached its AI limit for the hour (set in Settings).", "Raise it in Settings, or try again later.")  # fmt: skip
         s.ai_times.append(now)
-    if not settings.gemini_api_key:
+    if not _ai_on():
         raise Oops(
             503,
             "The AI isn't available right now.",
             "Everything else still works; explanations are written from templates.",
         )
+    if TAPE[0]:
+        global _tape
+        _tape = _tape or TapeLLM(TAPE[0], TAPE[1], GeminiLLM() if TAPE[1] == "record" else None)
+        return _tape
     return GeminiLLM()
 
 
@@ -391,7 +404,7 @@ def _view(s: Session) -> dict:
         "unmatched_credits": t.get("unmatched_razorpay_credits", []),
         "suspicious": t.get("suspicious_text", []),
         "ai": {
-            "available": bool(settings.gemini_api_key),
+            "available": _ai_on(),
             "templates": sum(1 for x in exps.values() if x.source != "model"),
         },
         "chaos": _compare(r, s.truth) if s.truth else None,
@@ -429,7 +442,7 @@ def index():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "ai": bool(settings.gemini_api_key), "demo_mode": settings.demo_mode}
+    return {"ok": True, "ai": _ai_on(), "demo_mode": settings.demo_mode}
 
 
 @app.post("/api/sample")
@@ -1207,7 +1220,9 @@ def confirm_proposal(request: Request, pid: str, body: ConfirmIn):
         if who.lower() in (x.lower() for x in p.approvals):
             raise Oops(403, "You already approved this.", "A second, different person has to confirm it.")  # fmt: skip
         p.approvals.append(who)
-        if len(p.approvals) < 2:
+        # Two people in all: a person who prepared it is the maker, so one other approver
+        # completes it; an AI- or system-made change needs two people to approve.
+        if len(p.approvals) < (1 if p.proposer else 2):
             s.log.log("human", "first approval", f"{p.id} {p.type}: {p.title} by {who}")
             return _respond(sid, {"proposal": _card(p, s.policy), "needs_second": True, "view": _view(s) | {"loaded": True}})  # fmt: skip
         who = " and ".join(p.approvals)
@@ -1331,6 +1346,8 @@ def get_policy(request: Request):
 
 
 class PolicyIn(BaseModel):
+    model_config = {"extra": "forbid"}  # a misspelt setting must fail loudly, not look saved
+
     approver: str
     copilot_mode: str | None = None
     kinds: dict[str, str] | None = None

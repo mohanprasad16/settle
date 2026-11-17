@@ -171,3 +171,21 @@ def test_sheet_with_injected_text_changes_nothing(client, monkeypatch):
     r = client.post("/api/copilot/file", files={"file": ("evil.xlsx", buf.getvalue())}).json()
     assert r["proposal"]["status"] == "pending" and r["proposal"]["kind"] == "transform"
     assert client.get("/api/audit").json()["actions"] == before
+
+
+def test_maker_checker_person_made_change_needs_one_other_person(client):
+    """QA: a manual match prepared by Priya needed two more approvers (three people in all)."""
+    client.post("/api/policy", json={"approver": "Priya", "maker_checker": True, "maker_checker_over": 0})  # fmt: skip
+    row = client.get("/api/result").json()["unmatched_credits"][0]["row_no"]
+    p = client.post("/api/proposals/manual", json={"bank_rows": [row], "note": "Prior-month settlement", "by_name": "Priya"}).json()["proposal"]  # fmt: skip
+    for same in ("Priya", " priya\t"):
+        assert client.post(f"/api/proposals/{p['id']}/confirm", json={"approver": same}).status_code == 403  # fmt: skip
+    done = client.post(f"/api/proposals/{p['id']}/confirm", json={"approver": "Ravi"}).json()
+    assert not done.get("needs_second") and done["proposal"]["status"] == "confirmed"
+    assert not done["view"]["unmatched_credits"] and done["view"]["totals"]["unexplained"] == 0
+
+
+def test_misspelt_policy_setting_is_refused_not_ignored(client):
+    """QA: an unknown setting used to return 200, so a typo looked saved."""
+    r = client.post("/api/policy", json={"approver": "Priya", "maker_checker_above": 100})
+    assert r.status_code in (400, 422) and "error" in r.json() and "Traceback" not in r.text

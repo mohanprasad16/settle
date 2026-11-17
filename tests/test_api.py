@@ -189,3 +189,33 @@ def test_brs_csv_ends_at_the_bank_balance(client):
     assert (
         lines[-1][0].startswith("Balance as per bank") and lines[-1][1] == f"{received / 100:.2f}"
     )
+
+
+def test_two_sessions_are_isolated():
+    """QA: one browser's rules, matches and approvals never reach another's."""
+    a, b = TestClient(app), TestClient(app)
+    a.post("/api/sample")
+    b.post("/api/sample")
+    f = next(x for x in a.get("/api/result").json()["findings"] if x["check"] == "amount_mismatch")
+    a.post("/api/rules", json={"finding_id": f["id"], "note": "coupon at checkout", "scope": "similar"})  # fmt: skip
+    row = a.get("/api/result").json()["unmatched_credits"][0]["row_no"]
+    pid = a.post("/api/proposals/manual", json={"bank_rows": [row], "note": "Prior-month settlement"}).json()["proposal"]["id"]  # fmt: skip
+    assert b.post(f"/api/proposals/{pid}/confirm", json={"approver": "Ravi"}).status_code == 404
+    a.post(f"/api/proposals/{pid}/confirm", json={"approver": "Priya"})
+    va, vb = a.get("/api/result").json(), b.get("/api/result").json()
+    assert va["rules"] and not vb["rules"]
+    assert not va["unmatched_credits"] and vb["unmatched_credits"]
+    assert va["totals"]["unexplained"] == vb["totals"]["unexplained"] == 0
+
+
+def test_undo_twice_and_confirm_twice_are_refused():
+    c = TestClient(app)
+    c.post("/api/sample")
+    row = c.get("/api/result").json()["unmatched_credits"][0]["row_no"]
+    pid = c.post("/api/proposals/manual", json={"bank_rows": [row], "note": "Prior-month settlement"}).json()["proposal"]["id"]  # fmt: skip
+    assert c.post(f"/api/proposals/{pid}/confirm", json={"approver": "Priya"}).status_code == 200
+    assert c.post(f"/api/proposals/{pid}/confirm", json={"approver": "Priya"}).status_code == 409
+    assert c.post(f"/api/proposals/{pid}/undo", json={"approver": "Priya"}).status_code == 200
+    r = c.post(f"/api/proposals/{pid}/undo", json={"approver": "Priya"})
+    assert r.status_code == 409 and "error" in r.json()
+    assert c.get("/api/result").json()["totals"]["unexplained"] == 0

@@ -4,9 +4,14 @@ Pipeline code receives an `LLM` and never imports the SDK, so tests pass a fake
 and swapping Gemini for another provider means rewriting this file only.
 """
 
+import hashlib
+import json
 import logging
+import re
+import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol, TypeVar
 
 import httpx
@@ -245,3 +250,83 @@ class GeminiLLM:
             ],
             raw=content,
         )
+
+
+class TapeLLM:
+    """Records a real model's replies to a tape, or replays them with no key and no network.
+
+    The browser system test replays a tape so CI is deterministic and free; the app's guards
+    still check every replayed reply exactly as they check live ones. Replies are matched by
+    what was asked (prompt / question / file bytes), consumed in order per question.
+    SETTLE_TAPE=<path> with SETTLE_TAPE_MODE=record (live model, writes) or replay (no model).
+    """
+
+    _VOLATILE = re.compile(
+        r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?|\b\d{2}:\d{2}:\d{2}\b"
+    )
+
+    def __init__(self, path: str, mode: str, live: "GeminiLLM | None" = None):
+        self.path, self.mode, self.live = Path(path), mode, live
+        self.lock = threading.Lock()
+        self.tape: dict[str, list] = (
+            json.loads(self.path.read_text()) if self.path.exists() and mode == "replay" else {}
+        )
+        if mode == "record" and self.path.exists():
+            self.tape = json.loads(self.path.read_text())
+
+    @classmethod
+    def _key(cls, *parts) -> str:
+        text = "\x1f".join(str(p) for p in parts)
+        return hashlib.sha1(cls._VOLATILE.sub("<t>", text).encode()).hexdigest()
+
+    def _play(self, key: str, make, load):
+        with self.lock:
+            if self.mode == "replay":
+                queue = self.tape.get(key) or []
+                if not queue:
+                    log.warning("tape miss %s", key)
+                    raise LLMError("No recorded reply for this request (tape replay).")
+                return load(queue.pop(0))
+        stored, value = make()  # record: live call outside the lock (PDF pages run in parallel)
+        with self.lock:
+            self.tape.setdefault(key, []).append(stored)
+            self.path.write_text(json.dumps(self.tape, indent=0))
+        return value
+
+    def json(self, system, prompt, schema, *, fast=False, think="minimal", usage=None):
+        return self._play(
+            self._key("json", schema.__name__, prompt),
+            lambda: _both(self.live.json(system, prompt, schema, fast=fast, think=think, usage=usage)),
+            schema.model_validate,
+        )  # fmt: skip
+
+    def text(self, system, prompt, *, think="minimal", usage=None):
+        return self._play(
+            self._key("text", prompt),
+            lambda: (lambda s: (s, s))(self.live.text(system, prompt, think=think, usage=usage)),
+            str,
+        )
+
+    def json_file(self, system, data, mime, prompt, schema, *, think="low", usage=None):
+        return self._play(
+            self._key("file", schema.__name__, hashlib.sha256(data).hexdigest(), prompt),
+            lambda: _both(self.live.json_file(system, data, mime, prompt, schema, think=think, usage=usage)),
+            schema.model_validate,
+        )  # fmt: skip
+
+    def agent_step(self, system, history, tools, *, final=False, usage=None):
+        first = next((t["text"] for t in history if t["role"] == "user"), "")
+
+        def make():
+            r = self.live.agent_step(system, history, tools, final=final, usage=usage)
+            return {"text": r.text, "calls": [[c.name, c.args] for c in r.calls]}, r
+
+        return self._play(
+            self._key("agent", first, len(history), final),
+            make,
+            lambda d: AgentReply(d["text"], [ToolCall(n, a) for n, a in d["calls"]]),
+        )
+
+
+def _both(model: BaseModel):
+    return model.model_dump(mode="json"), model

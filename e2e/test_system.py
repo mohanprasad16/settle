@@ -30,6 +30,10 @@ ROOT = Path(__file__).resolve().parent.parent
 SAMPLE = ROOT / "data" / "sample"
 SHOTS = ROOT / "e2e" / "screenshots"
 PORTS = {"A": 8765, "B": 8766, "C": 8767}
+TAPE = ROOT / "e2e" / "llm_tape.json"
+# live: real model (key in .env) · record: real model, replies saved to the tape · replay: the tape,
+# no key and no network (what CI runs). Guards check replayed replies exactly like live ones.
+LLM_MODE = os.environ.get("E2E_LLM", "live")
 DESK = {"width": 1366, "height": 900}
 PHONE = {"width": 375, "height": 812}
 
@@ -88,6 +92,17 @@ def start(port: int, **env) -> subprocess.Popen:
         except httpx.HTTPError:
             time.sleep(0.25)
     raise RuntimeError(f"server on {port} didn't start")
+
+
+def _tape_env() -> dict:
+    if LLM_MODE == "live":
+        return {}
+    env = {"SETTLE_TAPE": str(TAPE), "SETTLE_TAPE_MODE": LLM_MODE}
+    if LLM_MODE == "record" and TAPE.exists():
+        TAPE.unlink()  # a fresh recording, not appended to an old one
+    if LLM_MODE == "replay":
+        env["GEMINI_API_KEY"] = ""  # prove the replay needs no key
+    return env
 
 
 def base(k: str) -> str:
@@ -1253,7 +1268,7 @@ def main() -> int:
     for f in SHOTS.glob("*.png"):
         f.unlink()
     servers = [
-        start(PORTS["A"], SETTLE_AI_CALLS="200"),  # the limit itself is tested on server C
+        start(PORTS["A"], SETTLE_AI_CALLS="200", **_tape_env()),  # limit itself tested on C
         start(PORTS["B"], GEMINI_API_KEY=""),
         start(PORTS["C"], SETTLE_AI_CALLS="0"),
     ]

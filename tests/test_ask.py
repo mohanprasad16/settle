@@ -59,9 +59,19 @@ def test_sql_tool_is_read_only(data, query):
     assert con.execute("SELECT count(*) FROM orders").fetchone()[0] > 0
 
 
-def test_sql_tool_has_no_file_access(data):
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SELECT * FROM read_csv('/etc/passwd')",
+        "SELECT * FROM read_text('/etc/hosts')",
+        "SELECT * FROM read_csv('https://example.com/x.csv')",
+        "SELECT * FROM read_parquet('s3://bucket/x.parquet')",
+        "SELECT * FROM glob('/Users/*')",
+    ],
+)
+def test_sql_tool_has_no_file_or_network_access(data, query):
     con, _ = data
-    assert run_sql(con, "SELECT * FROM read_csv('/etc/passwd')").startswith("error:")
+    assert run_sql(con, query).startswith("error:")
 
 
 def test_sql_tool_caps_rows(data):
