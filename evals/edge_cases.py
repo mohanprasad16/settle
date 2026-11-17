@@ -78,7 +78,7 @@ def _capture_short(d, refs, by: int) -> Expect:
     _, orders = _read(d, "orders")
     r, _ = _clean_payment(rp, orders, refs, "upi")
     amount = int(r["amount"]) - by
-    fee, tax = sample._fee(amount, sample.RATE_BP["default"])
+    fee, tax = sample._fee(amount, sample.CONTRACT.upi)
     _shift_bank(bank, r["settlement_utr"], amount - fee - int(r["credit"]))
     r.update(amount=amount, fee=fee, tax=tax, credit=amount - fee)
     _write(d, "rp", h, rp)
@@ -208,13 +208,13 @@ def utr_padded_in_narration(d, refs):
 
 
 def bank_posted_twice(d, refs):
-    """The bank shows the same credit twice: Razorpay paid once. The excess is a mismatch."""
+    """The bank shows the same credit twice: Razorpay paid once. The excess is an over-credit."""
     hb, bank = _read(d, "bank")
     _, rp = _read(d, "rp")
     b = _bank_line(bank, rp, refs)
     bank.insert(bank.index(b) + 1, dict(b))
     _write(d, "bank", hb, bank)
-    return [("settlement_short", -round(float(b["credit"]) * 100))]
+    return [("settlement_over", round(float(b["credit"]) * 100))]
 
 
 def order_no_whitespace(d, refs):
@@ -252,15 +252,15 @@ def _as_network(d, refs, network: str, bp: int) -> Expect:
 
 
 def amex_at_three_percent(d, refs):
-    return _as_network(d, refs, "American Express", 300)
+    return _as_network(d, refs, "American Express", sample.CONTRACT.premium)
 
 
 def amex_spelled_differently(d, refs):
-    return _as_network(d, refs, "AMEX", 300)
+    return _as_network(d, refs, "AMEX", sample.CONTRACT.premium)
 
 
 def diners_international(d, refs):
-    return _as_network(d, refs, "Diners Club International", 300)
+    return _as_network(d, refs, "Diners Club International", sample.CONTRACT.premium)
 
 
 def zero_amount_payment(d, refs):
@@ -311,9 +311,9 @@ CASES = [
     Case("bank posted twice", "the same credit appears twice", bank_posted_twice),
     Case("order no whitespace", "order number with spaces in the books", order_no_whitespace),
     Case("order no lowercase", "order number lowercased in the books", order_no_lowercase),
-    Case("Amex at 3%", "card network American Express, fee at 3%", amex_at_three_percent),
-    Case("AMEX spelled differently", "network written 'AMEX', fee at 3%", amex_spelled_differently),
-    Case("Diners Club International", "odd network name, fee at 3%", diners_international),
+    Case("Amex at the premium rate", "card network American Express, fee at the contract premium rate", amex_at_three_percent),
+    Case("AMEX spelled differently", "network written 'AMEX', fee at the premium rate", amex_spelled_differently),
+    Case("Diners Club International", "odd network name, fee at the premium rate", diners_international),
     Case("₹0 mandate payment", "zero-amount registration payment, no receipt", zero_amount_payment),
     Case("BOM + CRLF", "all three files saved by Excel on Windows", bom_and_crlf),
     Case("dates DD-MM-YYYY", "order and refund dates as 31-10-2026", dates_dd_mm_yyyy),

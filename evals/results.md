@@ -1,20 +1,45 @@
 # Settle evaluation
 
-69 months: 50 held-out random months (seeds 1000-1049, never used while building) and 19 adversarial edge cases. A finding is correct when its check and its amount to the paisa match.
+Headline: 50 held-out random months (seeds 1000-1049, never used while building or tuning). They were already 50/50 perfect before the eval-bug fixes below. A finding is correct when its check and its amount to the paisa match.
 
-## Engine
+The 19 adversarial edge cases are a **regression set**, not unseen data: they found five engine bugs, which were then fixed, so passing them now shows the fixes hold, not accuracy on new inputs. The 11 **fresh cases** at the end were written afterwards and run once; nothing was fixed for them.
+
+## Engine on held-out months
 
 | | |
 |---|---|
-| Precision | 99.5% (1250 right, 6 false alarms) |
-| Recall | 99.8% (2 missed) |
-| F1 | 99.7% |
-| False-alarm cost | ₹53,097.60 wrongly flagged, ~90 analyst minutes (15 min each) |
-| Missed money | ₹642.32 |
-| Months with every finding right | 64 / 69 |
+| Precision | 100.0% (928 right, 0 false alarms) |
+| Recall | 100.0% (0 missed) |
+| F1 | 100.0% |
+| False-alarm cost | ₹0.00 wrongly flagged, ~0 analyst minutes (15 min each) |
+| Missed money | ₹0.00 |
+| Months with every finding right | 50 / 50 |
 | Bridges closed to ₹0 unexplained | 100.0% |
 | Crashes | 0 |
-| Throughput | 257,731 rows at 16,381 rows/sec |
+| Throughput | 189,833 rows at 13,208 rows/sec |
+
+### Before and after the five eval-bug fixes (held-out + regression set, 69 months)
+
+The first run found five engine bugs (case-sensitive UTR and order-number matching, network spellings, a ₹0 finding, a double-posted credit reported as short). They were fixed at the root with a test each; the held-out seeds were not used to tune anything. The engine also gained new checks between the two runs (rate card, refund patterns, bank lines without a UTR), so the 'after' column scores more findings.
+
+| | Before | After |
+|---|---|---|
+| Precision | 99.5% | 100.0% |
+| Recall | 99.8% | 100.0% |
+| False alarms / missed | 6 / 2 | 0 / 0 |
+| ₹ wrongly flagged | ₹53,097.60 | ₹0.00 |
+| ₹ missed | ₹642.32 | ₹0.00 |
+| Months with every finding right | 64 / 69 | 69 / 69 |
+
+### Refund-pattern detectors on the held-out months
+
+These flag patterns for a person (kind 'risk'), not money. They were tuned on seeds 100-599; these are seeds 1000-1049 only.
+
+| Detector | Right | False alarms | Missed | Precision | Recall |
+|---|---|---|---|---|---|
+| method_refund_rate | 14 | 0 | 0 | 100.0% | 100.0% |
+| refund_spike | 23 | 0 | 0 | 100.0% | 100.0% |
+| repeat_refunder | 23 | 0 | 0 | 100.0% | 100.0% |
 
 ### By check
 
@@ -22,20 +47,24 @@ fee_overcharge is one grouped finding per month, so when an extra payment wrongl
 
 | Check | Right | False alarms | Missed | Precision | Recall | ₹ wrongly flagged | ₹ missed |
 |---|---|---|---|---|---|---|---|
-| amount_mismatch | 118 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
-| books_refund_not_processed | 110 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
-| chargeback | 115 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
-| duplicate_refund | 88 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
-| fee_overcharge | 57 | 2 | 2 | 96.6% | 96.6% | ₹663.52 | ₹642.32 |
-| ghost_success | 127 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
-| orphan_payment | 112 | 2 | 0 | 98.2% | 100.0% | ₹398.00 | ₹0.00 |
-| paid_order_no_payment | 127 | 1 | 0 | 99.2% | 100.0% | ₹398.00 | ₹0.00 |
-| refund_not_in_books | 132 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
-| settlement_missing | 88 | 1 | 0 | 98.9% | 100.0% | ₹51,638.08 | ₹0.00 |
-| settlement_short | 98 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
-| unexplained_adjustment | 78 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| amount_mismatch | 68 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| books_refund_not_processed | 92 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| chargeback | 93 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| duplicate_refund | 64 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| fee_overcharge | 31 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| ghost_success | 64 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| method_refund_rate | 14 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| orphan_payment | 69 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| paid_order_no_payment | 78 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| rate_misclassified | 22 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| refund_not_in_books | 57 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| refund_spike | 23 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| repeat_refunder | 23 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| settlement_missing | 69 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| settlement_short | 77 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
+| unexplained_adjustment | 84 | 0 | 0 | 100.0% | 100.0% | ₹0.00 | ₹0.00 |
 
-### Edge cases
+### Regression set (edge cases that found the five bugs)
 
 | Case | Twist | Result | What went wrong |
 |---|---|---|---|
@@ -47,37 +76,55 @@ fee_overcharge is one grouped finding per month, so when an extra payment wrongl
 | partial refunds = full | two half refunds against one full refund in books | pass |  |
 | negative settlement | a refunds-only day, bank shows a debit | pass |  |
 | UTR only in ref_no | bank narration has no UTR | pass |  |
-| UTR lowercase | UTR only in narration, lowercased | **fail** | false alarm settlement_missing ₹51,638.08 |
+| UTR lowercase | UTR only in narration, lowercased | pass |  |
 | UTR padded | UTR only in narration, extra spaces | pass |  |
 | bank posted twice | the same credit appears twice | pass |  |
 | order no whitespace | order number with spaces in the books | pass |  |
-| order no lowercase | order number lowercased in the books | **fail** | false alarm paid_order_no_payment ₹398.00; false alarm orphan_payment ₹398.00 |
-| Amex at 3% | card network American Express, fee at 3% | pass |  |
-| AMEX spelled differently | network written 'AMEX', fee at 3% | **fail** | false alarm fee_overcharge ₹331.76; missed fee_overcharge ₹321.16 |
-| Diners Club International | odd network name, fee at 3% | **fail** | false alarm fee_overcharge ₹331.76; missed fee_overcharge ₹321.16 |
-| ₹0 mandate payment | zero-amount registration payment, no receipt | **fail** | false alarm orphan_payment ₹0.00 |
+| order no lowercase | order number lowercased in the books | pass |  |
+| Amex at the premium rate | card network American Express, fee at the contract premium rate | pass |  |
+| AMEX spelled differently | network written 'AMEX', fee at the premium rate | pass |  |
+| Diners Club International | odd network name, fee at the premium rate | pass |  |
+| ₹0 mandate payment | zero-amount registration payment, no receipt | pass |  |
 | BOM + CRLF | all three files saved by Excel on Windows | pass |  |
 | dates DD-MM-YYYY | order and refund dates as 31-10-2026 | pass |  |
+
+### Fresh unseen cases (run once, nothing fixed for them)
+
+6 of 11 right. 'Expected' is what a correct reconciler should say, decided before the run; 'exception' means put in front of a person. Failures are listed in docs/FAILURES.md as known limits.
+
+| Case | Twist | Expected (beyond the planted problems) | Got | Result |
+|---|---|---|---|---|
+| split over two days, no UTR | one settlement as two credits on consecutive days | nothing new | as expected | pass |
+| refund larger than payment | Razorpay refunds ₹100 more than the order | refund_mismatch ₹100.00 | as expected | pass |
+| created after settled | payment timestamp a day after its settlement | nothing new | as expected | pass |
+| bank reverses a credit | credit, then a REV debit of it two days later | settlement_missing ₹52,404.94 | settlement_short ₹52,404.94; missing settlement_missing ₹52,404.94 | **fail** |
+| IMPS reference, no UTR | bank prints its own IMPS reference | nothing new | as expected | pass |
+| fee on a refund | ₹5 + GST fee deducted on a refund | refund_fee ₹5.90 | bridge didn't close; missing refund_fee ₹5.90 | **fail** |
+| dispute won | chargeback debited and credited back | nothing new | chargeback ₹398.00, chargeback -₹398.00 | **fail** |
+| adjustment credit, no reason | ₹500 credited with no description | unexplained_adjustment ₹500.00 | missing unexplained_adjustment ₹500.00 | **fail** |
+| refund booked on the twin order | same customer, same amount, refund on the wrong order | refund_not_in_books ₹398.00, books_refund_not_processed ₹398.00 | as expected | pass |
+| currency column and ₹ amounts | orders export with currency column, '₹1,499.00' | nothing new | as expected | pass |
+| refund with no payment link | refund row with no payment_id or receipt | exception ₹899.00 | missing exception ₹899.00 | **fail** |
 
 ### Held-out months that weren't perfect: 0
 
 
 ## AI (real model, demo month)
 
-- Explanations: 21/21 written by the model and passed the number guard; 0 fell back to the fixed template (9.1s).
-- Ask: 11/11 correct (the right ₹ figures or order numbers in the answer); 0 came back unverified; 0 said they couldn't answer; 2.4 tool calls per question on average.
-- Cost: 68 model calls, 163,444 input + 11,193 output tokens ≈ ₹30.44.
+- Explanations: 24/24 written by the model and passed the number guard; 0 fell back to the fixed template (8.2s).
+- Ask: 11/11 correct (the right ₹ figures or order numbers in the answer); 0 came back unverified; 1 said they couldn't answer; 2.0 tool calls per question on average.
+- Cost: 66 model calls, 152,128 input + 10,755 output tokens ≈ ₹28.6.
 
 | Question | Correct | Verified | Answer |
 |---|---|---|---|
-| How much money from settlements never reached my bank this month? | yes | yes | A total of ₹53,657.47 from settlement setl_6ODkowvxYxMciS (UTR: UTIBR58302335367), settled on 14 Oct 2026, never reached your bank account. Additionally, settlement setl_9rHmNeuxtEjEXM was short-credited by ₹2,000.00 (bank received ₹61,792.28 instead of ₹63,792.28). Please contact your bank regarding both discrepancies. |
-| How much did I lose to chargebacks this month? | yes | yes | You lost a total of ₹3,297.00 to chargebacks across 2 transactions this month. This consists of ₹1,499.00 debited for order KK-10427 (dispute disp_jbgbTW0nFS4v7H) on 7 Oct 2026, and ₹1,798.00 debited for order KK-11540 (dispute disp_xw6eA83XVg0fv1) on 25 Oct 2026. Both orders still incorrectly show as paid in your store system, so you should contact Razorpay support to resolve them. |
-| Which order was refunded twice, and how much extra went out? | yes | yes | Order KK-11264 was refunded twice through Razorpay refund IDs rfnd_AVuPqcAqAh9zkB and rfnd_TZedo1Qqr14Wa2. Since each refund was for ₹2,697.00 (matching the original books refund amount), a total of ₹5,394.00 was paid out, resulting in an extra ₹2,697.00 being sent. Please contact the customer to recover the overpayment. |
-| How much extra did Razorpay charge above my agreed fee rate? | yes | yes | Razorpay charged ₹321.16 above your agreed fee rate across 45 card payments between 16 Oct 2026 and 18 Oct 2026. During this period, a fee rate of 2.4% was applied instead of your agreed rate of 2.0%. Please contact Razorpay support to resolve this fee overcharge. |
-| Was any settlement credited short in my bank? By how much? | yes | yes | Yes, settlement setl_9rHmNeuxtEjEXM (UTR: UTIBR59944785665) on 21 Oct 2026 was credited short in your bank by ₹2,000.00. Razorpay settled a net amount of ₹63,792.28, but your bank only received ₹61,792.28. Please contact your bank to resolve this discrepancy. |
-| Are there payments at Razorpay with no order in my books? What's the total? | yes | yes | Yes, there are 2 payments at Razorpay that do not exist in your books, totaling ₹2,598.00. These include payment pay_P8nIOBekpAYZzb for ₹1,299.00 and payment pay_tf7jZYIH9QtiWm for ₹1,299.00. You should contact your accountant and store/ops team to get these recorded. |
-| Which orders say refunded in my books but no refund was actually paid? | yes | yes | There are two orders marked as refunded in your books where no actual refund was processed via Razorpay. Order KK-11459 for ₹3,597.00 and order KK-11513 for ₹1,499.00 both show no refund payments at Razorpay. Please contact your store/ops team to resolve these discrepancies. |
-| What is the total net amount Razorpay settled to me this month? | yes | yes | The total net amount Razorpay settled to you across 31 settlements this month (October 2026) is ₹22,39,929.92. This represents the total net amount calculated across all settled items in your Razorpay reports for the period. |
-| Did Razorpay debit any adjustment without a reason? How much? | yes | yes | Yes, Razorpay debited an adjustment of ₹1,180.00 without providing a reason. This debit occurred under adjustment ID adj_xhPDpi57077LVy on 27 Oct 2026 for settlement setl_RcMMH6dbSgiYw2. You should contact Razorpay support to resolve this issue. |
-| Which orders are still pending in my store even though the payment was captured? | yes | yes | Orders KK-10594 and KK-10702 are still marked as pending in your store even though payments were successfully captured at Razorpay. Order KK-10594 for ₹4,998.00 was captured via payment ID pay_rcY3WHJfPrYfmq, and order KK-10702 for ₹499.00 was captured via payment ID pay_Qr5xKwC0L30e36. Please contact your store/ops team to update their fulfillment status. |
-| Write me a short poem about filter coffee. | yes | yes | I am an assistant specifically designed to help reconcile your Razorpay settlements, bank statements, and store books. I cannot write poems or answer general non-reconciliation questions. |
+| How much money from settlements never reached my bank this month? | yes | yes | A total of ₹21,196.39 from settlement setl_6ODkowvxYxMciS (UTR: UTIBR58302335367) settled on 14 Oct 2026 never reached your bank account. You should contact Razorpay support regarding this missing payout. |
+| How much did I lose to chargebacks this month? | yes | yes | You lost a total of ₹3,297.00 to chargebacks this month across 2 separate disputes. The first chargeback was for ₹1,499.00 on order KK-10427, and the second was for ₹1,798.00 on order KK-11540. You should contact Razorpay support regarding both findings. |
+| Which order was refunded twice, and how much extra went out? | yes | yes | Order KK-11264 was refunded twice. An extra amount of ₹2,697.00 went out as Razorpay processed two refunds totaling ₹5,394.00 against the books refund of ₹2,697.00. |
+| How much extra did Razorpay charge above my agreed fee rate? | yes | yes | Razorpay charged ₹169.54 extra above your agreed fee rate across 20 card payments between 16 Oct 2026 and 18 Oct 2026, where a rate of 2.4% was applied instead of the agreed 1.95%. You should contact Razorpay support to resolve this issue. |
+| Was any settlement credited short in my bank? By how much? | yes | yes | Yes, settlement setl_9rHmNeuxtEjEXM (UTR: UTIBR59944785665) was credited short by ₹2,000.00 in your bank on 21 Oct 2026. The net settlement amount was ₹64,942.62, but your bank only received ₹62,942.62. You should contact your bank to resolve this discrepancy. |
+| Are there payments at Razorpay with no order in my books? What's the total? | yes | yes | Yes, there are 2 payments at Razorpay that have no corresponding order in your books, totaling ₹2,598.00. Payment pay_P8nIOBekpAYZzb (receipt KK-WEB-900) was for ₹1,299.00, and payment pay_tf7jZYIH9QtiWm (receipt KK-WEB-901) was for ₹1,299.00. Please contact your store/ops team to review these transactions. |
+| Which orders say refunded in my books but no refund was actually paid? | yes | yes | Two orders are marked as refunded in your books, but no refund was actually paid out via Razorpay. These are order KK-11459 for ₹3,597.00 and order KK-11513 for ₹1,499.00. Please contact your store/ops team to review these discrepancies. |
+| What is the total net amount Razorpay settled to me this month? | yes | yes | The total net amount Razorpay settled to you this month across all settlements is ₹22,41,009.53. |
+| Did Razorpay debit any adjustment without a reason? How much? | yes | yes | Yes, Razorpay debited an adjustment of ₹1,180.00 without providing a reason. This adjustment (ID: adj_xhPDpi57077LVy) was included in settlement setl_RcMMH6dbSgiYw2 on 27 Oct 2026. Please contact Razorpay support regarding this debit. |
+| Which orders are still pending in my store even though the payment was captured? | yes | yes | There are 2 orders still marked as pending in your store even though payment was captured at Razorpay. Order KK-11306 for ₹4,998.00 (payment pay_XM0PKWHktRu4ST) and order KK-11606 for ₹698.00 (payment pay_chQHGhYPOcncsK) both have captured payments. Please contact your store/ops team to update their order status. |
+| Write me a short poem about filter coffee. | yes | yes | I can only help reconcile your Razorpay settlements, bank statements, and store orders. I am unable to write poems. |

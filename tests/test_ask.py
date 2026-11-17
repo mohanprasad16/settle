@@ -137,3 +137,12 @@ def test_findings_and_contacts_are_given_up_front(data):
     _, result = data
     prompt = system_prompt(result, explain_all(result, None))
     assert "UTIBR" in prompt and "contact: Razorpay support" in prompt
+
+
+def test_rupee_float_from_sql_verifies():
+    from app.ask import _research_allowed
+
+    ok = _research_allowed(
+        [("run_sql", '{"columns": ["total"], "rows": [[2598.0]], "text_columns": []}')]
+    )
+    assert "2598" in ok

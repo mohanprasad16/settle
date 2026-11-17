@@ -26,10 +26,15 @@ from app.engine import run
 from app.load import load
 from app.money import rupees
 from evals.edge_cases import CASES
+from evals.fresh_cases import FRESH
 
 HERE = Path(__file__).parent
 HELD_OUT = range(1000, 1050)
 MINUTES_PER_FALSE_ALARM = 15  # an analyst chasing a problem that isn't there
+RISK = {"refund_spike", "repeat_refunder", "method_refund_rate"}
+# The first run of this harness (eval branch 6a3edf4, before the five eval-bug fixes in f7d39ad).
+BEFORE = {"precision": 0.995, "recall": 0.998, "fp": 6, "fn": 2, "fp_paise": 5309760,
+          "fn_paise": 64232, "perfect_runs": 64, "runs": 69}  # fmt: skip
 
 
 def _month(d: Path):
@@ -61,7 +66,9 @@ def _record(set_name, name, expected, d) -> dict:
         result = None
     else:
         rows = sum(result.totals["rows"][k] for k in ("razorpay", "orders", "bank"))
-        rec |= {"found": [(f.check, f.amount) for f in result.findings], "rows": rows,
+        found = [(f.check, f.amount) for f in result.findings]
+        found += [("exception", e["amount"]) for e in result.exceptions]  # sent to a person
+        rec |= {"found": found, "rows": rows,
                 "seconds": secs, "residual_zero": result.totals["unexplained"] == 0}  # fmt: skip
     rec["tp"], rec["fp"], rec["fn"] = _score(rec["expected"], rec["found"])
     return rec
@@ -79,15 +86,15 @@ def engine_runs(seeds) -> list[dict]:
     truth = sample.write(base / "demo")
     planted = [(p["check"], p["amount"]) for p in truth["planted"]]
     refs = {r for p in truth["planted"] for r in p["refs"]}
-    for case in CASES:
+    for set_name, case in [("edge", c) for c in CASES] + [("fresh", c) for c in FRESH]:
         d = base / re.sub(r"\W+", "_", case.name)
         shutil.copytree(base / "demo", d)
         try:
             extra = case.mutate(d, refs)
         except LookupError as e:
-            runs.append({"set": "edge", "name": case.name, "skipped": str(e)})
+            runs.append({"set": set_name, "name": case.name, "skipped": str(e)})
             continue
-        rec = _record("edge", case.name, planted + extra, d)
+        rec = _record(set_name, case.name, planted + extra, d)
         rec["what"], rec["twist"] = case.what, extra
         runs.append(rec)
     shutil.rmtree(base, ignore_errors=True)
@@ -225,17 +232,26 @@ def _pct(x):
 
 def report(runs, m, ai) -> str:
     o = m["overall"]
+    both = metrics([r for r in runs if r["set"] in ("held-out", "edge")])["overall"]
     out = [
         "# Settle evaluation",
         "",
         (
-            f"{o['runs']} months: {sum(r['set'] == 'held-out' for r in runs)} held-out random "
-            f"months (seeds {HELD_OUT.start}-{HELD_OUT.stop - 1}, never used while building) and "
-            f"{sum(r['set'] == 'edge' and 'skipped' not in r for r in runs)} adversarial edge "
-            "cases. A finding is correct when its check and its amount to the paisa match."
+            f"Headline: {o['runs']} held-out random months (seeds {HELD_OUT.start}-"
+            f"{HELD_OUT.stop - 1}, never used while building or tuning). They were already "
+            "50/50 perfect before the eval-bug fixes below. A finding is correct when its check "
+            "and its amount to the paisa match."
         ),
         "",
-        "## Engine",
+        (
+            f"The {sum(r['set'] == 'edge' for r in runs)} adversarial edge cases are a "
+            "**regression set**, not unseen data: they found five engine bugs, which were then "
+            "fixed, so passing them now shows the fixes hold, not accuracy on new inputs. The "
+            f"{sum(r['set'] == 'fresh' for r in runs)} **fresh cases** at the end were written "
+            "afterwards and run once; nothing was fixed for them."
+        ),
+        "",
+        "## Engine on held-out months",
         "",
         "| | |",
         "|---|---|",
@@ -249,6 +265,33 @@ def report(runs, m, ai) -> str:
         f"| Bridges closed to ₹0 unexplained | {_pct(o['residual_zero_rate'])} |",
         f"| Crashes | {o['crashes']} |",
         f"| Throughput | {o['rows']:,} rows at {o['rows_per_second']:,.0f} rows/sec |",
+        "",
+        "### Before and after the five eval-bug fixes (held-out + regression set, 69 months)",
+        "",
+        ("The first run found five engine bugs (case-sensitive UTR and order-number matching, "
+         "network spellings, a ₹0 finding, a double-posted credit reported as short). They were "
+         "fixed at the root with a test each; the held-out seeds were not used to tune anything. "
+         "The engine also gained new checks between the two runs (rate card, refund patterns, "
+         "bank lines without a UTR), so the 'after' column scores more findings."),
+        "",
+        "| | Before | After |",
+        "|---|---|---|",
+        f"| Precision | {_pct(BEFORE['precision'])} | {_pct(both['precision'])} |",
+        f"| Recall | {_pct(BEFORE['recall'])} | {_pct(both['recall'])} |",
+        f"| False alarms / missed | {BEFORE['fp']} / {BEFORE['fn']} | {both['fp']} / {both['fn']} |",
+        f"| ₹ wrongly flagged | {rupees(BEFORE['fp_paise'])} | {rupees(both['fp_paise'])} |",
+        f"| ₹ missed | {rupees(BEFORE['fn_paise'])} | {rupees(both['fn_paise'])} |",
+        f"| Months with every finding right | {BEFORE['perfect_runs']} / {BEFORE['runs']} | {both['perfect_runs']} / {both['runs']} |",
+        "",
+        "### Refund-pattern detectors on the held-out months",
+        "",
+        ("These flag patterns for a person (kind 'risk'), not money. They were tuned on seeds "
+         "100-599; these are seeds 1000-1049 only."),
+        "",
+        "| Detector | Right | False alarms | Missed | Precision | Recall |",
+        "|---|---|---|---|---|---|",
+        *[f"| {c} | {x['tp']} | {x['fp']} | {x['fn']} | {_pct(x['precision'])} | {_pct(x['recall'])} |"
+          for c, x in metrics([r for r in runs if r["set"] == "held-out"])["per_check"].items() if c in RISK],
         "",
         "### By check",
         "",
@@ -264,7 +307,7 @@ def report(runs, m, ai) -> str:
                    f"{_pct(x['recall'])} | {rupees(x['fp_paise'])} | {rupees(x['fn_paise'])} |")  # fmt: skip
     out += [
         "",
-        "### Edge cases",
+        "### Regression set (edge cases that found the five bugs)",
         "",
         "| Case | Twist | Result | What went wrong |",
         "|---|---|---|---|",
@@ -282,6 +325,26 @@ def report(runs, m, ai) -> str:
             + ([] if r["residual_zero"] else ["bridge didn't close"])
         )
         out.append(f"| {r['name']} | {r['what']} | {'pass' if ok else '**fail**'} | {wrong} |")
+    fresh = [r for r in runs if r["set"] == "fresh"]
+    fm = metrics(fresh)["overall"] if any("skipped" not in r for r in fresh) else None
+    out += ["", "### Fresh unseen cases (run once, nothing fixed for them)", ""]
+    if fm:
+        out.append(f"{fm['perfect_runs']} of {fm['runs']} right. 'Expected' is what a correct "
+                   "reconciler should say, decided before the run; 'exception' means put in "
+                   "front of a person. Failures are listed in docs/FAILURES.md as known limits.")  # fmt: skip
+    out += ["", "| Case | Twist | Expected (beyond the planted problems) | Got | Result |", "|---|---|---|---|---|"]  # fmt: skip
+    for r in fresh:
+        if "skipped" in r:
+            out.append(f"| {r['name']} | | | | skipped: {r['skipped']} |")
+            continue
+        ok = not r["fp"] and not r["fn"] and r["residual_zero"]
+        exp = ", ".join(f"{c} {rupees(a)}" for c, a in r["twist"]) or "nothing new"
+        got = ", ".join([f"{c} {rupees(a)}" for c, a in r["fp"]]
+                        + ([] if r["residual_zero"] else ["bridge didn't close"]))  # fmt: skip
+        got = r.get("error") or got or ("as expected" if ok else "")
+        if r["fn"] and not r.get("error"):
+            got += ("; " if got else "") + "missing " + ", ".join(f"{c} {rupees(a)}" for c, a in r["fn"])  # fmt: skip
+        out.append(f"| {r['name']} | {r['what']} | {exp} | {got} | {'pass' if ok else '**fail**'} |")  # fmt: skip
     bad = [
         r for r in runs if r["set"] == "held-out" and (r["fp"] or r["fn"] or not r["residual_zero"])
     ]
@@ -315,7 +378,7 @@ def main():
     ap.add_argument("--no-ai", action="store_true")
     args = ap.parse_args()
     runs = engine_runs(HELD_OUT)
-    m = metrics(runs)
+    m = metrics([r for r in runs if r["set"] == "held-out"])
     ai = None
     if not args.no_ai:
         d = Path(tempfile.mkdtemp(prefix="settle-ai-"))

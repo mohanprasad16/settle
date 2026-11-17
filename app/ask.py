@@ -170,6 +170,7 @@ def _walk(v, ok: set[str], text: bool = False, key: str = "") -> None:
         return
     elif isinstance(v, int | float):
         ok.add(_norm(str(v)))
+        ok.add(_norm(f"{v:.2f}"))  # 2598.0 from SQL is the ₹2,598.00 in the answer
         if isinstance(v, int):
             ok.add(_norm(f"{v / 100:.2f}"))
     else:
