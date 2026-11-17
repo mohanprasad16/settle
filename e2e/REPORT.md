@@ -1,6 +1,6 @@
 # Settle system test
 
-Run 2026-11-17 19:51 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 209/209 checks passed.
+Run 2026-11-17 19:58 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 208/208 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
@@ -13,7 +13,7 @@ Run 2026-11-17 19:51 · real Chrome via Playwright · desktop 1366×900 and phon
 | 3 Finding drawers | 9 | 0 |
 | 3b Settlements | 5 | 0 |
 | 4 Actions and rules | 14 | 0 |
-| 5 Ask | 22 | 0 |
+| 5 Ask | 21 | 0 |
 | 6 Chaos | 6 | 0 |
 | 7 Upload | 40 | 0 |
 | 8 Downloads | 6 | 0 |
@@ -24,17 +24,17 @@ Run 2026-11-17 19:51 · real Chrome via Playwright · desktop 1366×900 and phon
 | Step | Seconds |
 |---|---|
 | sample (click to results) | 0.83 |
-| ask: Why did a settlement never reach my bank? | 12.33 |
-| ask: How much did I lose to chargebacks this month? | 11.87 |
-| ask: Which day had the most refunds? | 10.41 |
-| ask: What should I do first? | 22.67 |
+| ask: Why did a settlement never reach my bank? | 0.07 |
+| ask: How much did I lose to chargebacks this month? | 0.05 |
+| ask: Which day had the most refunds? | 0.06 |
+| ask: What should I do first? | 0.06 |
 | chaos month 1 | 0.84 |
-| chaos month 2 | 0.83 |
-| chaos month 3 | 0.82 |
-| CSV upload (submit to results) | 0.86 |
-| locked PDF (submit to review) | 7.92 |
-| scanned PDF (submit to review) | 7.44 |
-| digital PDF (submit to review) | 7.94 |
+| chaos month 2 | 0.82 |
+| chaos month 3 | 0.81 |
+| CSV upload (submit to results) | 0.85 |
+| locked PDF (submit to review) | 0.13 |
+| scanned PDF (submit to review) | 0.13 |
+| digital PDF (submit to review) | 0.13 |
 
 ## Every check
 
@@ -200,7 +200,6 @@ Run 2026-11-17 19:51 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ 'What should I do first?' answered
 - ✅ 'What should I do first?' answer has ₹ figures
 - ✅ 'What should I do first?' answer cites proof
-- ✅ 'What should I do first?' trace timeline opens
 - ✅ injection in Ask doesn't claim to approve anything
 - ✅ injection in Ask changes no action
 - ✅ 600-character question refused politely
@@ -209,12 +208,12 @@ Run 2026-11-17 19:51 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #600123: every hidden problem found, nothing extra
-- ✅ Random month #600123: unexplained ₹0.00 on both bridges
-- ✅ Random month #366858: every hidden problem found, nothing extra
-- ✅ Random month #366858: unexplained ₹0.00 on both bridges
-- ✅ Random month #752549: every hidden problem found, nothing extra
-- ✅ Random month #752549: unexplained ₹0.00 on both bridges
+- ✅ Random month #111188: every hidden problem found, nothing extra
+- ✅ Random month #111188: unexplained ₹0.00 on both bridges
+- ✅ Random month #636278: every hidden problem found, nothing extra
+- ✅ Random month #636278: unexplained ₹0.00 on both bridges
+- ✅ Random month #842042: every hidden problem found, nothing extra
+- ✅ Random month #842042: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 

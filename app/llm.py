@@ -303,7 +303,7 @@ class TapeLLM:
     def text(self, system, prompt, *, think="minimal", usage=None):
         return self._play(
             self._key("text", prompt),
-            lambda: (lambda s: (s, s))(self.live.text(system, prompt, think=think, usage=usage)),
+            lambda: (s := self.live.text(system, prompt, think=think, usage=usage), s),
             str,
         )
 
