@@ -219,3 +219,17 @@ def test_undo_twice_and_confirm_twice_are_refused():
     r = c.post(f"/api/proposals/{pid}/undo", json={"approver": "Priya"})
     assert r.status_code == 409 and "error" in r.json()
     assert c.get("/api/result").json()["totals"]["unexplained"] == 0
+
+
+def test_chaos_months_live_in_the_session_folder(client):
+    """QA: every Inject-chaos click left a ~1 MB month in /tmp forever; a public demo grows
+    without bound. Months now live in the session's folder, which is deleted with it."""
+    import tempfile
+
+    before = {p.name for p in Path(tempfile.gettempdir()).glob("settle-chaos-*")}
+    for _ in range(3):
+        assert client.post("/api/chaos").status_code == 200
+    after = {p.name for p in Path(tempfile.gettempdir()).glob("settle-chaos-*")}
+    assert after == before
+    s = main.SESSIONS[client.cookies.get("settle_sid")]
+    assert len(list((s.dir / "chaos").glob("*.csv"))) == 3  # one month's files, not three

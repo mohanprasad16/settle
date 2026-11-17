@@ -472,7 +472,8 @@ def load_chaos(request: Request, body: ChaosIn | None = None):
     seed = body.seed if body and body.seed is not None else random.randint(100_000, 999_999)
     if seed == sample.DEMO_SEED:
         seed += 1
-    paths, truth = sample.chaos(seed)
+    shutil.rmtree(s.dir / "chaos", ignore_errors=True)  # one random month per session at a time
+    paths, truth = sample.chaos(seed, s.dir / "chaos")
     s.files = {"razorpay": paths["rp"], "bank": paths["bank"], "orders": paths["orders"]}
     s.source, s.truth, s.rules, s.ai_explained = "chaos", truth | {"seed": seed}, [], {}
     s.manual, s.proposals = [], {}

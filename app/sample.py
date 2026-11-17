@@ -640,9 +640,10 @@ def _r(paise: int) -> str:
     return f"{paise / 100:.2f}" if paise else ""
 
 
-def chaos(seed: int) -> tuple[dict[str, Path], dict]:
-    """A fresh random month for the "Inject chaos" button: file paths and the answer key."""
-    out = Path(tempfile.mkdtemp(prefix=f"settle-chaos-{seed}-"))
+def chaos(seed: int, out: Path | None = None) -> tuple[dict[str, Path], dict]:
+    """A fresh random month for the "Inject chaos" button: file paths and the answer key.
+    The app passes its session folder, so the month is deleted when the session is."""
+    out = out or Path(tempfile.mkdtemp(prefix=f"settle-chaos-{seed}-"))
     truth = write(out, seed)
     return {k: out / v for k, v in FILES.items()}, truth
 
