@@ -1662,6 +1662,7 @@ function changeCard(p) {
       try {
         const r = await api("POST", `/api/proposals/${p.id}/${how}`, { approver: who || "a reviewer", always });
         if (r.view) applyView(r.view);
+        if (how === "confirm" && r.proposal.status === "confirmed" && r.proposal.type === "manual_match") clearSelection();
         draw(r.proposal, r.needs_second ? ["info", "First approval recorded.", "The two-person rule is on: a second, different person has to allow it."]
           : how === "reject" ? ["info", "Rejected. Nothing changed.", ""] : how === "undo" ? ["info", "Undone.", "The month was reconciled again without it."]
           : ["ok", always ? "Allowed, and remembered for this kind." : "Done.", "It's in the audit trail. You can undo it there or here."]);

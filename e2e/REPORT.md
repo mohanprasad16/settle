@@ -1,13 +1,13 @@
 # Settle system test
 
-Run 2026-11-17 19:21 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 205/205 checks passed.
+Run 2026-11-17 19:45 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 206/206 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
 | 0 Setup | 2 | 0 |
 | 1 Landing | 21 | 0 |
 | 10 Quality | 18 | 0 |
-| 11 AI-native | 24 | 0 |
+| 11 AI-native | 25 | 0 |
 | 11 Guidance | 10 | 0 |
 | 2 Sample results | 11 | 0 |
 | 3 Finding drawers | 9 | 0 |
@@ -23,18 +23,18 @@ Run 2026-11-17 19:21 · real Chrome via Playwright · desktop 1366×900 and phon
 
 | Step | Seconds |
 |---|---|
-| sample (click to results) | 0.82 |
-| ask: Why did a settlement never reach my bank? | 8.56 |
+| sample (click to results) | 0.83 |
+| ask: Why did a settlement never reach my bank? | 11.15 |
 | ask: How much did I lose to chargebacks this month? | 12.99 |
-| ask: Which day had the most refunds? | 8.63 |
-| ask: What should I do first? | 9.58 |
+| ask: Which day had the most refunds? | 10.94 |
+| ask: What should I do first? | 7.01 |
 | chaos month 1 | 0.84 |
 | chaos month 2 | 0.82 |
-| chaos month 3 | 0.81 |
-| CSV upload (submit to results) | 0.85 |
-| locked PDF (submit to review) | 8.92 |
-| scanned PDF (submit to review) | 10.42 |
-| digital PDF (submit to review) | 9.41 |
+| chaos month 3 | 0.82 |
+| CSV upload (submit to results) | 0.87 |
+| locked PDF (submit to review) | 9.46 |
+| scanned PDF (submit to review) | 8.48 |
+| digital PDF (submit to review) | 10.50 |
 
 ## Every check
 
@@ -101,6 +101,7 @@ Run 2026-11-17 19:21 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ Copilot is on every page with its own suggestions
 - ✅ slash-command menu
 - ✅ @-mention suggests issues
+- ✅ Copilot echo path keeps the typed text
 - ✅ selecting a line shows the action bar
 - ✅ change card shows before → after and its checks
 - ✅ Always allow isn't offered above the cap
@@ -205,12 +206,12 @@ Run 2026-11-17 19:21 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #948037: every hidden problem found, nothing extra
-- ✅ Random month #948037: unexplained ₹0.00 on both bridges
-- ✅ Random month #581967: every hidden problem found, nothing extra
-- ✅ Random month #581967: unexplained ₹0.00 on both bridges
-- ✅ Random month #929994: every hidden problem found, nothing extra
-- ✅ Random month #929994: unexplained ₹0.00 on both bridges
+- ✅ Random month #584792: every hidden problem found, nothing extra
+- ✅ Random month #584792: unexplained ₹0.00 on both bridges
+- ✅ Random month #536012: every hidden problem found, nothing extra
+- ✅ Random month #536012: unexplained ₹0.00 on both bridges
+- ✅ Random month #986568: every hidden problem found, nothing extra
+- ✅ Random month #986568: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
@@ -347,13 +348,3 @@ Noted, not changed (model wording, not UI): for the missing settlement the AI sa
 while the drafted fix is a ticket to Razorpay. Both are reasonable (a UTR was issued, so the bank is a fair
 first call) but they should agree; tighten the explanation prompt's contact rule.
 
-
-## Copilot, real model (Gemini), smoke run on the sample month
-
-| Flow | Steps it ran | Plan | Result | Time |
-|---|---|---|---|---|
-| "Why did a settlement never reach my bank, and who should I contact?" | get_finding, get_settlement | — | Verified answer: setl_6ODkowvxYxMciS (UTR UTIBR58302335367), ₹21,196.39 settled 14 Oct, never credited; contact Razorpay support. No change proposed. | 6.9 s |
-| "Reconcile the selected bank line: it's last month's settlement…" (bank row 1 ticked) | make_plan, run_sql ×2, done_step, propose_manual_match, done_step | 2 steps, both ticked | Verified. One change card, "Explain 1 unmatched bank line" (₹67,380.05), waiting for a person; Always allow not offered (above the ₹5,000 cap). | 12.0 s |
-| "Approve all the Razorpay support tickets that are waiting. Prepare it for me." | list_actions, make_plan, done_step, propose_actions, done_step | 2 steps, both ticked | Verified. One card, "Approve 8 actions" (A14…A24), waiting; Always allow not offered (Razorpay-facing kinds are locked). | 12.8 s |
-
-Nothing changed in any run until a card was confirmed by a named person.
