@@ -27,6 +27,7 @@ from app.load import load
 from app.money import rupees
 from evals.edge_cases import CASES
 from evals.fresh_cases import FRESH
+from evals.fresh_cases2 import FRESH2
 
 HERE = Path(__file__).parent
 HELD_OUT = range(1000, 1050)
@@ -86,7 +87,8 @@ def engine_runs(seeds) -> list[dict]:
     truth = sample.write(base / "demo")
     planted = [(p["check"], p["amount"]) for p in truth["planted"]]
     refs = {r for p in truth["planted"] for r in p["refs"]}
-    for set_name, case in [("edge", c) for c in CASES] + [("fresh", c) for c in FRESH]:
+    for set_name, case in ([("edge", c) for c in CASES] + [("fresh", c) for c in FRESH]
+                           + [("fresh2", c) for c in FRESH2]):  # fmt: skip
         d = base / re.sub(r"\W+", "_", case.name)
         shutil.copytree(base / "demo", d)
         try:
@@ -247,8 +249,11 @@ def report(runs, m, ai) -> str:
             f"The {sum(r['set'] == 'edge' for r in runs)} adversarial edge cases are a "
             "**regression set**, not unseen data: they found five engine bugs, which were then "
             "fixed, so passing them now shows the fixes hold, not accuracy on new inputs. The "
-            f"{sum(r['set'] == 'fresh' for r in runs)} **fresh cases** at the end were written "
-            "afterwards and run once; nothing was fixed for them."
+            f"{sum(r['set'] == 'fresh' for r in runs)} cases of **fresh batch 1** were written "
+            "afterwards and run once blind (6/11, table kept below as it came out); the five "
+            "failures were then fixed, so batch 1 is now a regression set too. "
+            f"**Fresh batch 2** ({sum(r['set'] == 'fresh2' for r in runs)} cases) was written "
+            "after those fixes and run once; nothing was fixed for it."
         ),
         "",
         "## Engine on held-out months",
@@ -325,13 +330,32 @@ def report(runs, m, ai) -> str:
             + ([] if r["residual_zero"] else ["bridge didn't close"])
         )
         out.append(f"| {r['name']} | {r['what']} | {'pass' if ok else '**fail**'} | {wrong} |")
-    fresh = [r for r in runs if r["set"] == "fresh"]
+    out += ["", (HERE / "fresh1_first_run.md").read_text().strip()]
+    for set_name, title, note in (
+        ("fresh", "### Fresh batch 1 now (regression set, after the five fixes)",
+         ("Two expectations were renamed to the checks added for them (settlement_reversed, "
+          "unexplained_adjustment_credit); amounts unchanged.")),
+        ("fresh2", "### Fresh batch 2 (run once, nothing fixed for them)",
+         ("'Expected' was decided from the domain before the run; 'exception' means put in "
+          "front of a person. Failures are listed in docs/FAILURES.md as known limits.")),
+    ):  # fmt: skip
+        out += _fresh_table([r for r in runs if r["set"] == set_name], title, note)
+    bad = [
+        r for r in runs if r["set"] == "held-out" and (r["fp"] or r["fn"] or not r["residual_zero"])
+    ]
+    out += ["", f"### Held-out months that weren't perfect: {len(bad)}", ""]
+    for r in bad:
+        out.append(f"- {r['name']}: " + (r.get("error") or "; ".join(
+            [f"false alarm {c} {rupees(a)}" for c, a in r["fp"]]
+            + [f"missed {c} {rupees(a)}" for c, a in r["fn"]])))  # fmt: skip
+    return _ai_section(out, ai)
+
+
+def _fresh_table(fresh, title, note) -> list[str]:
     fm = metrics(fresh)["overall"] if any("skipped" not in r for r in fresh) else None
-    out += ["", "### Fresh unseen cases (run once, nothing fixed for them)", ""]
+    out = ["", title, ""]
     if fm:
-        out.append(f"{fm['perfect_runs']} of {fm['runs']} right. 'Expected' is what a correct "
-                   "reconciler should say, decided before the run; 'exception' means put in "
-                   "front of a person. Failures are listed in docs/FAILURES.md as known limits.")  # fmt: skip
+        out.append(f"{fm['perfect_runs']} of {fm['runs']} right. {note}")
     out += ["", "| Case | Twist | Expected (beyond the planted problems) | Got | Result |", "|---|---|---|---|---|"]  # fmt: skip
     for r in fresh:
         if "skipped" in r:
@@ -345,14 +369,10 @@ def report(runs, m, ai) -> str:
         if r["fn"] and not r.get("error"):
             got += ("; " if got else "") + "missing " + ", ".join(f"{c} {rupees(a)}" for c, a in r["fn"])  # fmt: skip
         out.append(f"| {r['name']} | {r['what']} | {exp} | {got} | {'pass' if ok else '**fail**'} |")  # fmt: skip
-    bad = [
-        r for r in runs if r["set"] == "held-out" and (r["fp"] or r["fn"] or not r["residual_zero"])
-    ]
-    out += ["", f"### Held-out months that weren't perfect: {len(bad)}", ""]
-    for r in bad:
-        out.append(f"- {r['name']}: " + (r.get("error") or "; ".join(
-            [f"false alarm {c} {rupees(a)}" for c, a in r["fp"]]
-            + [f"missed {c} {rupees(a)}" for c, a in r["fn"]])))  # fmt: skip
+    return out
+
+
+def _ai_section(out, ai) -> str:
     if ai:
         e, a, c = ai["explanations"], ai["ask"], ai["cost"]
         out += [

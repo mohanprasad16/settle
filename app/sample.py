@@ -115,6 +115,11 @@ class Plan:
     spike_size: int = 24
     repeat_refunder: bool = True  # one customer refunded on 3 orders
     method_spike: str | None = None  # one method refunded far more than the rest
+    # Planted on their own stream, so the months above are unchanged by them.
+    refund_fees: int = 0  # refunds that carry a ₹5 + GST fee
+    reversed_days: list[int] = field(default_factory=list)  # bank credits, then reverses
+    won_disputes: int = 0  # chargeback debited, then credited back: normal, not a problem
+    adj_credits: list[tuple[int, int]] = field(default_factory=list)  # credit, no reason
 
 
 def plan_for(seed: int) -> Plan:
@@ -127,7 +132,7 @@ def plan_for(seed: int) -> Plan:
     start, mstart = rng.randint(1, 27), rng.randint(1, 27)
     cut = [k_miss, k_short, k_split, k_nu, k_nus]
     at = [sum(cut[:i]) for i in range(6)]
-    return Plan(
+    plan = Plan(
         no_payment=n(),
         short_capture=n(),
         short_by=rng.choice([5000, 10000, 25000]),
@@ -151,6 +156,13 @@ def plan_for(seed: int) -> Plan:
         repeat_refunder=rng.random() < 0.5,
         method_spike=rng.choice(["wallet", "netbanking", "card"]) if rng.random() < 0.3 else None,
     )
+    r3 = random.Random(seed * 4099 + 17)
+    taken = set(days)
+    plan.reversed_days = r3.sample([d for d in range(3, 28) if d not in taken], r3.randint(0, 2))
+    plan.refund_fees = r3.randint(0, 3)
+    plan.won_disputes = r3.randint(0, 2)
+    plan.adj_credits = [(r3.randint(1, 27), r3.randint(5, 50) * 1000) for _ in range(r3.randint(0, 2))]  # fmt: skip
+    return plan
 
 
 @dataclass
@@ -439,6 +451,32 @@ def build(seed: int = DEMO_SEED, plan: Plan | None = None) -> World:
         for o in mine:  # about 30 more of every 100 refunded
             done += done < max(12, len(method) // 3) and refund(o, o.day + timedelta(days=1))
         plant("method_refund_rate", [plan.method_spike], None)
+
+    r3 = random.Random(seed * 4099 + 29)
+    settles = [it for it in w.items if it.row["type"] == "refund"
+               and PERIOD_START <= it.created + timedelta(LAG_DAYS) <= PERIOD_END]  # fmt: skip
+    fees = r3.sample(settles, min(plan.refund_fees, len(settles)))
+    for it in fees:  # Planted: a ₹5 + 18% GST fee on a refund the contract doesn't charge for
+        it.row |= {"fee": 590, "tax": 90, "debit": it.row["amount"] + 590}
+    if fees:
+        plant("refund_fee", [it.row["entity_id"] for it in fees], 590 * len(fees))
+    for o in r3.sample([o for o in free if o.day <= date(2026, 10, 22)], plan.won_disputes):
+        pay, did = payments[o.no], _id(r3, "disp_")
+        for days, dr, cr, why in ((3, pay["amount"], 0, "Chargeback: item not received"),
+                                  (6, 0, pay["amount"], "Dispute won: chargeback reversed")):  # fmt: skip
+            d = o.day + timedelta(days=days)
+            w.items.append(Item({
+                "entity_id": _id(r3, "disp_"), "type": "dispute", "debit": dr, "credit": cr,
+                "amount": pay["amount"], "fee": 0, "tax": 0, "created_at": _epoch(d, 15, 0),
+                "payment_id": pay["entity_id"], "order_id": pay["order_id"], "order_receipt": o.no,
+                "method": pay["method"], "dispute_id": did, "description": why}, d))  # fmt: skip
+        free.remove(o)
+    for day, amount in plan.adj_credits:  # Planted: Razorpay credits an adjustment, no reason
+        d = date(2026, 10, day)
+        adj = {"entity_id": _id(r3, "adj_"), "type": "adjustment", "debit": 0, "credit": amount,
+               "amount": amount, "fee": 0, "tax": 0, "created_at": _epoch(d, 12, 0)}  # fmt: skip
+        w.items.append(Item(adj, d))
+        plant("unexplained_adjustment_credit", [adj["entity_id"]], amount)
     return w
 
 
@@ -502,6 +540,7 @@ def write(out: Path, seed: int = DEMO_SEED) -> dict:
     split = {date(2026, 10, d) for d in plan.split_days}
     no_utr = {date(2026, 10, d) for d in plan.no_utr_days}
     split_no_utr = {date(2026, 10, d) for d in plan.split_no_utr_days}
+    reverse = {date(2026, 10, d) for d in plan.reversed_days}
     bare = "NEFT CR-YESB0000001-RAZORPAY SOFTWARE PVT LTD-KAAPI KART"  # some banks print no UTR
     matched_by: dict[str, str] = {}
     lines = []
@@ -534,6 +573,12 @@ def write(out: Path, seed: int = DEMO_SEED) -> dict:
             lines.append((sday, bare, "", 0, part))
             lines.append((sday + timedelta(days=1), bare, "", 0, net[sid] - part))
             matched_by[sid] = "split"
+        elif sday in reverse and net[sid] > 0:
+            lines.append((sday, narration, utr, 0, net[sid]))
+            # The bank returns it two days later; some banks quote the UTR, some only say why.
+            back = f"REV NEFT CR RETURNED-{utr}" if sday.day % 2 else "NEFT RETURN-ACCOUNT CLOSED"
+            lines.append((sday + timedelta(days=2), back, utr if sday.day % 2 else "", net[sid], 0))
+            w.planted.append({"check": "settlement_reversed", "refs": [sid], "amount": net[sid]})
         elif sday == PERIOD_END:
             pass  # settled 23:40 on 31 Oct, reaches the bank on 1 Nov
         else:

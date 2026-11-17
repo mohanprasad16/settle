@@ -147,6 +147,24 @@ def template(f: Finding) -> Explained:
             "Most likely the bank posted the same credit twice and may reverse it later.",
             ["Don't spend the extra; ask your bank whether the credit was posted twice."],
             "your bank"),
+        "settlement_reversed": (
+            f"Your bank took back {g('bank_reversed')} of settlement {g('settlement_id')}.",
+            f"Razorpay settled {g('net_settled')} on {g('settled_on')} under UTR {g('utr')}; the bank credited it and then reversed {g('bank_reversed')}.",
+            "Most likely the bank returned the transfer, for example over an account or name mismatch.",
+            ["Ask your bank why the credit was reversed.", "Ask Razorpay support to re-send the settlement once the bank details are confirmed."],
+            "your bank"),
+        "refund_fee": (
+            f"Razorpay charged {g('fees')} in fees on {g('refunds')} refunds.",
+            f"These refunds ({g('refund_ids')}) carried {g('fees')} in fees including {g('gst_on_fees')} GST, but your contract has no fee on refunds.",
+            "Most likely a refund fee was switched on for your account by mistake.",
+            ["Ask Razorpay support to reverse the refund fees."],
+            "Razorpay support"),
+        "unexplained_adjustment_credit": (
+            f"Razorpay credited {g('amount')} with no reason given.",
+            f"Adjustment {g('adjustment_id')} added {g('amount')} to settlement {g('settlement_id')} with no description.",
+            "Most likely a correction or reversal that wasn't labelled, which Razorpay may take back.",
+            ["Ask Razorpay support what the credit is for before treating it as income."],
+            "Razorpay support"),
         "rate_misclassified": (
             f"{g('payments')} debit-card payments were charged the credit-card rate.",
             f"Your contract charges debit cards {g('contract_rate_pct')}, but these payments were charged {g('charged_rate_pct')}, the credit-card rate, costing you {g('impact')} extra including GST.",

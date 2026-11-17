@@ -25,7 +25,8 @@ log = logging.getLogger(__name__)
 
 SAMPLE_CACHE = Path(__file__).resolve().parent.parent / "data" / "sample" / "drafts.json"
 TICKET = {"settlement_missing", "settlement_short", "fee_overcharge", "gst_mismatch",
-          "rate_misclassified", "unexplained_adjustment", "chargeback", "duplicate_refund"}  # fmt: skip
+          "rate_misclassified", "unexplained_adjustment", "chargeback", "duplicate_refund",
+          "refund_fee", "unexplained_adjustment_credit"}  # fmt: skip
 NOTE = {"books_refund_not_processed", "duplicate_payment", "duplicate_refund"}
 
 SYSTEM = {

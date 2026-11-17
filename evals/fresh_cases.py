@@ -4,6 +4,12 @@ to docs/FAILURES.md as known limits. Same shape as evals/edge_cases.py.
 
 Expected check names describe what a correct reconciler should say; where Settle has no check
 for it yet (refund_fee, exception), the case can only pass by flagging it some other way.
+
+After the blind run (6/11, kept in evals/fresh1_first_run.md) the five failures were fixed and
+this batch became a regression set. Two expectations were renamed to the checks added for them:
+the reversal was expected as settlement_missing and is now settlement_reversed; the adjustment
+credit was expected as unexplained_adjustment and is now unexplained_adjustment_credit. Amounts
+are unchanged.
 """
 
 from datetime import datetime
@@ -70,7 +76,7 @@ def bank_reverses_a_credit(d, refs):
     bank.insert(bank.index(b) + 1, dict(b, txn_date=f"{day.day + 2:02d}/{day:%m/%Y}",
                 narration=f"REV NEFT CR RETURNED-{b['ref_no']}", credit="", debit=b["credit"]))  # fmt: skip
     _write(d, "bank", hb, bank)
-    return [("settlement_missing", net)]
+    return [("settlement_reversed", net)]
 
 
 def imps_reference_instead_of_utr(d, refs):
@@ -131,7 +137,7 @@ def adjustment_credit_no_reason(d, refs):
     _shift_bank(bank, host["settlement_utr"], 50000)
     _write(d, "rp", h, rp)
     _write(d, "bank", hb, bank)
-    return [("unexplained_adjustment", 50000)]
+    return [("unexplained_adjustment_credit", 50000)]
 
 
 def refund_booked_on_the_twin_order(d, refs):

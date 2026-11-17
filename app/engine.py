@@ -27,13 +27,16 @@ KINDS = {
         "books",
         "Bank credited more than the settlement (possible double posting)",
     ),
+    "settlement_reversed": ("loss", "Bank reversed a settlement credit"),
     "paid_order_no_payment": ("loss", "Order marked paid, but no payment at Razorpay"),
     "duplicate_refund": ("loss", "Refund paid out twice"),
+    "refund_fee": ("loss", "Fee charged on a refund"),
     "chargeback": ("loss", "Chargeback debited, order still shows paid"),
     "fee_overcharge": ("loss", "Fees above your agreed rate"),
     "rate_misclassified": ("loss", "Debit cards charged at the credit-card rate"),
     "gst_mismatch": ("loss", "GST on fees isn't 18%"),
     "unexplained_adjustment": ("loss", "Adjustment debited with no reason"),
+    "unexplained_adjustment_credit": ("books", "Razorpay credited an adjustment with no reason"),
     "duplicate_payment": ("customer", "Customer charged twice for one order"),
     "books_refund_not_processed": ("customer", "Books say refunded, no refund went out"),
     "refund_mismatch": ("books", "Refund at Razorpay differs from the books"),
@@ -53,8 +56,11 @@ UP = {
     "ghost_success",
     "books_refund_not_processed",
     "settlement_over",
+    "unexplained_adjustment_credit",
 }
 UNPAID = "('pending', 'failed', 'created')"  # store statuses for checkouts that aren't sales
+# Refunds and disputes that carry neither a receipt nor a payment id: no order to tie them to.
+UNLINKED = "type IN ('refund', 'dispute') AND receipt IS NULL AND payment_id IS NULL"
 
 
 SPIKE_K = 6  # a refund day is a spike above median + 6 robust deviations: MAD x 1.4826, but
@@ -176,6 +182,14 @@ def _views(con, p: Period, pr: RateCard) -> None:
         FROM rp o LEFT JOIN rp p ON p.entity_id = o.payment_id AND p.type = 'payment'
         WHERE o.type <> 'payment';
 
+        CREATE OR REPLACE TEMP VIEW dispute_net AS
+        SELECT COALESCE(dispute_id, payment_id, entity_id) AS dispute_key, any_value(receipt) AS receipt,
+               any_value(payment_id) AS payment_id, sum(debit - credit) AS net, count(*) AS n,
+               count(*) FILTER (WHERE credit > debit) AS n_back, list(row_no ORDER BY row_no) AS rows,
+               arg_max(description, debit) AS description, arg_max(settled_at, debit) AS settled_at,
+               min(created_at) AS created_at
+        FROM other WHERE type = 'dispute' AND receipt IN (SELECT order_no FROM books) GROUP BY ALL;
+
         CREATE OR REPLACE TEMP VIEW pay_class AS
         SELECT pay.*, CASE
             WHEN order_receipt IN (SELECT order_no FROM books) THEN 'matched'
@@ -227,11 +241,12 @@ def _match_bank(con, p: Period) -> None:
 
     def take(s, lines, how):
         s.update(bank_rows=[b["row_no"] for b in lines], received=sum(b["amt"] for b in lines),
+                 reversed=-sum(b["amt"] for b in lines if b["amt"] < 0) if s["net"] > 0 else 0,
                  matched_by=how)  # fmt: skip
         used.update(b["row_no"] for b in lines)
 
     for s in sets:
-        s.update(bank_rows=[], received=0, matched_by=None, unmatched_reason=None,
+        s.update(bank_rows=[], received=0, reversed=0, matched_by=None, unmatched_reason=None,
                  in_transit=s["settled_at"].date() >= p.end)  # fmt: skip
         utr = _norm(s["utr"])
         hits = [b for b in bank if utr and (utr in _norm(b["ref_no"]) or utr in _norm(b["narration"]))]  # fmt: skip
@@ -267,15 +282,39 @@ def _match_bank(con, p: Period) -> None:
         elif fits:
             s["unmatched_reason"] = f"{len(fits)} different groups of bank credits add up to it"
 
+    # A bank debit that gives back a settlement's credit (no UTR on it): the one matched credit of
+    # exactly that amount in the week before, on a line that says it's a reversal or a return.
+    credited = [
+        (s, b) for s in sets for b in bank if b["row_no"] in s["bank_rows"] and b["amt"] > 0
+    ]
+    for b in bank:
+        if (
+            b["row_no"] in used
+            or b["amt"] >= 0
+            or not re.search(r"REV|RETURN", _norm(b["narration"]))
+        ):
+            continue
+        hit = [s for s, c in credited
+               if c["amt"] == -b["amt"] and c["txn_date"] <= b["txn_date"] <= c["txn_date"] + timedelta(7)]  # fmt: skip
+        if len(hit) == 1:
+            s = hit[0]
+            s.update(bank_rows=[*s["bank_rows"], b["row_no"]], received=s["received"] + b["amt"],
+                     reversed=s["reversed"] - b["amt"])  # fmt: skip
+            used.add(b["row_no"])
+
     con.execute("""CREATE OR REPLACE TABLE settlement_bank (settlement_id VARCHAR, utr VARCHAR,
         settled_at TIMESTAMP, net BIGINT, n_items BIGINT, rp_rows BIGINT[], received BIGINT,
         n_credits BIGINT, bank_rows BIGINT[], in_transit BOOLEAN, matched_by VARCHAR,
-        unmatched_reason VARCHAR)""")
+        unmatched_reason VARCHAR, reversed BIGINT)""")
+    debits = {
+        b["row_no"] for b in bank if b["amt"] < 0
+    }  # a reversal, when the settlement was a credit
     rows = [(s["settlement_id"], s["utr"], s["settled_at"], s["net"], s["n_items"], s["rp_rows"],
-             s["received"], len(s["bank_rows"]), s["bank_rows"], s["in_transit"], s["matched_by"],
-             s["unmatched_reason"]) for s in sets]  # fmt: skip
+             s["received"], sum(not (s["reversed"] and r in debits) for r in s["bank_rows"]),
+             s["bank_rows"], s["in_transit"],
+             s["matched_by"], s["unmatched_reason"], s["reversed"]) for s in sets]  # fmt: skip
     if rows:
-        con.executemany("INSERT INTO settlement_bank VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)  # fmt: skip
+        con.executemany("INSERT INTO settlement_bank VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)  # fmt: skip
 
 
 def run(
@@ -340,23 +379,36 @@ def run(
             f.append(Finding("refund_mismatch", r["rr"] - r["rb"], [r["order_no"], *ids], rows, facts))  # fmt: skip
 
     # --- Disputes and adjustments -----------------------------------------------------------
-    for d in _q(
-        con,
-        """SELECT * FROM other WHERE type = 'dispute'
-                        AND receipt IN (SELECT order_no FROM books) ORDER BY created_at""",
-    ):
-        f.append(Finding("chargeback", d["debit"] - d["credit"], [d["receipt"], d["entity_id"]],
-            {"rp": [d["row_no"]]}, {"order_no": d["receipt"], "dispute_id": d["dispute_id"] or d["entity_id"],
-            "payment_id": d["payment_id"], "amount": d["debit"] - d["credit"],
+    # A dispute's debit and its credit-back (won) net out; only what stays debited is a chargeback.
+    for d in _q(con, "SELECT * FROM dispute_net WHERE net > 0 ORDER BY created_at"):
+        f.append(Finding("chargeback", d["net"], [d["receipt"], d["dispute_key"]],
+            {"rp": d["rows"]}, {"order_no": d["receipt"], "dispute_id": d["dispute_key"],
+            "payment_id": d["payment_id"], "amount": d["net"],
             "reason": d["description"], "debited_on": d["settled_at"]}))  # fmt: skip
     for a in _q(
         con,
-        """SELECT * FROM rp WHERE type = 'adjustment' AND debit > 0
+        """SELECT * FROM rp WHERE type = 'adjustment' AND debit <> credit
                         AND description IS NULL ORDER BY created_at""",
     ):
-        f.append(Finding("unexplained_adjustment", a["debit"], [a["entity_id"]], {"rp": [a["row_no"]]},
-            {"adjustment_id": a["entity_id"], "amount": a["debit"], "settlement_id": a["settlement_id"],
+        check = (
+            "unexplained_adjustment"
+            if a["debit"] > a["credit"]
+            else "unexplained_adjustment_credit"
+        )
+        amt = abs(a["debit"] - a["credit"])
+        f.append(Finding(check, amt, [a["entity_id"]], {"rp": [a["row_no"]]},
+            {"adjustment_id": a["entity_id"], "amount": amt, "settlement_id": a["settlement_id"],
              "date": a["settled_at"]}))  # fmt: skip
+    # Razorpay's refund row debits the refund plus any fee on it; the contract has no refund fees.
+    rf = _q(
+        con,
+        f"""SELECT *, debit - credit - amount AS extra FROM other
+                     WHERE type = 'refund' AND debit - credit <> amount AND NOT ({UNLINKED})""",
+    )
+    if rf:
+        f.append(Finding("refund_fee", sum(r["extra"] for r in rf), [r["entity_id"] for r in rf],
+            {"rp": [r["row_no"] for r in rf]}, {"refunds": len(rf), "fees": sum(r["extra"] for r in rf),
+             "gst_on_fees": sum(r["tax"] for r in rf), "refund_ids": [r["entity_id"] for r in rf]}))  # fmt: skip
 
     # --- Fees -------------------------------------------------------------------------------
     fee = _q(
@@ -401,16 +453,25 @@ def run(
     exceptions = [{"settlement_id": s["settlement_id"], "utr": s["utr"], "amount": s["net"],
                    "settled_on": s["settled_at"], "why": s["unmatched_reason"], "rows": {"rp": s["rp_rows"]}}
                   for s in sb if s["unmatched_reason"]]  # fmt: skip
+    exceptions += [{"settlement_id": u["settlement_id"], "utr": u["utr"], "entity_id": u["entity_id"],
+                    "amount": u["debit"] - u["credit"], "settled_on": u["settled_at"],
+                    "why": f"couldn't link this {u['type']} to any order or payment",
+                    "rows": {"rp": [u["row_no"]]}}
+                   for u in _q(con, f"SELECT * FROM other WHERE {UNLINKED} ORDER BY row_no")]  # fmt: skip
     for s in sb:
         rows = {"rp": s["rp_rows"], "bank": s["bank_rows"] or []}
         facts = {"settlement_id": s["settlement_id"], "utr": s["utr"], "settled_on": s["settled_at"],
                  "net_settled": s["net"], "bank_received": s["received"], "items": s["n_items"]}  # fmt: skip
+        credited = s["received"] + s["reversed"]  # what came in, before the bank took any back
+        if s["reversed"]:
+            f.append(Finding("settlement_reversed", s["reversed"], [s["settlement_id"], s["utr"]], rows,
+                             facts | {"bank_reversed": s["reversed"]}))  # fmt: skip
         if s["n_credits"] == 0 and not s["in_transit"] and not s["unmatched_reason"]:
             f.append(Finding("settlement_missing", s["net"], [s["settlement_id"], s["utr"]], rows, facts))  # fmt: skip
-        elif s["n_credits"] and s["received"] < s["net"]:
-            f.append(Finding("settlement_short", s["net"] - s["received"], [s["settlement_id"], s["utr"]], rows, facts))  # fmt: skip
-        elif s["n_credits"] and s["received"] > s["net"]:
-            f.append(Finding("settlement_over", s["received"] - s["net"], [s["settlement_id"], s["utr"]], rows, facts))  # fmt: skip
+        elif s["n_credits"] and credited < s["net"]:
+            f.append(Finding("settlement_short", s["net"] - credited, [s["settlement_id"], s["utr"]], rows, facts))  # fmt: skip
+        elif s["n_credits"] and credited > s["net"]:
+            f.append(Finding("settlement_over", credited - s["net"], [s["settlement_id"], s["utr"]], rows, facts))  # fmt: skip
 
     f += _risk(con, period)
     f = [x for x in f if x.amount]  # a ₹0 difference is not a problem (mandates, authorisations)
@@ -542,19 +603,21 @@ def _bridges(
     )
     old_ref, n_or = _sum(
         con,
-        """SELECT amount AS x FROM other WHERE type = 'refund'
+        f"""SELECT amount AS x FROM other WHERE type = 'refund' AND NOT ({UNLINKED})
                                  AND (receipt IS NULL OR receipt NOT IN (SELECT order_no FROM books))""",
     )
     old_disp, n_od = _sum(
         con,
-        """SELECT debit - credit AS x FROM other WHERE type = 'dispute'
+        f"""SELECT debit - credit AS x FROM other WHERE type = 'dispute' AND NOT ({UNLINKED})
                                   AND (receipt IS NULL OR receipt NOT IN (SELECT order_no FROM books))""",
     )
+    unlinked, n_ul = _sum(con, f"SELECT debit - credit AS x FROM other WHERE {UNLINKED}")
+    won, n_won = _sum(con, "SELECT net AS x FROM dispute_net WHERE net <= 0 AND n_back > 0")
     adj_other, n_adj = _sum(
         con,
         """SELECT debit - credit AS x FROM rp WHERE type NOT IN
                                ('payment', 'refund', 'dispute') AND NOT (type = 'adjustment'
-                               AND debit > 0 AND description IS NULL)""",
+                               AND debit <> credit AND description IS NULL)""",
     )
 
     def fstep(check):
@@ -566,7 +629,12 @@ def _bridges(
         amt = sum(x.amount if x.check in UP else -x.amount for x in mine)
         return Step("Resolved by your rules", amt, "resolved", len(mine))
 
-    bank_checks = {"settlement_missing", "settlement_short", "settlement_over"}
+    bank_checks = {
+        "settlement_missing",
+        "settlement_short",
+        "settlement_over",
+        "settlement_reversed",
+    }
 
     contrib = [
         Step("Razorpay fees + GST at your agreed rate", -exp_fee, "normal", n_pay),
@@ -580,17 +648,26 @@ def _bridges(
             "Refunds/disputes on last month's orders", -(old_ref + old_disp), "timing", n_or + n_od
         ),
         Step("Other Razorpay adjustments and transfers", -adj_other, "normal", n_adj),
+        Step("Chargebacks won, money returned", -won, "normal", n_won),
+        Step(
+            "Refunds/disputes not linked to any order (see exceptions)",
+            -unlinked,
+            "exception",
+            n_ul,
+        ),
         fstep("paid_order_no_payment"),
         fstep("amount_mismatch"),
         fstep("duplicate_payment"),
         fstep("ghost_success"),
         fstep("orphan_payment"),
         fstep("duplicate_refund"),
+        fstep("refund_fee"),
         fstep("refund_not_in_books"),
         fstep("refund_mismatch"),
         fstep("books_refund_not_processed"),
         fstep("chargeback"),
         fstep("unexplained_adjustment"),
+        fstep("unexplained_adjustment_credit"),
         rstep(
             {k for k, v in KINDS.items() if v[0] != "risk"} - bank_checks - {"gst_mismatch"}
         ),  # GST errors sit inside the fee lines
@@ -615,6 +692,7 @@ def _bridges(
         fstep("settlement_missing"),
         fstep("settlement_short"),
         fstep("settlement_over"),
+        fstep("settlement_reversed"),
         Step("Settled on the last day, reaches the bank next month", -transit, "timing", n_tr),
         Step("Couldn't match automatically (see exceptions)", -unsure, "exception", n_un),
         rstep(bank_checks),
@@ -666,6 +744,8 @@ def _handled(con, pr: RateCard, sb: list[dict], resolved: list[tuple[Finding, Ru
          one("SELECT count(*) FROM pay WHERE amount = 0")),
         ("UPI and RuPay debit payments at zero fee, as contracted",
          one("SELECT count(*) FROM pay WHERE exp_base = 0 AND fee = 0")),
+        ("Chargebacks won, money returned",
+         one("SELECT count(*) FROM dispute_net WHERE net <= 0 AND n_back > 0")),
         ("Settlements that arrived as more than one bank credit",
          sum(1 for s in sb if s["n_credits"] > 1 and s["matched_by"] == "utr")),
         ("Settlements matched by amount and date (no UTR on the bank line)",
