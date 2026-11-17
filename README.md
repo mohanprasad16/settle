@@ -175,6 +175,14 @@ day job, the agents worked in parallel and I came back to review, redirect and t
 history shows it: first commit at 08:32, last at 23:02, 74 commits. That's the speed I can build
 at with Claude Code, without giving up tests, evals or guardrails.
 
+Speed didn't replace testing. Every feature was tested end to end before I called it done: a
+system test drives the real app in Chrome like a finance user (laptop and phone width, every page,
+every Copilot flow, every failure state), on top of unit and API tests and the held-out
+evaluation. An independent QA pass then tried to break it and fixed what it found. The final run
+on this version: **126 of 126 test-plan cases, 169 unit and API tests and 214 browser checks, all
+passing**, with one command and no API key: `uv run python -m tests.run_all`. GitHub Actions runs
+the same suite on every push.
+
 ## Run it
 
 ```bash

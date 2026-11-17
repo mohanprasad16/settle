@@ -1,6 +1,6 @@
 # Settle system test
 
-Run 2026-11-17 20:35 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 214/214 checks passed.
+Run 2026-11-17 23:07 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 214/214 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
@@ -26,15 +26,15 @@ Run 2026-11-17 20:35 · real Chrome via Playwright · desktop 1366×900 and phon
 | sample (click to results) | 0.83 |
 | ask: Why did a settlement never reach my bank? | 0.06 |
 | ask: How much did I lose to chargebacks this month? | 0.05 |
-| ask: Which day had the most refunds? | 0.06 |
+| ask: Which day had the most refunds? | 0.07 |
 | ask: What should I do first? | 0.06 |
-| chaos month 1 | 0.84 |
-| chaos month 2 | 0.83 |
-| chaos month 3 | 0.82 |
-| CSV upload (submit to results) | 0.86 |
-| locked PDF (submit to review) | 0.13 |
+| chaos month 1 | 1.37 |
+| chaos month 2 | 1.91 |
+| chaos month 3 | 1.37 |
+| CSV upload (submit to results) | 0.85 |
+| locked PDF (submit to review) | 0.23 |
 | scanned PDF (submit to review) | 0.13 |
-| digital PDF (submit to review) | 0.13 |
+| digital PDF (submit to review) | 0.27 |
 
 ## Every check
 
@@ -214,12 +214,12 @@ Run 2026-11-17 20:35 · real Chrome via Playwright · desktop 1366×900 and phon
 
 ### 6 Chaos
 
-- ✅ Random month #741904: every hidden problem found, nothing extra
-- ✅ Random month #741904: unexplained ₹0.00 on both bridges
-- ✅ Random month #154781: every hidden problem found, nothing extra
-- ✅ Random month #154781: unexplained ₹0.00 on both bridges
-- ✅ Random month #706237: every hidden problem found, nothing extra
-- ✅ Random month #706237: unexplained ₹0.00 on both bridges
+- ✅ Random month #417787: every hidden problem found, nothing extra
+- ✅ Random month #417787: unexplained ₹0.00 on both bridges
+- ✅ Random month #782817: every hidden problem found, nothing extra
+- ✅ Random month #782817: unexplained ₹0.00 on both bridges
+- ✅ Random month #483028: every hidden problem found, nothing extra
+- ✅ Random month #483028: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
