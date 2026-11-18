@@ -1470,7 +1470,9 @@ def main() -> int:
     servers = [
         start(PORTS["A"], SETTLE_AI_CALLS="200", **_tape_env()),  # limit itself tested on C
         start(PORTS["B"], GEMINI_API_KEY=""),
-        start(PORTS["C"], SETTLE_AI_CALLS="0"),
+        start(
+            PORTS["C"], SETTLE_AI_CALLS="0", **_tape_env()
+        ),  # AI "on" via the tape, so the limit is what stops it
     ]
     exp = expected()
     try:

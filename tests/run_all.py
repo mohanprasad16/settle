@@ -47,7 +47,13 @@ def run_unit() -> tuple[dict[str, dict], float]:
 
 def run_e2e(mode: str) -> tuple[dict, float]:
     t0 = time.perf_counter()
-    subprocess.run([sys.executable, "-m", "e2e.test_system"], cwd=ROOT, env=os.environ | {"E2E_LLM": mode}, check=False)  # fmt: skip
+    # A crashed run must never be read as a pass: start from no results, and refuse to report
+    # if the browser test didn't write fresh ones (it once reported 252/252 from a stale file
+    # when a busy port stopped it from starting).
+    (OUT / "e2e.json").unlink(missing_ok=True)
+    rc = subprocess.run([sys.executable, "-m", "e2e.test_system"], cwd=ROOT, env=os.environ | {"E2E_LLM": mode}, check=False).returncode  # fmt: skip
+    if not (OUT / "e2e.json").exists():
+        sys.exit(f"The browser system test didn't run (exit {rc}); see its output above. No report written.")  # fmt: skip
     data = json.loads((OUT / "e2e.json").read_text())
     return data, time.perf_counter() - t0
 
@@ -184,6 +190,8 @@ def main() -> int:
     ap.add_argument("--no-browser", action="store_true", help="unit tests only (reuse the last browser run)")  # fmt: skip
     args = ap.parse_args()
     OUT.mkdir(exist_ok=True)
+    for old in ("test-report.html", "test-summary.md"):
+        (OUT / old).unlink(missing_ok=True)  # never leave last run's verdict lying around
     unit, unit_secs = run_unit()
     if args.no_browser and (OUT / "e2e.json").exists():
         e2e, e2e_secs = json.loads((OUT / "e2e.json").read_text()), 0.0

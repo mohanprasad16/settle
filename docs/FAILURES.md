@@ -157,3 +157,15 @@ kind automatic through the API (422); self-approval with case and spacing tricks
 name with `<script>` (shown as text); SQL reaching files, URLs, S3 or globs; refresh with a
 drawer open, Back/Forward, Stop mid-answer, phone-width Copilot, rapid chaos clicks; a fake
 `.xlsm`, an `.exe`, an empty and an oversized sheet.
+
+## CI (first run on GitHub)
+
+- **The rate-limit check failed on GitHub and passed on my laptop.** GitHub has no API key, so
+  the test server for the limit thought the AI was off and said "The AI isn't available" before
+  the limit could speak. My `.env` key hid it locally. That server now runs on the recorded model
+  replies like the main one, and the whole suite is re-run locally with the key removed to match
+  CI.
+- **The test runner reported 252/252 when the browser test never ran.** A local server held the
+  port, the browser test refused to start, and the runner read the previous run's results file.
+  It now deletes old results and old reports first, and refuses to write a report (exit 1) when
+  the browser test didn't produce fresh results. Proved by running it with the port held.
