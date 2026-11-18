@@ -20,4 +20,5 @@ USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Behind a host proxy (Hugging Face), read the visitor IP so the AI rate limit is per person.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

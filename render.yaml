@@ -1,0 +1,12 @@
+# One-click deploy on Render's free plan: render.com/deploy?repo=https://github.com/mohanprasad16/settle
+services:
+  - type: web
+    name: settle
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: GEMINI_API_KEY
+        sync: false  # asked for on deploy, never stored in the repo
