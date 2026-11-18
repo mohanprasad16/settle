@@ -242,3 +242,12 @@ def test_llms_txt_is_served():
 
     r = TestClient(app).get("/llms.txt")
     assert r.status_code == 200 and r.text.startswith("# Settle")
+
+
+def test_uptime_monitors_can_check_with_head():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    c = TestClient(app)
+    assert c.head("/").status_code == 200 and c.head("/api/health").status_code == 200

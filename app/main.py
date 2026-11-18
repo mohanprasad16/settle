@@ -438,12 +438,13 @@ def _view(s: Session) -> dict:
 # --- endpoints: loading data -----------------------------------------------------------------
 
 
-@app.get("/", response_class=HTMLResponse)
+# HEAD too: uptime monitors check with it, and a 405 reads as "down".
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def index():
     return FileResponse(STATIC / "index.html")
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
     return {"ok": True, "ai": _ai_on(), "demo_mode": settings.demo_mode}
 

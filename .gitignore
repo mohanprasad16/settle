@@ -6,3 +6,5 @@ __pycache__/
 *.duckdb
 e2e/tour_raw/
 reports/
+.keepalive.log
+.keepalive.pid
