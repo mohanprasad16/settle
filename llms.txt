@@ -3,6 +3,7 @@
 > AI reconciliation for finance teams: ties a merchant's books, payment gateway settlements (Razorpay) and bank statement to the paisa, finds the money that leaked, explains it, and drafts fixes that a named person approves. Like a coding agent, but for a finance team.
 
 Built in one day (17 Nov 2026) by Mohanprasad S with Claude Code, alongside a day job. Source: https://github.com/mohanprasad16/settle
+Live demo: https://settle-puvq.onrender.com
 
 ## What it does
 - Two bridges (books → gateway → bank) that end at "Unexplained ₹0.00"; anything it can't place is flagged, never hidden.

@@ -6,7 +6,7 @@ Like a coding agent, but for a finance team: it does the reconciliation work, an
 
 ![tests](https://github.com/mohanprasad16/settle/actions/workflows/test.yml/badge.svg)
 
-**Live demo:** _link coming with the deploy_ · press **Try it with a sample month**, nothing to sign up for.
+**Live demo:** **[https://settle-puvq.onrender.com](https://settle-puvq.onrender.com)** (free host: the first visit after a quiet spell can take up to a minute to wake) · press **Try it with a sample month**, nothing to sign up for.
 
 > **For reviewers, in 30 seconds**
 > - **Problem:** a merchant's books, Razorpay settlements and bank never match. Finance teams tie them out by hand every month, and real losses hide in the normal differences.

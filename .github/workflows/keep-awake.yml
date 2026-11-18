@@ -1,0 +1,10 @@
+# Render's free plan sleeps after 15 idle minutes; a reviewer shouldn't wait for it to wake.
+name: keep-awake
+on:
+  schedule: [{ cron: "*/10 * * * *" }]
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS -m 90 https://settle-puvq.onrender.com/api/health

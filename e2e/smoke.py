@@ -59,6 +59,7 @@ def browser(base: str) -> None:
         page.on("console", lambda m: m.type == "error" and errors.append(m.text))
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(base)
+        page.locator("#try-sample").wait_for(timeout=15000)  # a remote host draws later than localhost
         check("landing page loads", page.locator("#try-sample").is_visible())
         page.click("#try-sample")
         wait_results(page)
