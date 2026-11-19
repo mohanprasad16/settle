@@ -751,3 +751,42 @@ label.check { display: block; margin: 8px 0; }
 @keyframes recon-tick { 0%, 12% { opacity: 0; } 18%, 96% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes recon-tick3 { 0%, 62% { opacity: 0; } 68%, 96% { opacity: 1; } 100% { opacity: 0; } }
 @media (max-width: 560px) { .recon { margin-top: 12px; } }
+
+/* ---- desk ------------------------------------------------------------------------------------ */
+.desk-how { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.desk-how li { display: flex; gap: 10px; align-items: flex-start; }
+.desk-how .tick { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-tint); color: var(--brand); font-weight: 700; font-size: 12.5px; }
+.desk-how b, .desk-how span { display: block; }
+.desk-sum { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.desk { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 16px; align-items: start; }
+.inbox-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.inbox-list { list-style: none; margin: 0; padding: 0; max-height: 720px; overflow-y: auto; }
+.inbox-list li { border-bottom: 1px solid var(--line); }
+.inbox-list li:last-child { border-bottom: 0; }
+.inbox-item { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 11px 14px; cursor: pointer; }
+.inbox-item:hover { background: var(--surface-2); }
+.inbox-item:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.inbox-item[aria-current="true"] { background: var(--brand-tint); box-shadow: inset 3px 0 0 var(--brand); }
+.inbox-item .row { display: flex; gap: 8px; align-items: center; }
+.inbox-item .ch { color: var(--muted); width: 16px; text-align: center; }
+.inbox-item .snip { font-size: 13px; color: var(--ink-2); margin: 3px 0 7px 24px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.inbox-item .chips { margin-left: 24px; gap: 6px; }
+.ticket h3 { margin: 18px 0 8px; }
+.ticket-head h2 { margin: 10px 0 2px; }
+.ticket-head p { margin: 0; }
+.cust-msg { margin: 0; padding: 12px 14px; border-left: 3px solid var(--line-strong); background: var(--surface-2); border-radius: 0 8px 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ticket .banner { margin-top: 10px; }
+.grid.facts td:first-child { color: var(--muted); width: 38%; }
+.grid.facts td { overflow-wrap: anywhere; }
+.linked { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); }
+.linked .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.linked .row .num { margin-left: auto; font-weight: 600; }
+.linked .ticks { margin: 6px 0 10px; }
+.reply-box { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); white-space: pre-wrap; margin-top: 8px; }
+.reply-meta .badge .spark { width: 12px; height: 12px; }
+.desk-foot { grid-template-columns: 1fr 1fr; }
+.desk-foot textarea { width: 100%; min-height: 76px; resize: vertical; }
+@media (max-width: 900px) {
+  .desk, .desk-foot, .desk-how { grid-template-columns: 1fr; }
+  .inbox-list { max-height: 420px; }
+}

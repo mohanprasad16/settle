@@ -125,6 +125,7 @@ const STATUS = {
   executed: "Done",
   blocked: "Blocked",
   rejected: "Rejected",
+  undone: "Undone",
 };
 const COLUMN = {
   row_no: "Row", entity_id: "Razorpay id", type: "Type", amount: "Amount", fee: "Fee", tax: "GST on fee",
@@ -305,6 +306,7 @@ const PAGES = [
   ["overview", "Overview", "◧"],
   ["settlements", "Settlements", "⇆"],
   ["issues", "Issues to fix", "!"],
+  ["desk", "Desk", "✉"],
   ["flow", "How the money flows", "⇄"],
   ["patterns", "Patterns & things to check", "◇"],
   ["audit", "Approvals & audit trail", "✓"],
@@ -316,10 +318,11 @@ function render(v) {
   if (state.view && (v.source !== state.view.source || v.seed !== state.view.seed)) { cp.sel = { settlements: [], bank_rows: [], findings: [], actions: [] }; document.getElementById("sel-bar")?.remove(); }
   state.view = v;
   state.sets = null; // payout list is fetched when the Settlements page is first opened
+  state.desk = null; // so are the Desk's messages
   const root = $("#results");
   const t = v.totals;
   const risks = v.findings.filter((f) => f.kind === "risk").length + (v.exceptions?.length || 0) + (v.unmatched_credits?.length || 0) + (v.suspicious?.length || 0);
-  const counts = { issues: issues().length, patterns: risks, rules: v.rules?.length || 0 };
+  const counts = { issues: issues().length, patterns: risks, rules: v.rules?.length || 0, desk: v.desk_open || 0 };
 
   const nav = el("aside", { class: "side-nav", "aria-label": "Sections" },
     el("a", { class: "brand", href: "/", id: "home", "aria-label": "Settle home", onclick: (e) => { e.preventDefault(); go("overview"); } }, el("span", { class: "logo", "aria-hidden": "true" }), "Settle"),
@@ -359,6 +362,7 @@ function render(v) {
     audit: auditPage(),
     rules: rulesPage(v),
     settings: settingsPage(),
+    desk: deskPage(),
   };
   for (const [k, p] of Object.entries(pages)) { p.id = `page-${k}`; p.classList.add("page"); p.hidden = k !== state.page; }
 
@@ -369,6 +373,7 @@ function render(v) {
   if (state.page === "audit") refreshAudit();
   if (state.page === "settlements") refreshSettlements();
   if (state.page === "settings") refreshSettings();
+  if (state.page === "desk") refreshDesk();
   copilotMount();
   if (state.counted !== `${v.source}${v.seed}`) { state.counted = `${v.source}${v.seed}`; countUp(); }
 }
@@ -393,7 +398,7 @@ function countUp() {
   }
 }
 
-const PAGE_IDS = ["overview", "settlements", "issues", "flow", "patterns", "audit", "rules", "settings"];
+const PAGE_IDS = ["overview", "settlements", "issues", "desk", "flow", "patterns", "audit", "rules", "settings"];
 // Pages live in the URL (#/issues, #/issues/F3, #/settlements/setl_…), so Back, Forward,
 // refresh and shared links all land on the same view.
 function route() {
@@ -432,6 +437,7 @@ function go(page, push = true) {
   if (page === "audit") refreshAudit();
   if (page === "settlements") refreshSettlements();
   if (page === "settings") refreshSettings();
+  if (page === "desk") refreshDesk();
   copilotSuggest();
   window.scrollTo({ top: 0 });
 }
@@ -762,6 +768,146 @@ function openSettlement(s, opener, push = true) {
   close.focus();
 }
 
+// ---- desk: customer messages about money -----------------------------------------------------
+// Each message is matched to its payment by code, sorted and answered by the AI from code-built
+// facts (every figure checked), and sent only through a change card a named person allows.
+
+const CHANNEL = { email: ["✉", "Email"], whatsapp: ["◍", "WhatsApp"], pasted: ["⎘", "Pasted by you"] };
+const CATEGORY = { refund_status: "Refund status", paid_not_confirmed: "Paid, order not confirmed", duplicate_charge: "Charged twice", settlement: "Payout question", other: "Other" };
+const TICKET = { open: ["customer", "To answer"], waiting: ["timing", "Waiting for approval"], replied: ["ok", "✓ Answered"] };
+const MATCH = { matched: ["ok", "✓ Payment found"], ambiguous: ["risk", "More than one fits"], none: ["timing", "No match"] };
+
+function deskPage() {
+  return el("div", {},
+    pageHead("Desk", "Customer messages about money, answered from Settle's own records. Code finds the payment each message is about, AI writes the reply from those facts, and you approve it before anything is sent.",
+      el("button", { class: "btn", type: "button", id: "desk-paste-go", onclick: () => { $("#paste-text")?.focus(); $("#paste-text")?.scrollIntoView({ block: "center" }); } }, "Paste a customer message")),
+    el("div", { class: "stack", id: "desk-body" }, el("div", { class: "card" }, el("div", { class: "skeleton" }), el("div", { class: "skeleton", style: "width:60%" }))));
+}
+
+async function refreshDesk() {
+  const box = $("#desk-body");
+  if (!box) return;
+  try { state.desk = await api("GET", "/api/desk"); } catch (e) {
+    put(box, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: e.error }), e.hint, el("div", { style: "margin-top:8px" }, el("button", { class: "btn small", type: "button", onclick: refreshDesk }, "Try again")))));
+    return;
+  }
+  drawDesk();
+}
+
+function drawDesk() {
+  const box = $("#desk-body"), d = state.desk;
+  if (!box || !d) return;
+  const open = route().page === "desk" ? route().id : "";
+  const t = d.tickets.find((x) => x.id === open);
+  const filter = state.deskFilter || "all";
+  const shown = d.tickets.filter((x) => filter === "all" || (filter === "person" ? x.match.status !== "matched" && x.status !== "replied" : x.status === filter));
+  const counts = { all: d.tickets.length, open: d.tickets.filter((x) => x.status === "open").length, person: d.summary.need_person, replied: d.summary.answered };
+  const item = (x) => el("li", {}, el("button", { class: "inbox-item", type: "button", "data-ticket": x.id, "aria-current": x.id === open ? "true" : null,
+    "aria-label": `${x.from.name}, ${CHANNEL[x.channel]?.[1] || x.channel}: ${x.text.slice(0, 80)}`, onclick: () => { setHash("desk", x.id); drawDesk(); $("#ticket-h")?.focus(); } },
+    el("div", { class: "row" }, el("span", { class: "ch", "aria-hidden": "true" }, CHANNEL[x.channel]?.[0] || "•"), el("b", {}, x.from.name), el("span", { class: "grow" }), el("time", { class: "small muted" }, fdate(x.received_at).replace(/ \d{4}/, ""))),
+    el("div", { class: "snip" }, x.subject ? `${x.subject}: ` : "", x.text),
+    el("div", { class: "inline chips" },
+      el("span", { class: `kind ${TICKET[x.status][0]}` }, TICKET[x.status][1]),
+      x.status !== "replied" ? el("span", { class: `kind ${MATCH[x.match.status][0]}` }, MATCH[x.match.status][1]) : null,
+      x.category ? el("span", { class: "kind books" }, CATEGORY[x.category]) : null,
+      x.amount ? el("span", { class: "num small" }, rupees(x.amount)) : null)));
+  const chips = el("div", { class: "inline", role: "group", "aria-label": "Show messages" }, ...[["all", "All"], ["open", "To answer"], ["person", "Need a person"], ["replied", "Answered"]].map(([k, l]) =>
+    el("button", { class: "chip", type: "button", "data-filter": k, "aria-pressed": String(filter === k), onclick: () => { state.deskFilter = k; drawDesk(); } }, l, el("span", { class: "n" }, counts[k] || 0))));
+  put(box,
+    el("section", { class: "card desk-top", "aria-labelledby": "desk-how-h" },
+      el("h2", { id: "desk-how-h", class: "sr" }, "How Desk works"),
+      el("ol", { class: "desk-how" },
+        el("li", {}, el("span", { class: "tick", "aria-hidden": "true" }, "1"), el("div", {}, el("b", {}, "Settle finds the payment"), el("span", { class: "small muted" }, "Code reads the order number, amount, date and name in the message and looks them up. If more than one payment fits, or none, it says so and doesn't guess."))),
+        el("li", {}, el("span", { class: "tick", "aria-hidden": "true" }, "2"), el("div", {}, el("b", {}, "AI writes the reply"), el("span", { class: "small muted" }, "From Settle's facts only. Every ₹ amount, date and id is checked; if one can't be, a fixed template is used instead."))),
+        el("li", {}, el("span", { class: "tick", "aria-hidden": "true" }, "3"), el("div", {}, el("b", {}, "You approve it"), el("span", { class: "small muted" }, "Nothing is sent without your name. In this demo, sending is recorded, not made.")))),
+      el("p", { class: "desk-sum", id: "desk-summary" }, el("b", {}, "Today: "), d.summary.text)),
+    d.tickets.length ? el("div", { class: "desk" },
+      el("section", { class: "card flush inbox", "aria-labelledby": "inbox-h" },
+        el("div", { class: "inbox-head" }, el("h2", { id: "inbox-h" }, "Inbox"), chips),
+        shown.length ? el("ul", { class: "inbox-list", id: "inbox-list" }, ...shown.map(item)) : el("div", { class: "empty" }, el("b", {}, "Nothing here."), "Try another filter.")),
+      el("section", { class: "card ticket", id: "ticket", "aria-labelledby": "ticket-h" }, t ? ticketView(t, d) : el("div", { class: "empty" }, el("h2", { id: "ticket-h", tabindex: "-1" }, "Pick a message"), "Open one from the inbox to see the payment Settle matched it to, the reply it drafted, and send it with your approval.")))
+      : el("div", { class: "card empty" }, el("b", {}, "No messages yet."), "Connect your inbox (coming next), or paste a customer message below to see how Desk answers it."),
+    el("div", { class: "cols desk-foot" }, pasteCard(), inboxConnectCard()));
+}
+
+function ticketView(t, d) {
+  const [ch, chLabel] = CHANNEL[t.channel] || ["•", t.channel];
+  const f = t.finding;
+  const msg = el("div", { "aria-live": "polite" });
+  const busy = (b, label) => { b.disabled = true; b.textContent = label; };
+  const sortAI = el("button", { class: "btn small", type: "button", id: "ticket-ai", onclick: async (e) => {
+    busy(e.currentTarget, "Sorting and writing…");
+    try { state.desk = await api("POST", `/api/desk/${t.id}/ai`); drawDesk(); }
+    catch (err) { drawDesk(); notice("err", err.error, err.hint); }
+  } }, sparkle(), t.reply.source === "model" ? " Write it again with AI" : " Sort and draft with AI");
+  const send = el("button", { class: "btn primary small", type: "button", id: "ticket-send", onclick: async () => {
+    busy(send, "Preparing…");
+    try {
+      const r = await api("POST", `/api/desk/${t.id}/send`, { by_name: store.get("settle_name") });
+      put($("#ticket-card"), changeCard(r.proposal, refreshDesk)); send.remove();
+      $("#ticket-card .cc-name")?.focus();
+    } catch (err) { send.disabled = false; send.textContent = "Send reply…"; put(msg, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: err.error }), err.hint))); }
+  } }, "Send reply…");
+  const pending = t.proposal && ["pending", "confirmed"].includes(t.proposal.status);
+  return el("div", {},
+    el("header", { class: "ticket-head" },
+      el("div", { class: "inline" }, el("span", { class: `kind ${TICKET[t.status][0]}` }, TICKET[t.status][1]), t.category ? el("span", { class: "kind books", title: "Sorted by AI" }, CATEGORY[t.category]) : el("span", { class: "kind timing" }, "Not sorted yet"), el("span", { class: "grow" }),
+        askAbout(`message ${t.id}`, `Tell me about message ${t.id} from ${t.from.name}: is the payment part of an issue, and is the drafted reply right?`)),
+      el("h2", { id: "ticket-h", tabindex: "-1" }, t.from.name),
+      el("p", { class: "small muted" }, `${ch} ${chLabel} · ${t.from.address} · ${fdate(t.received_at)}`)),
+    el("h3", {}, "The message"),
+    el("blockquote", { class: "cust-msg" }, t.subject ? el("b", {}, t.subject, el("br")) : null, t.text),
+    t.suspicious ? el("div", { class: "banner warn", role: "note" }, el("div", {}, el("b", {}, "This message tries to give the AI instructions."), "It's treated as text: it can't change how Settle matches, what the reply says or what gets sent.")) : null,
+    el("h3", {}, "What Settle found ", el("span", { class: "small muted", style: "font-weight:400" }, "· by code, from your files")),
+    el("p", {}, el("span", { class: `kind ${MATCH[t.match.status][0]}` }, MATCH[t.match.status][1]), " ", t.match.why),
+    el("table", { class: "grid book facts" }, el("tbody", {}, ...t.facts.map(([k, v]) => el("tr", {}, el("td", {}, k[0].toUpperCase() + k.slice(1)), el("td", {}, v))))),
+    f ? el("div", { class: "linked" },
+      el("div", { class: "row" }, el("span", { class: `kind ${f.kind}` }, (KIND[f.kind] || KIND.books).label), el("b", {}, `Part of issue ${f.id}: ${f.title}`), el("span", { class: "num" }, rupees(f.amount))),
+      f.headline ? el("p", { class: "small muted" }, f.headline) : null,
+      t.actions?.length ? el("ul", { class: "ticks" }, ...t.actions.map((a) => el("li", {}, el("span", {}, ACTION[a.type] || a.type), el("span", { class: `status ${a.status}` }, STATUS[a.status] || a.status)))) : null,
+      el("button", { class: "btn small", type: "button", onclick: (e) => openFinding(f.id, e.currentTarget, "fix") }, "Open the issue and its fix")) : null,
+    el("h3", {}, "Reply"),
+    el("div", { class: "reply-meta" }, t.reply.source === "model" ? el("span", { class: "badge ok" }, sparkle(), " Written by AI from these facts · every figure checked") : el("span", { class: "badge plain" }, "Template: written by code from these facts")),
+    el("div", { class: "reply-box ai-text", id: "reply-body" }, t.reply.body),
+    el("div", { class: "inline", style: "margin-top:10px" },
+      pending ? null : send,
+      d.ai ? sortAI : null,
+      el("button", { class: "btn ghost small", type: "button", onclick: (e) => copy(t.reply.body, e.currentTarget) }, "Copy")),
+    msg,
+    el("div", { id: "ticket-card" }, t.proposal ? changeCard(t.proposal, refreshDesk) : null));
+}
+
+function pasteCard() {
+  const text = el("textarea", { id: "paste-text", rows: 3, maxlength: "1000", placeholder: "e.g. Where's my refund for ₹1,250? Order KK-10432", "aria-label": "Customer message" });
+  const name = el("input", { type: "text", id: "paste-name", maxlength: "60", placeholder: "Their name (optional)", "aria-label": "Sender's name, optional", autocomplete: "off" });
+  const msg = el("div", { "aria-live": "polite" });
+  const go = el("button", { class: "btn primary small", type: "submit", id: "paste-go" }, "Answer it with Desk");
+  return el("form", { class: "card", "aria-labelledby": "paste-h", onsubmit: async (e) => {
+    e.preventDefault();
+    if (!text.value.trim()) { put(msg, el("p", { class: "small", role: "alert" }, "Paste or type a message first.")); text.focus(); return; }
+    go.disabled = true; go.textContent = "Matching and writing…";
+    try {
+      const d = await api("POST", "/api/desk/paste", { text: text.value, name: name.value });
+      state.desk = d; state.deskFilter = "all"; setHash("desk", d.id); drawDesk(); $("#ticket-h")?.focus();
+      if (state.view) state.view.desk_open = d.summary.open;
+    } catch (err) { put(msg, el("div", { class: "banner err", role: "alert" }, el("div", {}, el("b", { text: err.error }), err.hint))); }
+    finally { go.disabled = false; go.textContent = "Answer it with Desk"; }
+  } },
+    el("h2", { id: "paste-h" }, "Paste a customer message"),
+    el("p", { class: "small muted" }, "Try your own: Desk runs it against this month's files, the same way as the inbox. Add the sender's name if they gave no order number; it's how Settle finds their orders. Up to 1,000 characters."),
+    el("div", { class: "field" }, text), el("div", { class: "field" }, name), msg, go);
+}
+
+function inboxConnectCard() {
+  return el("article", { class: "card conn", "aria-labelledby": "inbox-conn-h" },
+    el("div", { class: "conn-top" }, el("span", { class: "conn-ico", "aria-hidden": "true" }, "✉"), el("div", {}, el("h2", { id: "inbox-conn-h" }, "Connect your inbox"), el("p", { class: "small muted" }, "Gmail / WhatsApp Business"))),
+    el("div", {}, el("span", { class: "kind timing" }, "Coming next")),
+    el("p", {}, "Desk would read new messages from your support email and WhatsApp Business number, match each to its payment, and draft the reply. A person still approves every reply."),
+    el("div", { class: "field" }, el("label", { for: "k-mail" }, "Support email"), el("input", { id: "k-mail", type: "text", placeholder: "support@yourstore.in", disabled: true })),
+    el("div", { class: "field" }, el("label", { for: "k-wa" }, "WhatsApp Business number"), el("input", { id: "k-wa", type: "text", placeholder: "+91 …", disabled: true })),
+    el("button", { class: "btn small", type: "button", disabled: true }, "Connect your inbox (Gmail / WhatsApp Business): coming next"));
+}
+
 // ---- how the money flows -----------------------------------------------------------------------
 
 // BRS wording for the Razorpay → bank bridge: the layout every Indian accountant files.
@@ -891,7 +1037,7 @@ async function refreshAudit() {
               el("td", { class: "num" }, a.amount ? rupees(a.amount) : ""))
             : el("tr", {},
               el("td", {}, ACTION[a.type] || a.type, " ", askAbout(`${ACTION[a.type] || a.type} ${a.amount ? short(a.amount) : ""}`.trim(), `Should I approve this ${(ACTION[a.type] || a.type).toLowerCase()}${a.amount ? ` for ${rupees(a.amount)}` : ""}? What does it post, and why?`), el("div", { class: "small muted" }, a.payload?.narration || "")),
-              el("td", { class: "small muted" }, "Month-end entry"),
+              el("td", { class: "small muted" }, a.payload?.ticket ? `Desk reply to ${a.payload.ticket}` : "Month-end entry"),
               el("td", {}, el("span", { class: `status ${a.status}` }, STATUS[a.status] || a.status, a.approved_by ? ` by ${a.approved_by}` : ""),
                 a.status === "needs_approval" || a.status === "auto" ? el("div", { class: "inline", style: "margin-top:6px" },
                   el("button", { class: "btn ok small", type: "button", onclick: () => decideInline(a, "approve") }, a.status === "auto" ? "Run it" : "Approve"),
@@ -1441,6 +1587,7 @@ function paletteItems(q) {
   for (const [k, label] of PAGES) out.push([`Go to ${label}`, "Page", () => go(k)]);
   if (v) {
     for (const f of v.findings) out.push([`${f.id} · ${f.title}`, rupees(Math.abs(f.amount)), () => { go(f.kind === "risk" ? "patterns" : "issues"); openFinding(f.id, null); }]);
+    for (const t of state.desk?.tickets || []) out.push([`${t.id} · ${t.from.name}: ${t.text.slice(0, 48)}`, "Desk", () => { setHash("desk", t.id); go("desk", false); }]);
     for (const s of state.sets?.settlements || []) out.push([`${s.settlement_id} · ${fdate(s.settled_at).split(",")[0]}`, rupees(s.net), () => { go("settlements"); openSettlement(s, null); }]);
     out.push(["Inject chaos: a new random month", "Action", loadChaos],
       ["Download the audit report", "Export", () => open("/api/report", "_blank")], ["Start a new month", "Home", () => show("landing")]);
@@ -1465,6 +1612,7 @@ function runPalette(i) { const it = pItems[i]; if (!it) return; palette.close();
 function openPalette() {
   if (palette.open) return; pq.value = ""; pAt = 0; drawPalette(); palette.showModal(); pq.focus();
   if (state.view && !state.sets) api("GET", "/api/settlements").then((d) => { state.sets ??= d; if (palette.open) drawPalette(); }).catch(() => { /* payouts just aren't listed */ });
+  if (state.view && !state.desk) api("GET", "/api/desk").then((d) => { state.desk ??= d; if (palette.open) drawPalette(); }).catch(() => { /* messages just aren't listed */ });
 }
 pq.addEventListener("input", () => { pAt = 0; drawPalette(); });
 pq.addEventListener("keydown", (e) => {
@@ -1495,6 +1643,7 @@ const AI_QUICK = {
   audit: () => ["Approve all fee journals under ₹500", "Summarise what was approved today"],
   rules: () => ["Suggest rules", "Which issues keep repeating?"],
   settings: () => ["What does auto-accept low-risk allow?", "Which of this month's changes would auto-apply?"],
+  desk: () => (route().id ? [`Is the payment behind ${route().id} part of an issue?`, `What should I check before sending the reply to ${route().id}?`] : []).concat(["Which customer messages are about an issue to fix?", "What should I answer first?"]).slice(0, 3),
 };
 const PAGE_ASK = {
   overview: "Explain what I'm looking at on the Overview and what needs my attention first.",
@@ -1505,6 +1654,7 @@ const PAGE_ASK = {
   audit: "Explain what is waiting for approval here and what I can safely approve.",
   rules: "Explain what Settle remembers here and which rules I should add.",
   settings: "Explain these approval settings and what they let Settle AI do on its own.",
+  desk: "Explain the customer messages on the Desk: which ones are tied to an issue, and which I should answer first.",
 };
 const SLASH = [
   ["/reconcile", "Reconcile again and tell me what changed"],
@@ -1780,7 +1930,7 @@ function stepLabel(t) {
     inspect_file: "Read the attached file", match_candidates: "Checked which payouts tie", make_plan: "Made a plan", done_step: "Ticked off a step" }[t.tool] || (t.tool.startsWith("propose_") ? "Prepared a change" : t.tool);
 }
 
-function changeCard(p) {
+function changeCard(p, after = null) {
   const card = el("div", { class: "change", "data-pid": p.id });
   let busy = false; // a double-click must not confirm (or undo) twice
   const draw = (p, note) => {
@@ -1799,6 +1949,7 @@ function changeCard(p) {
           : how === "reject" ? ["info", "Rejected. Nothing changed.", ""] : how === "undo" ? ["info", "Undone.", "The month was reconciled again without it."]
           : ["ok", always ? "Allowed, and remembered for this kind." : "Done.", "It's in the audit trail. You can undo it there or here."]);
         if (how === "confirm") markStep("decide");
+        after?.(r);
       } catch (e) { draw(p, ["err", e.error, e.hint]); }
       finally { busy = false; }
     };
