@@ -14,7 +14,7 @@ Like a coding agent, but for a finance team: it does the reconciliation work, an
 > - **AI's role:** reads messy bank PDFs, explains issues, answers questions, and does the work through Settle AI on every page. Code computes every rupee; the AI never does the maths.
 > - **Guardrails:** the AI can't apply anything. Every change is a card a named person approves; an approval policy in code decides what may run alone; every figure the AI writes is checked.
 > - **Measured:** 50 held-out months at 100% precision and recall; blind edge-case batches run once with the misses published (6/11, then 5/8); 151/151 test-plan cases, 203 unit tests, 272 browser checks.
-> - **Built** in one day with Claude Code, alongside my day job. Start with the [tour](docs/tour.gif), the [test report](docs/test-report.html) and the [failures log](docs/FAILURES.md).
+> - **Built** in one day with Claude Code, alongside my day job; Desk (answering customers) added two days later. Start with the [tour](docs/tour.gif), the [test report](docs/test-report.html) and the [failures log](docs/FAILURES.md).
 
 ![Settle tour](docs/tour.gif)
 
@@ -288,10 +288,11 @@ its own branch), reviewed every screen and result, pushed back when something wa
 checked it with tests and with months the engine had never seen. Every bug we found is written
 down in the failures log.
 
-**All of this was built in one day, 17 November 2026, alongside my regular work.** While I did my
+**The core was built in one day, 17 November 2026, alongside my regular work.** While I did my
 day job, the agents worked in parallel and I came back to review, redirect and test. The git
 history shows it: first commit at 08:32, last at 23:02, 74 commits. That's the speed I can build
-at with Claude Code, without giving up tests, evals or guardrails.
+at with Claude Code, without giving up tests, evals or guardrails. After that I deployed it (18 Nov)
+and added Desk on 19 Nov, with its own tests, eval and tour chapter.
 
 Speed didn't replace testing. Every feature was tested end to end before I called it done: a
 system test drives the real app in Chrome like a finance user (laptop and phone width, every page,
