@@ -134,6 +134,26 @@ How to read the last column:
 | MAN-05 | Mark as expected | Issues move to their own line; bridge still ₹0 | `tests/test_engine.py::test_rule_resolves_expected_findings_and_bridge_still_closes`; `tests/test_api.py::test_rule_marks_expected_and_bridge_still_ties_out`; `e2e: bridge still ties out after the rule` |
 | MAN-06 | Suggested rules | Only for repeating small books differences; resolve and tie out | `tests/test_manual.py::test_suggested_rules_only_repeat_books_checks`; `e2e: the suggested rule resolves its issues and the bridge ties` |
 
+## Desk: customer messages (DESK)
+
+| ID | Case | Expected | Proved by |
+|---|---|---|---|
+| DESK-01 | Every message in the sample inbox, and in random months | Matched by code to its answer key's order or payout, or ambiguous / none | `tests/test_desk.py::test_every_sample_message_matches_its_answer_key`; `tests/test_desk.py::test_random_months_match_their_answer_keys`; `e2e: every message is matched to its answer key's payment` |
+| DESK-02 | An order number in any case | Exact match by id | `tests/test_desk.py::test_exact_match_by_id_any_case` |
+| DESK-03 | No order number: the sender's name, amount and date | Matched only when one order fits | `tests/test_desk.py::test_match_by_name_amount_and_date_without_an_id` |
+| DESK-04 | Several payments fit | Ambiguous: asks for the order number, names no one's payment | `tests/test_desk.py::test_ambiguous_is_never_guessed` |
+| DESK-05 | An order number that doesn't exist | None: says so and asks | `tests/test_desk.py::test_no_match_says_so` |
+| DESK-06 | A refund the books say went out, but didn't | Linked to its issue; the reply never says "done" | `tests/test_desk.py::test_linked_finding_and_stuck_refund_is_not_called_done`; `e2e: the stuck refund's reply says it hasn't been sent` |
+| DESK-07 | The model's category | Only one of the five allowed; anything else is dropped | `tests/test_desk.py::test_category_outside_the_allowed_set_is_rejected` |
+| DESK-08 | A reply with an invented figure or without the order number | Retried once naming it, then the template | `tests/test_desk.py::test_reply_numbers_are_verified_retried_then_templated`; `tests/test_desk.py::test_every_template_passes_the_number_guard` |
+| DESK-09 | A prompt injection in a customer message (inbox or pasted) | Flagged; matching, facts and reply unchanged; nothing sent | `tests/test_desk.py::test_prompt_injection_message_changes_nothing`; `tests/test_desk.py::test_pasted_prompt_injection_changes_nothing`; `e2e: AI rewrite of the injection reply obeys nothing in it`; `e2e: an injection message is flagged` |
+| DESK-10 | Send reply | A change card; the gate sends a customer note only after a named person allows it; logged; Undo reopens it | `tests/test_desk.py::test_sending_goes_through_the_gate_with_a_named_person`; `e2e: sending a reply needs a name`; `e2e: the reply went through the gate as a customer note, approved by name`; `e2e: Undo puts the message back to answer` |
+| DESK-11 | Reject, "never" policy, two-person rule | Nothing sent; refused; two different people | `tests/test_desk.py::test_reject_sends_nothing`; `tests/test_desk.py::test_policy_never_and_two_person_rule_apply_to_replies` |
+| DESK-12 | A pasted message | Same pipeline: matched, sorted, drafted under the guard; capped and rate-limited; works with the AI off | `tests/test_desk.py::test_pasted_message_that_matches`; `tests/test_desk.py::test_pasted_message_that_matches_nothing`; `tests/test_desk.py::test_paste_limits_and_ai_off`; `e2e: a pasted message is matched by code and answered with checked figures` |
+| DESK-13 | The Desk page | Explains itself, inbox connector shown as coming next, badge, route, ⌘K, Settle AI knows the page | `e2e: the page explains itself in three steps`; `e2e: the inbox connector is shown`; `e2e: the sidebar badge counts the messages to answer`; `e2e: a ticket has its own route`; `e2e: ⌘K finds a Desk message`; `e2e: Settle AI on the Desk offers questions about the open message` |
+| DESK-14 | End-of-day summary and a re-run of the month | Counts and ₹ by code; a sent reply stays sent | `tests/test_desk.py::test_desk_lists_every_message_with_its_reply_and_summary`; `tests/test_desk.py::test_reply_survives_a_rerun_of_the_month`; `e2e: allowed: the message shows as answered and the summary counts it` |
+| DESK-15 | The real model on the golden set | Match, category and verified-figure rates published with misses | `eval: evals/desk_results.md` |
+
 ## Inputs (IN)
 
 | ID | Case | Expected | Proved by |

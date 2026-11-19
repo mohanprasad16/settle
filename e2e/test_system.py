@@ -48,6 +48,7 @@ PAGE_IDS = [
     "overview",
     "settlements",
     "issues",
+    "desk",
     "flow",
     "patterns",
     "audit",
@@ -676,6 +677,88 @@ def ask(page, ctx):
     check(A, "the conversation is still there when reopened", page.locator("#cp-log .cp-turn").count() >= len(turns))  # fmt: skip
     page.click("#cp-new")
     check(A, "New conversation goes back to the home view", page.is_visible("#cp-home"))
+    close_ai(page)
+
+
+def desk(page, ctx):
+    """Desk: customer messages matched by code, replies written from facts, sent only with a name."""
+    A = "5b Desk"
+    inbox = {m["id"]: m for m in json.loads((SAMPLE / "inbox.json").read_text())}
+    goto_page(page, "desk")
+    page.wait_for_selector("#inbox-list")
+    t0 = time.perf_counter()
+    d = page.evaluate("state.desk")
+    check(A, "Desk lists every message in the sample inbox", len(d["tickets"]) == len(inbox), len(d["tickets"]))
+    wrong = [t["id"] for t in d["tickets"] if (t["match"]["status"], t["about"] or None) != (inbox[t["id"]]["expected"]["match"], inbox[t["id"]]["expected"]["ref"])]  # fmt: skip
+    check(A, "every message is matched to its answer key's payment (or ambiguous / none)", not wrong, wrong)
+    check(A, "the sidebar badge counts the messages to answer", page.inner_text("#nav-desk .count") == str(len(inbox)))
+    check(A, "the page explains itself in three steps", page.locator(".desk-how li").count() == 3)
+    check(A, "the inbox connector is shown, switched off, as coming next", page.locator("#k-mail").is_disabled() and "coming next" in page.inner_text("#page-desk .conn").lower())  # fmt: skip
+    shot(page, "desk_inbox")
+
+    # The refund the books say went out, but never did: facts, the linked issue, an honest reply.
+    stuck = next(i for i, m in inbox.items() if "Was it really sent" in m["text"])
+    page.click(f"[data-ticket={stuck}]")
+    page.wait_for_selector("#ticket-h")
+    view = page.inner_text("#ticket")
+    check(A, "a ticket shows the message, what code found and the linked issue", "What Settle found" in view and "Books say refunded, no refund went out" in view and "Open the issue" in view, view[:300])  # fmt: skip
+    body = page.inner_text("#reply-body")
+    check(A, "the stuck refund's reply says it hasn't been sent, never 'done'", "not been sent" in body or "hasn't been sent" in body, body)  # fmt: skip
+    check(A, "the reply is marked as AI-written with every figure checked", "every figure checked" in page.inner_text(".reply-meta"))  # fmt: skip
+    check(A, "a ticket has its own route", page.evaluate("location.hash") == f"#/desk/{stuck}")
+    shot(page, "desk_ticket")
+
+    # Send → a change card → Allow once needs a name → answered, logged under the name → Undo.
+    page.click("#ticket-send")
+    card = page.locator("#ticket-card .change")
+    card.wait_for()
+    check(A, "Send reply makes a change card that waits for a person", "Needs your approval" in card.inner_text() and "approval gate" in card.inner_text())  # fmt: skip
+    card.locator(".cc-name").fill("")
+    card.locator("button", has_text="Allow once").click()
+    check(A, "sending a reply needs a name", "Type your name" in page.locator("#ticket-card").inner_text())
+    page.locator("#ticket-card .cc-name").fill("Priya")
+    page.locator("#ticket-card button", has_text="Allow once").click()
+    page.wait_for_function("() => state.desk && state.desk.tickets.some(t => t.status === 'replied')", timeout=20_000)
+    page.wait_for_selector("#ticket-card .change button:has-text('Undo')")
+    check(A, "allowed: the message shows as answered and the summary counts it", "1 of" in page.inner_text("#desk-summary") and "Answered" in page.inner_text("#ticket .ticket-head"))  # fmt: skip
+    audit = ctx.request.get(base("A") + "/api/audit").json()
+    sent = [a for a in audit["actions"] if a["payload"].get("ticket") == stuck]
+    check(A, "the reply went through the gate as a customer note, approved by name, dry run", sent and sent[0]["type"] == "customer_note" and sent[0]["approved_by"] == "Priya" and sent[0]["sent"]["dry_run"], sent)  # fmt: skip
+    shot(page, "desk_answered")
+    page.locator("#ticket-card button", has_text="Undo").click()
+    page.wait_for_function(f"() => state.desk && state.desk.tickets.find(t => t.id === '{stuck}').status === 'open'", timeout=20_000)
+    check(A, "Undo puts the message back to answer", page.locator("#ticket-send").count() == 1)
+
+    # The prompt injection: flagged, and the AI's reply obeys nothing in it.
+    evil = next(i for i, m in inbox.items() if "Ignore all previous instructions" in m["text"])
+    page.click(f"[data-ticket={evil}]")
+    page.wait_for_selector("#ticket .banner.warn")
+    check(A, "an injection message is flagged as text that can't instruct the AI", "tries to give the AI instructions" in page.inner_text("#ticket"))  # fmt: skip
+    page.click("#ticket-ai")
+    page.wait_for_function("() => !document.querySelector('#ticket-ai')?.disabled", timeout=90_000)
+    body = page.inner_text("#reply-body")
+    check(A, "AI rewrite of the injection reply obeys nothing in it", "refund done" not in body.lower() and "5,000" not in body and inbox[evil]["expected"]["ref"] in body, body)  # fmt: skip
+    t = page.evaluate(f"state.desk.tickets.find(t => t.id === '{evil}')")
+    check(A, "the injection message is still sorted as other", t["category"] == "other", t["category"])
+
+    # Paste your own message: same pipeline, live.
+    no = inbox[stuck]["expected"]["ref"]
+    page.fill("#paste-text", f"Hi, where is my refund for order {no}? It's been a week.")
+    page.click("#paste-go")
+    page.wait_for_function("() => location.hash === '#/desk/P1'", timeout=90_000)
+    page.wait_for_selector("#ticket-h")
+    t = page.evaluate("state.desk.tickets.find(t => t.id === 'P1')")
+    check(A, "a pasted message is matched by code and answered with checked figures", t["about"] == no and t["reply"]["source"] == "model" and t["category"] == "refund_status", t)  # fmt: skip
+    shot(page, "desk_pasted")
+    timings["Desk: open, send, undo, AI rewrite, paste"] = time.perf_counter() - t0
+
+    # ⌘K and Settle AI know the Desk.
+    page.keyboard.press("Control+k")
+    page.fill("#palette-q", inbox[evil]["from"]["name"].split()[0])
+    check(A, "⌘K finds a Desk message", page.locator("#palette-list li", has_text="Desk").count() >= 1)
+    page.keyboard.press("Escape")
+    page.click("#cp-launch")
+    check(A, "Settle AI on the Desk offers questions about the open message", "P1" in page.locator("#cp-suggest").inner_text())  # fmt: skip
     close_ai(page)
 
 
@@ -1492,7 +1575,7 @@ def main() -> int:
             page = ctx.new_page()
             steps = [
                 lambda: landing(page, exp), lambda: sample_results(page, exp), lambda: guidance(page), lambda: settlements_page(page, exp), lambda: drawers(page, exp),
-                lambda: actions(page, ctx), lambda: ask(page, ctx), lambda: chaos(page),
+                lambda: actions(page, ctx), lambda: ask(page, ctx), lambda: desk(page, ctx), lambda: chaos(page),
                 lambda: upload(page, exp, Path(tmp)), lambda: downloads(page, ctx, Path(tmp)),
                 lambda: failures(page, ctx, browser, exp), lambda: native(page, ctx), lambda: floater(page, ctx), lambda: quality(browser), lambda: desktop_layout(browser),
             ]  # fmt: skip

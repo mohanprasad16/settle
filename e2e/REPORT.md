@@ -1,6 +1,6 @@
 # Settle system test
 
-Run 2026-11-18 07:53 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 252/252 checks passed.
+Run 2026-11-19 12:17 · real Chrome via Playwright · desktop 1366×900 and phone 375×812 · 272/272 checks passed.
 
 | Area | Passed | Failed |
 |---|---|---|
@@ -15,6 +15,7 @@ Run 2026-11-18 07:53 · real Chrome via Playwright · desktop 1366×900 and phon
 | 3b Settlements | 5 | 0 |
 | 4 Actions and rules | 15 | 0 |
 | 5 Settle AI answers | 40 | 0 |
+| 5b Desk | 20 | 0 |
 | 6 Chaos | 6 | 0 |
 | 7 Upload | 40 | 0 |
 | 8 Downloads | 6 | 0 |
@@ -24,15 +25,16 @@ Run 2026-11-18 07:53 · real Chrome via Playwright · desktop 1366×900 and phon
 
 | Step | Seconds |
 |---|---|
-| sample (click to results) | 0.82 |
+| sample (click to results) | 0.83 |
 | Settle AI: Why did a settlement never reach my bank? | 0.86 |
 | Settle AI: How much did I lose to chargebacks this month? | 0.93 |
-| Settle AI: Which day had the most refunds? | 0.56 |
-| Settle AI: What should I do first? | 0.52 |
-| chaos month 1 | 0.83 |
-| chaos month 2 | 0.82 |
-| chaos month 3 | 0.84 |
-| CSV upload (submit to results) | 0.85 |
+| Settle AI: Which day had the most refunds? | 0.57 |
+| Settle AI: What should I do first? | 0.51 |
+| Desk: open, send, undo, AI rewrite, paste | 1.30 |
+| chaos month 1 | 0.85 |
+| chaos month 2 | 0.83 |
+| chaos month 3 | 0.82 |
+| CSV upload (submit to results) | 0.83 |
 | locked PDF (submit to review) | 0.13 |
 | scanned PDF (submit to review) | 0.13 |
 | digital PDF (submit to review) | 0.13 |
@@ -254,14 +256,37 @@ Run 2026-11-18 07:53 · real Chrome via Playwright · desktop 1366×900 and phon
 - ✅ the conversation is still there when reopened
 - ✅ New conversation goes back to the home view
 
+### 5b Desk
+
+- ✅ Desk lists every message in the sample inbox
+- ✅ every message is matched to its answer key's payment (or ambiguous / none)
+- ✅ the sidebar badge counts the messages to answer
+- ✅ the page explains itself in three steps
+- ✅ the inbox connector is shown, switched off, as coming next
+- ✅ a ticket shows the message, what code found and the linked issue
+- ✅ the stuck refund's reply says it hasn't been sent, never 'done'
+- ✅ the reply is marked as AI-written with every figure checked
+- ✅ a ticket has its own route
+- ✅ Send reply makes a change card that waits for a person
+- ✅ sending a reply needs a name
+- ✅ allowed: the message shows as answered and the summary counts it
+- ✅ the reply went through the gate as a customer note, approved by name, dry run
+- ✅ Undo puts the message back to answer
+- ✅ an injection message is flagged as text that can't instruct the AI
+- ✅ AI rewrite of the injection reply obeys nothing in it
+- ✅ the injection message is still sorted as other
+- ✅ a pasted message is matched by code and answered with checked figures
+- ✅ ⌘K finds a Desk message
+- ✅ Settle AI on the Desk offers questions about the open message
+
 ### 6 Chaos
 
-- ✅ Random month #758871: every hidden problem found, nothing extra
-- ✅ Random month #758871: unexplained ₹0.00 on both bridges
-- ✅ Random month #717658: every hidden problem found, nothing extra
-- ✅ Random month #717658: unexplained ₹0.00 on both bridges
-- ✅ Random month #726908: every hidden problem found, nothing extra
-- ✅ Random month #726908: unexplained ₹0.00 on both bridges
+- ✅ Random month #687211: every hidden problem found, nothing extra
+- ✅ Random month #687211: unexplained ₹0.00 on both bridges
+- ✅ Random month #735265: every hidden problem found, nothing extra
+- ✅ Random month #735265: unexplained ₹0.00 on both bridges
+- ✅ Random month #812230: every hidden problem found, nothing extra
+- ✅ Random month #812230: unexplained ₹0.00 on both bridges
 
 ### 7 Upload
 
@@ -357,36 +382,40 @@ Run 2026-11-18 07:53 · real Chrome via Playwright · desktop 1366×900 and phon
 - `e2e/screenshots/17_action_approved_dry_run.png`
 - `e2e/screenshots/18_rule_marked_expected.png`
 - `e2e/screenshots/19_settle_ai_answer.png`
-- `e2e/screenshots/20_chaos_answer_key.png`
-- `e2e/screenshots/21_upload_desktop.png`
-- `e2e/screenshots/22_error_wrong_box.png`
-- `e2e/screenshots/23_error_locked_pdf_password.png`
-- `e2e/screenshots/24_pdf_review_verified.png`
-- `e2e/screenshots/25_pdf_review_broken_row.png`
-- `e2e/screenshots/26_audit_report.png`
-- `e2e/screenshots/27_error_network_retry.png`
-- `e2e/screenshots/28_empty_state_rules.png`
-- `e2e/screenshots/29_ai_off_template_explanation.png`
-- `e2e/screenshots/30_error_rate_limit.png`
-- `e2e/screenshots/31_landing_hero_video.png`
-- `e2e/screenshots/32_command_palette.png`
-- `e2e/screenshots/33_settle_ai_home.png`
-- `e2e/screenshots/34_change_card_before_confirm.png`
-- `e2e/screenshots/35_change_card_after_confirm.png`
-- `e2e/screenshots/36_suggested_rules.png`
-- `e2e/screenshots/37_settings_policy.png`
-- `e2e/screenshots/38_excel_transform_preview.png`
-- `e2e/screenshots/39_approvals_bulk.png`
-- `e2e/screenshots/40_settle_ai_launcher.png`
-- `e2e/screenshots/41_settle_ai_kpi_ask.png`
-- `e2e/screenshots/42_palette_ask_settle_ai.png`
-- `e2e/screenshots/43_settlements_two_ticked.png`
-- `e2e/screenshots/44_settle_ai_phone.png`
-- `e2e/screenshots/45_landing_phone.png`
-- `e2e/screenshots/46_phone_header.png`
-- `e2e/screenshots/47_results_phone.png`
-- `e2e/screenshots/48_results_phone_full.png`
-- `e2e/screenshots/49_finding_drawer_phone.png`
+- `e2e/screenshots/20_desk_inbox.png`
+- `e2e/screenshots/21_desk_ticket.png`
+- `e2e/screenshots/22_desk_answered.png`
+- `e2e/screenshots/23_desk_pasted.png`
+- `e2e/screenshots/24_chaos_answer_key.png`
+- `e2e/screenshots/25_upload_desktop.png`
+- `e2e/screenshots/26_error_wrong_box.png`
+- `e2e/screenshots/27_error_locked_pdf_password.png`
+- `e2e/screenshots/28_pdf_review_verified.png`
+- `e2e/screenshots/29_pdf_review_broken_row.png`
+- `e2e/screenshots/30_audit_report.png`
+- `e2e/screenshots/31_error_network_retry.png`
+- `e2e/screenshots/32_empty_state_rules.png`
+- `e2e/screenshots/33_ai_off_template_explanation.png`
+- `e2e/screenshots/34_error_rate_limit.png`
+- `e2e/screenshots/35_landing_hero_video.png`
+- `e2e/screenshots/36_command_palette.png`
+- `e2e/screenshots/37_settle_ai_home.png`
+- `e2e/screenshots/38_change_card_before_confirm.png`
+- `e2e/screenshots/39_change_card_after_confirm.png`
+- `e2e/screenshots/40_suggested_rules.png`
+- `e2e/screenshots/41_settings_policy.png`
+- `e2e/screenshots/42_excel_transform_preview.png`
+- `e2e/screenshots/43_approvals_bulk.png`
+- `e2e/screenshots/44_settle_ai_launcher.png`
+- `e2e/screenshots/45_settle_ai_kpi_ask.png`
+- `e2e/screenshots/46_palette_ask_settle_ai.png`
+- `e2e/screenshots/47_settlements_two_ticked.png`
+- `e2e/screenshots/48_settle_ai_phone.png`
+- `e2e/screenshots/49_landing_phone.png`
+- `e2e/screenshots/50_phone_header.png`
+- `e2e/screenshots/51_results_phone.png`
+- `e2e/screenshots/52_results_phone_full.png`
+- `e2e/screenshots/53_finding_drawer_phone.png`
 
 ## Bugs the system test found
 
