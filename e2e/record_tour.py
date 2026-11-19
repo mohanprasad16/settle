@@ -4,14 +4,15 @@
 
 Real server, real sample files, the real model for the scanned PDF and every Settle AI answer, so
 every figure on screen is what the app actually produced. Captions read their numbers off the
-page. Five chapters (bring your data, see every rupee, ask Settle AI, fix with approval, hand it
-to the auditor); a cursor with a click ripple, and the page eases in on what a caption is about.
+page. Six chapters (bring your data, see every rupee, ask Settle AI, fix with approval, answer
+customers, hand it to the auditor); a cursor with a click ripple, and the page eases in on what a caption is about.
 Re-run after UI changes.
 Needs ffmpeg (the raw WebM is ~25 MB, too heavy to serve). Only the waits for the model are
 sped up, and each says so on screen with its real length: "AI working: N s real time".
 """
 
 import csv
+import json
 import shutil
 import subprocess
 import time
@@ -79,7 +80,7 @@ OVERLAY = """
       m.style.transformOrigin = `${c.x - b.left}px ${c.y - b.top}px`;
       m.style.transform = `translate(${innerWidth / 2 - c.x}px, ${innerHeight / 2 - c.y}px) scale(${s})`; },
     chap(n, title) { const e = full("tour-chap", `<div><small></small><b></b></div>`);
-      e.querySelector("small").textContent = `${n} of 5`; e.querySelector("b").textContent = title; },
+      e.querySelector("small").textContent = `${n} of 6`; e.querySelector("b").textContent = title; },
     unchap() { const e = document.getElementById("tour-chap"); if (!e) return; e.classList.remove("on"); setTimeout(() => e.remove(), 320); },
     end(title, line) { const e = full("tour-end", `<div><b></b><span></span></div>`);
       e.querySelector("b").textContent = title; e.querySelector("span").textContent = line; },
@@ -277,7 +278,7 @@ def record() -> Path:
             page.keyboard.press("Enter")
             t.ai_wait(lambda: page.wait_for_function("() => document.querySelectorAll('#cp-log .cp-turn').length >= 2 && !cp.busy", timeout=120_000))  # fmt: skip
             t.cap("The same answer checks, from any page", icon=SPARK, ai=True)
-            t.show(page.locator("#cp-log .cp-turn").last.locator(".cp-text"), 3.0, scroll=False)
+            t.show(page.locator("#cp-log .cp-turn").last.locator(".cp-text"), 2.2, scroll=False)
             page.locator("#copilot header button[aria-label='Close Settle AI']").click()
             t.wait(0.3)
 
@@ -316,14 +317,38 @@ def record() -> Path:
             )
             t.zoom(page.locator("#pol-kinds"), 1.2, 1.8)
 
-            # 5. Hand it to the auditor
-            t.chapter(5, "Hand it to the auditor")
+            # 5. Answer customers: a "where's my refund?" message, matched by code, answered from facts.
+            t.chapter(5, "Answer customers")
+            t.click(page.locator("#nav-desk"), 0.3)
+            stuck = next(m for m in json.loads((SAMPLE / "inbox.json").read_text()) if "Was it really sent" in m["text"])  # fmt: skip
+            t.cap("A customer asks where their refund is. Paste it into Desk (Gmail and WhatsApp connect next)")
+            t.click(page.locator("#paste-text"), 0.2)
+            page.locator("#paste-text").type(stuck["text"], delay=12)
+            page.locator("#paste-name").type(stuck["from"]["name"], delay=30)
+            t.wait(0.4)
+            t.cap("")
+            t.click(page.locator("#paste-go"), 0, scroll=False)
+            t.ai_wait(lambda: page.wait_for_function("() => location.hash === '#/desk/P1' && document.querySelector('#reply-body')", timeout=120_000))  # fmt: skip
+            t.cap("Code finds the order: the refund was recorded but never went out. The issue and its fix are linked")
+            t.show(page.locator("#ticket .linked"), 2.6)
+            MARKS["desk"] = t.now() - 0.6
+            ok = "every figure checked" in page.inner_text("#ticket .reply-meta")
+            t.cap("The AI writes the reply from those facts, every figure checked" if ok else "The reply is written by code from those facts", icon=SPARK if ok else "•", ai=ok)  # fmt: skip
+            t.show(page.locator("#reply-body"), 2.4)
+            t.cap("")
+            t.click(page.locator("#ticket-send"), 0, scroll=False)
+            page.locator("#ticket-card .change").wait_for(timeout=30_000)
+            t.cap("Sending is a change card: nothing reaches the customer until a named person allows it")
+            t.show(page.locator("#ticket-card .change"), 2.6)
+
+            # 6. Hand it to the auditor
+            t.chapter(6, "Hand it to the auditor")
             page.goto(f"{url}/api/report")
             page.wait_for_load_state()
             t.cap("An audit report with every decision and who made it, plus the BRS, Tally journal and Excel pack")  # fmt: skip
             t.wait(1.4)
             page.mouse.wheel(0, 600)
-            t.wait(3.0)
+            t.wait(2.4)
             t.cap("")
             page.evaluate(
                 "window.__tour.end('Settle', 'Account for every rupee · github.com/mohanprasad16/settle')"
@@ -380,7 +405,7 @@ def encode(webm: Path) -> None:
     # The poster: the Overview with Settle AI open on a checked answer.
     subprocess.run([*ff, "-ss", f"{film_time(MARKS['poster']):.2f}", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(STATIC / "tour.jpg")], check=True)  # fmt: skip
     FRAMES.mkdir(parents=True, exist_ok=True)
-    for name in ["chapter", "data_in", "zoom", "overview_ai", "change_card", "end"]:
+    for name in ["chapter", "data_in", "zoom", "overview_ai", "change_card", "desk", "end"]:
         if name in MARKS:
             subprocess.run([*ff, "-ss", f"{film_time(MARKS[name]):.2f}", "-i", str(STATIC / "tour.mp4"), "-frames:v", "1", "-q:v", "3", str(FRAMES / f"tour_{name}.jpg")], check=True)  # fmt: skip
     gif = ROOT / "docs" / "tour.gif"
