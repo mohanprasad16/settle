@@ -11,6 +11,7 @@ Live demo: https://settle-puvq.onrender.com
 - Settlements view and a Bank Reconciliation Statement (BRS); audit report, Excel pack, Tally journal.
 - Reads bank statement PDFs (digital, scanned, password-locked); a balance-chain check catches any misread row.
 - Settle AI on every page (floating chat, "Ask" next to any figure, ⌘K): answers with cited rows, and prepares changes (manual matches, rules, approvals, drafts) as change cards: Allow once / Always allow / Reject / Undo.
+- Desk: customer messages about money ("I paid but my order failed", "where's my refund?") matched to their payment by code, answered by the AI from code-built facts with every figure checked, sent only when a named person approves.
 
 ## Design rule
 Code computes every rupee (DuckDB SQL, integer paise). The AI reads, explains and proposes; it has no apply tool. An approval policy in code decides what may run alone; money movement, customer- and Razorpay-facing actions and anything over ₹5,000 always need a named person. Every figure the AI writes is checked against the engine. Text inside files is data, never instructions.
@@ -18,7 +19,7 @@ Code computes every rupee (DuckDB SQL, integer paise). The AI reads, explains an
 ## Evidence
 - 50 held-out random months: 100% precision, 100% recall, both bridges at ₹0 every month, ~12,000 rows/sec.
 - Blind edge-case batches run once, misses published: 6/11 (then fixed), 5/8 (known limits listed).
-- Tests: 137/137 test-plan cases, 177 unit and API tests, 252 browser checks in real Chrome; CI on every push.
+- Tests: 151/151 test-plan cases, 203 unit and API tests, 272 browser checks in real Chrome; CI on every push.
 - Real model: 24/24 explanations verified, 11/11 golden questions, 36/36 bank-PDF rows exact.
 
 ## Key docs

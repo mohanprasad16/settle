@@ -13,7 +13,7 @@ Like a coding agent, but for a finance team: it does the reconciliation work, an
 > - **What Settle does:** reconciles all three to the paisa (every rupee ends on a named line, Unexplained ₹0.00), finds the leaks, explains them, and drafts the fixes.
 > - **AI's role:** reads messy bank PDFs, explains issues, answers questions, and does the work through Settle AI on every page. Code computes every rupee; the AI never does the maths.
 > - **Guardrails:** the AI can't apply anything. Every change is a card a named person approves; an approval policy in code decides what may run alone; every figure the AI writes is checked.
-> - **Measured:** 50 held-out months at 100% precision and recall; blind edge-case batches run once with the misses published (6/11, then 5/8); 137/137 test-plan cases, 177 unit tests, 252 browser checks.
+> - **Measured:** 50 held-out months at 100% precision and recall; blind edge-case batches run once with the misses published (6/11, then 5/8); 151/151 test-plan cases, 203 unit tests, 272 browser checks.
 > - **Built** in one day with Claude Code, alongside my day job. Start with the [tour](docs/tour.gif), the [test report](docs/test-report.html) and the [failures log](docs/FAILURES.md).
 
 ![Settle tour](docs/tour.gif)
@@ -97,6 +97,48 @@ it from then on. A 👍 on a hard question is kept the same way, so a later prom
 quietly break it. The follow-up chips under each answer are built by code from the issues the
 answer cited, never from model text, so a chip can't carry an instruction from the data.
 
+## Desk: answering customers about money
+
+**The problem.** An online store gets many customer messages about money: "I paid but my order
+shows failed", "where's my refund?", "you charged me twice". Today a support person opens the
+payment dashboard, finds the payment, checks what happened and types a reply: 5-10 minutes each,
+and sometimes a wrong answer ("refund done" when it is stuck). Settle already knows every payment,
+refund and settlement and which ones have problems, so Desk answers each message with the real
+facts and a person approves the reply in one click.
+
+**How it works** (`app/desk.py`, the **Desk** page):
+
+1. **Code finds the payment.** It reads the order number, `pay_` / `rfnd_` / `setl_` ids, amount,
+   date and sender's name in the message and looks them up. If more than one payment fits, or
+   none, the ticket says so and the reply asks for the order number. It never guesses.
+2. **The model sorts it** into one of five categories (refund status, paid but not confirmed,
+   charged twice, payout question, other); anything outside that set is dropped.
+3. **The model writes the reply from a fact sheet code built** (the order, payment, refunds, the
+   payout, what the team does next), under the same number guard as the drafts: one retry naming
+   the bad figures, then a fixed template. A matched reply must quote the order or payout id.
+4. **The fix is right there.** If the payment is part of an issue Settle found (a refund that never
+   went out, a payment the store never confirmed), the ticket shows that issue and its fixes.
+5. **A person sends it.** "Send reply" is a change card that goes through the approval gate as a
+   note to a customer, which can never be automatic: Allow once with your name, Reject, or Undo.
+   It's in the decision log under that name. In the demo, sending is recorded, not made.
+6. **End of day**, by code: messages answered, ₹ involved, how many are still open and why.
+
+The sample month comes with an inbox of 16 email and WhatsApp messages tied to real rows (a stuck
+refund, a double refund, two orders paid but still pending, "charged twice", payout questions from
+the accounts team, two off-topic messages and one prompt injection), each with an answer key;
+every random month gets its own. You can also **paste your own message** and Desk runs the same
+pipeline on the loaded month. Customer text is data, never instructions: it's fenced before the
+model sees it, its figures never verify anything, and instruction-like text is flagged. Connecting
+Gmail or WhatsApp Business is shown, switched off, as coming next.
+
+**Measured** with the real model, once ([results](evals/desk_results.md)): on the 16-message golden
+set, match 16/16, category 16/16, and every reply written by the model with every figure verified
+16/16 (32 model calls, no retries, no template fallbacks), 0 misses. Matching (code only) on the
+50 held-out random months: 678/678 messages. Honest caveats: the golden set was written by the same
+generator that plants the month, so its phrasing is regular; real inboxes say "last Tuesday" or
+"1.2k". The sample orders export has no email or phone, so the sender's name is the identity
+(with an export that carries them, those come first).
+
 ## How it works
 
 ![architecture](docs/architecture.svg)
@@ -136,9 +178,9 @@ More detail: [Architecture](docs/ARCHITECTURE.md) · [Prompts and why they're wr
 
 ## How I know it works
 
-- **137 of 137 test-plan cases pass** (plus 2 measured in the evals), each with an ID and the test that proves it:
-  [Test plan](docs/TEST_PLAN.md) · [Test report](docs/test-report.html) (177 unit and API tests,
-  252 browser checks in real Chrome on laptop and phone width).
+- **151 of 151 test-plan cases pass** (plus 3 measured in the evals), each with an ID and the test that proves it:
+  [Test plan](docs/TEST_PLAN.md) · [Test report](docs/test-report.html) (203 unit and API tests,
+  272 browser checks in real Chrome on laptop and phone width).
 - **Held-out months**: 50 random months never used while building or tuning: precision 100%,
   recall 100%, both bridges at ₹0 in every month, about 12,000 rows a second.
 - **Blind edge cases, misses published.** New tricky cases written after the fact and run once:
@@ -156,12 +198,12 @@ Four layers, each catching a different kind of mistake:
 1. **Answer keys, not guesses.** The sample month and every random month are generated with
    problems planted on purpose and an answer key. A test passes only if the engine finds every
    planted problem with the exact ₹ amount, flags nothing else, and both bridges close to ₹0.
-2. **Unit and API tests** (177) for the engine, matching, each AI guard, Settle AI's change
+2. **Unit and API tests** (203) for the engine, matching, each AI guard, Settle AI's change
    cards, the approval policy, inputs and outputs. The model is replaced by a scripted stand-in,
    so the tests are exact, fast and need no key. Guardrail tests try to break things on purpose:
    invented numbers, SQL that reaches for files, "approve everything" hidden in an Excel cell,
    approving your own change under two-person approval.
-3. **A system test in a real browser** (252 checks). It starts the real server and drives Chrome
+3. **A system test in a real browser** (272 checks). It starts the real server and drives Chrome
    like a finance user: every page, every button, every Settle AI flow end to end (plan → change
    card → Allow → Undo), uploads of CSV, Excel and scanned and locked PDFs, downloads, back and
    forward, phone width, keyboard only, and the failure states (AI off, network drop, rate limit,
@@ -255,7 +297,7 @@ Speed didn't replace testing. Every feature was tested end to end before I calle
 system test drives the real app in Chrome like a finance user (laptop and phone width, every page,
 every Settle AI flow, every failure state), on top of unit and API tests and the held-out
 evaluation. An independent QA pass then tried to break it and fixed what it found. The final run
-on this version: **137 of 137 test-plan cases (plus 2 measured in evals), 177 unit and API tests and 252 browser checks, all
+on this version: **151 of 151 test-plan cases (plus 3 measured in evals), 203 unit and API tests and 272 browser checks, all
 passing**, with one command and no API key: `uv run python -m tests.run_all`. GitHub Actions runs
 the same suite on every push.
 
@@ -272,6 +314,7 @@ Tests (no API key needed):
 ```bash
 uv run python -m tests.run_all             # unit + browser system test, writes reports/test-report.html
 uv run python -m evals.run_eval            # held-out months and edge cases
+uv run python -m evals.desk_eval           # Desk golden set with the real model (needs GEMINI_API_KEY)
 ```
 
 Docker:
@@ -287,6 +330,7 @@ docker build -t settle . && docker run -p 8000:8000 settle
 | `app/engine.py` | Matching, checks, the two bridges, settlements, BRS |
 | `app/load.py`, `app/pdf_bank.py`, `app/transform.py` | Reading CSVs, bank PDFs, people's own sheets |
 | `app/explain.py`, `app/ask.py`, `app/copilot.py` | The AI parts, each behind its guard |
+| `app/desk.py` | Desk: matching customer messages to payments, the reply fact sheet, sorting and drafting |
 | `app/gate.py`, `app/rules.py`, `app/audit.py`, `app/journal.py` | Approval policy, rules, decision log, audit report, journals |
 | `app/connectors/razorpay.py` | Razorpay Settlement Recon API connector |
 | `app/sample.py` | The sample month and the random-month generator (with answer keys) |

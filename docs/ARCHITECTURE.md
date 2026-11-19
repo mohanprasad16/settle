@@ -45,6 +45,8 @@ to the paisa and shows what's left for a person to decide.
 | Explaining a finding in plain words | AI, numbers checked | Owners don't read "UTR mismatch on setl_…" |
 | Answering free questions | AI agent with read-only SQL, numbers checked | Questions are open-ended |
 | Ticket to Razorpay, note to a customer | AI drafts, a person sends | Saves typing; a human stays in control |
+| Matching a customer message to its payment (Desk) | Code: ids, else name + amount + date | A wrong match is a wrong answer to a customer; more than one fit is asked, not guessed |
+| Sorting a customer message, writing the reply (Desk) | AI, from a code-built fact sheet, numbers checked; a person sends | Saves the 5-10 minutes per message; the facts stay exact |
 | The Razorpay API call to check a settlement | Code | It has an exact shape; nothing to generate |
 
 ## Guardrails

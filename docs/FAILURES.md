@@ -122,6 +122,21 @@ twin refunds in the same minute and three-decimal amounts all came out right.
   prompt count for the guard (bare numbers still don't). Measured after: 5 of 5 runs proposed,
   5 of 5 verified.
 
+## Desk
+
+- **The two-person rule blocked a Desk reply the right two people had approved.** The change card
+  counts the person who pressed Send as the first of the two people (as it does for every card),
+  but the gate behind it wanted two *approvers*, so after a second person allowed it the gate said
+  "needs a second, different person" and nothing was sent. Found by
+  `test_policy_never_and_two_person_rule_apply_to_replies` before the feature shipped. Fixed in the
+  apply step: under the two-person rule, the preparer is passed to the gate as the first approval.
+- **Re-recording the browser tape would have baked in a real-model miss.** The suite's record mode
+  re-records every model reply. On that run the live model misread one row of the scanned bank
+  PDF (the balance check caught it, as it should), so the recording would have made that miss
+  permanent in CI and cascaded into the upload and download areas. Recorded only the four new
+  Desk replies and merged them into the existing tape instead; the full replay then passed 272/272.
+  The scanned PDF's earlier 36/36 is a single run, and this one shows it can vary.
+
 ## Independent QA pass (adversarial, real Chrome)
 
 Found by trying to break the app as a hostile or careless user, not by the existing suite. Each is
