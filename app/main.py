@@ -33,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app import copilot as copilot_mod
+from app import desk as desk_mod
 from app import drafts as drafts_mod
 from app import explain as explain_mod
 from app import journal, sample, transform
@@ -41,7 +42,7 @@ from app.ask import ask
 from app.audit import DecisionLog, pack, render
 from app.config import settings
 from app.engine import KINDS, SETTLEMENT_STATUS, Result, brs, check_manual, run, settlements
-from app.gate import HARD_CAP, LOCKED, MODES, Gate, Policy
+from app.gate import HARD_CAP, LOCKED, MODES, Action, Gate, Policy
 from app.gate import KINDS as POLICY_KINDS
 from app.llm import GeminiLLM, TapeLLM, Usage
 from app.load import REQUIRED, LoadError, load
@@ -49,7 +50,7 @@ from app.money import rupees, to_paise
 from app.pdf_bank import PdfLocked, check, extract, pages, write_csv
 from app.roi import roi
 from app.rules import ManualMatch, Rule, suggest_rules
-from app.sanitize import CsvWriter
+from app.sanitize import CsvWriter, as_data
 from app.trace import trace
 
 log = logging.getLogger(__name__)
@@ -112,6 +113,8 @@ class Session:
     policy: Policy = field(default_factory=Policy)  # the approval policy; only a person edits it
     answers: dict = field(default_factory=dict)  # Settle AI answer id -> {q, answer, page}
     feedback: list = field(default_factory=list)  # 👍 / 👎 on answers: the start of an eval set
+    inbox: list = field(default_factory=list)  # Desk: customer messages (sample / random month, or pasted)
+    desk_ai: dict = field(default_factory=dict)  # Desk replies a person asked the model for, by facts
     ai_times: deque = field(
         default_factory=deque
     )  # this session's model calls, for its hourly limit
@@ -255,6 +258,7 @@ def _reconcile(s: Session, keep: bool = False, why: str = "") -> None:
     decision log and the actions they already decided carry over instead of starting again."""
     old_log = s.log if keep else None
     decided = {_akey(a): a for a in s.gate.actions.values()} if keep and s.gate else {}
+    replies = [a for a in s.gate.actions.values() if "ticket" in a.payload] if keep and s.gate else []
     con = duckdb.connect()
     try:
         period = load(con, s.files["razorpay"], s.files["bank"], s.files["orders"])
@@ -297,6 +301,10 @@ def _reconcile(s: Session, keep: bool = False, why: str = "") -> None:
         b = decided.get(_akey(a))
         if b and b.status in ("approved", "executed", "rejected"):
             a.status, a.approved_by, a.sent, a.reason = b.status, b.approved_by, b.sent, b.reason
+    for a in replies:  # Desk replies aren't rebuilt from findings: keep them, re-linked by what they're about
+        f = next((f for f in result.findings if a.payload.get("about") in f.refs), None)
+        a.id, a.finding_id = f"A{len(s.gate.actions) + 1}", f.id if f else None
+        s.gate.actions[a.id] = a
     s.gate.log = s.log
     if old_log is None:
         for a in s.gate.actions.values():
@@ -426,6 +434,7 @@ def _view(s: Session) -> dict:
             for m in s.manual
         ],
         "demo_mode": settings.demo_mode,
+        "desk_open": len(s.inbox) - len({p.payload["ticket"] for p in s.proposals.values() if p.type == "reply" and p.status == "confirmed"}),
         # [day, refunds, paise] for the refunds-per-day chart on Patterns.
         "refunds_by_day": s.con.execute(
             """SELECT CAST(created_at AS DATE), count(*), sum(amount) FROM rp WHERE type = 'refund'
@@ -468,6 +477,7 @@ def load_sample(request: Request):
     }
     s.source, s.truth, s.rules, s.ai_explained = "sample", None, [], {}
     s.manual, s.proposals = [], {}
+    s.inbox, s.desk_ai = json.loads((SAMPLE / "inbox.json").read_text()), {}
     _reconcile(s)
     return _respond(sid, _view(s))
 
@@ -487,6 +497,7 @@ def load_chaos(request: Request, body: ChaosIn | None = None):
     s.files = {"razorpay": paths["rp"], "bank": paths["bank"], "orders": paths["orders"]}
     s.source, s.truth, s.rules, s.ai_explained = "chaos", truth | {"seed": seed}, [], {}
     s.manual, s.proposals = [], {}
+    s.inbox, s.desk_ai = json.loads((paths["rp"].parent / "inbox.json").read_text()), {}
     _reconcile(s)
     return _respond(sid, _view(s))
 
@@ -546,6 +557,7 @@ async def upload(
 
     s.source, s.truth, s.rules, s.ai_explained, s.pending_pdf = "upload", None, [], {}, None
     s.manual, s.proposals = [], {}
+    s.inbox, s.desk_ai = [], {}  # a real inbox would connect here; pasting a message still works
     if raw["bank"][:5] == b"%PDF-":
         try:
             pages(raw["bank"], password or None)  # cheap: unlock first, before any model call
@@ -1054,7 +1066,7 @@ def copilot_chat(request: Request, body: CopilotIn):
     llm = _llm(s)
     _ai_allowed(request)
     out, made = copilot_mod.copilot(_ctx(s), q, llm, s.explanations, body.page[:30], body.focus[:40],
-                                    body.selection.model_dump())  # fmt: skip
+                                    body.selection.model_dump(), _desk_brief(s, body.focus) if body.page == "desk" else "")  # fmt: skip
     s.usages.append(out.usage)
     s.log.log("ai", "copilot", ("verified" if out.verified else "not verified") + f": {q[:80]}")
     for p in made:  # a granted kind, or auto-accept mode within the policy: code applies it
@@ -1222,6 +1234,19 @@ def _apply(s: Session, p, who: str) -> None:
             except PermissionError as e:
                 blocked.append(f"{a.id}: {e}")
         p.result = {"done": done, "blocked": blocked, "before": before}
+    elif p.type == "reply":  # a Desk reply: a customer note through the gate, named approver(s)
+        a = s.gate.propose(Action("customer_note", p.amount, {k: d[k] for k in ("ticket", "to", "channel", "subject", "body", "about")},
+                                  d["finding_id"] if d["finding_id"] in s.gate.findings else None, proposed_by=d["by"]))  # fmt: skip
+        mc = s.policy.maker_checker_over  # the person who prepared it is the first of the two people
+        names = [p.proposer, *p.approvals] if mc is not None and p.amount > mc and p.proposer else p.approvals or [who]
+        try:
+            for name in names:
+                if a.status == "needs_approval":
+                    s.gate.approve(a.id, name)
+            s.gate.execute(a.id)
+        except PermissionError as e:
+            raise Oops(403, f"The gate didn't let this reply go: {e}.", "Nothing was sent.") from e
+        p.result = {"action": a.id, "key": a.idempotency_key, "sent": a.sent}
     elif p.type == "transform":
         sheet = s.sheets.get(d["file_id"])
         if sheet is None:
@@ -1310,6 +1335,11 @@ def undo_proposal(request: Request, pid: str, body: ApproveIn):
                 a.status, a.approved_by, a.sent, a.reason = status, "", None, f"undone by {who}"
     elif p.type == "transform" and p.result.get("previous"):
         s.files = {**s.files, d["use_as"]: Path(p.result["previous"])}
+    elif p.type == "reply":  # demo mode recorded it, nothing went out; the ticket is open again
+        for a in s.gate.actions.values():
+            if a.idempotency_key == p.result.get("key"):
+                a.status, a.reason = "undone", f"undone by {who}"
+                s.gate._record("human", "undid", a)
     if p.type in ("manual_match", "rule") or (p.type == "transform" and p.result.get("previous")):
         _reconcile(s, keep=True, why=f"undo of {p.id} by {who}")
     p.status, p.decided_by = "undone", who
@@ -1342,6 +1372,132 @@ def proposal_sheet(request: Request, pid: str):
     if not path.exists():
         raise Oops(404, "That file isn't ready.", "Confirm the change card first.")
     return FileResponse(path, media_type="text/csv", filename=f"settle_sheet_{pid}.csv")
+
+
+# --- Desk: customer messages about money --------------------------------------------------------
+
+
+def _desk_brief(s: Session, focus: str) -> str:
+    """What Settle AI knows on the Desk page: each ticket by id and status, no amounts (it reads
+    those with SQL, so they verify), and the open message fenced as data."""
+    ts = _desk(s)
+    lines = [f"{t['id']}: {t['channel']} from {as_data(t['from']['name'], 40)}, {t['category'] or 'not sorted'}, "
+             f"{t['match']['status']}{' to ' + t['about'] if t['about'] else ''}"
+             f"{', issue ' + t['finding']['id'] if t['finding'] else ''}, reply {t['status']}" for t in ts[:40]]  # fmt: skip
+    out = "\nDesk: customer messages about money. Code matched each to its order or payout; a person approves every reply.\n" + "\n".join(lines)  # fmt: skip
+    t = next((t for t in ts if t["id"] == focus), None)
+    if t:
+        out += f"\nOpen now: ticket {t['id']}, message {as_data(t['text'], 400)}"
+    return out
+
+DESK_STORE = MERCHANT["sample"]  # the sample and random months are the same fictional store
+MAX_PASTED = 20  # per session
+
+
+def _store(s: Session) -> str:
+    return DESK_STORE if s.source in ("sample", "chaos") else MERCHANT["upload"]
+
+
+def _desk(s: Session) -> list[dict]:
+    """Every ticket with its reply's state, which lives in the change cards (one source of truth)."""
+    cache = desk_mod.load_cache(desk_mod.SAMPLE_CACHE) | s.desk_ai
+    ts = desk_mod.tickets(s.con, s.result, s.inbox, _store(s), cache)
+    cards = {p.payload["ticket"]: p for p in s.proposals.values() if p.type == "reply"}  # latest wins
+    for t in ts:
+        p = cards.get(t["id"])
+        t["status"] = {"pending": "waiting", "confirmed": "replied"}.get(p.status, "open") if p else "open"
+        t["proposal"] = _card(p, s.policy) if p else None
+        fid = t["finding"]["id"] if t["finding"] else None
+        if fid:
+            t["finding"]["headline"] = s.explanations[fid].headline if fid in s.explanations else ""
+        t["actions"] = [_action(a) for a in s.gate.actions.values() if fid and a.finding_id == fid and "ticket" not in a.payload]  # fmt: skip
+    return ts
+
+
+def _desk_view(s: Session) -> dict:
+    ts = _desk(s)
+    return {"tickets": ts, "summary": desk_mod.summary(ts), "ai": _ai_on() and s.policy.ai_enabled}
+
+
+def _message(s: Session, mid: str) -> dict:
+    msg = next((m for m in s.inbox if m["id"] == mid), None)
+    if msg is None:
+        raise Oops(404, f"There's no message {mid} in this inbox.", "Reload the Desk.")
+    return msg
+
+
+@app.get("/api/desk")
+def desk_list(request: Request):
+    return JSONResponse(jsonable_encoder(_desk_view(_loaded(request))))
+
+
+@app.post("/api/desk/{mid}/ai")
+def desk_ai(request: Request, mid: str):
+    """Sort the message and write the reply with the model, now. Code still matched it and
+    built the facts; the reply passes the number guard or falls back to the template."""
+    s = _loaded(request)
+    msg = _message(s, mid)
+    llm = _llm(s)
+    _ai_allowed(request)
+    t = desk_mod.ticket(desk_mod.index(s.con, s.result), s.result, msg, _store(s), s.desk_ai, llm)
+    s.log.log("ai", "sorted and drafted a reply", f"{mid}: {t['category'] or 'not sorted'}, " + ("model, numbers verified" if t["reply"]["source"] == "model" else "template fallback"))  # fmt: skip
+    return JSONResponse(jsonable_encoder(_desk_view(s) | {"id": mid}))
+
+
+class PasteIn(BaseModel):
+    text: str
+    name: str = ""
+
+
+@app.post("/api/desk/paste")
+def desk_paste(request: Request, body: PasteIn):
+    """A message typed or pasted by the person, run through the same pipeline as the inbox."""
+    s = _loaded(request)
+    text, name = body.text.strip(), " ".join(body.name.split())[:60]
+    if not text:
+        raise Oops(400, "Paste a customer message first.", "For example: where's my refund for ₹1,250?")
+    if len(text) > desk_mod.MAX_TEXT:
+        raise Oops(400, "That message is too long.", f"Keep it under {desk_mod.MAX_TEXT} characters.")
+    if sum(m["channel"] == "pasted" for m in s.inbox) >= MAX_PASTED:
+        raise Oops(429, "That's a lot of pasted messages for one session.", "Start a new month to paste more.")  # fmt: skip
+    try:
+        llm = _llm(s)
+        _ai_allowed(request)
+    except Oops as e:
+        if e.status != 503:
+            raise
+        llm = None  # AI off: code still matches it and the template still answers
+    mid = f"P{sum(m['channel'] == 'pasted' for m in s.inbox) + 1}"
+    msg = {"id": mid, "channel": "pasted", "from": {"name": name or "Pasted message", "address": "pasted by you"},
+           "subject": "", "text": text, "received_at": datetime.now().isoformat(timespec="minutes")}  # fmt: skip
+    s.inbox.append(msg)
+    if llm is not None:
+        desk_mod.ticket(desk_mod.index(s.con, s.result), s.result, msg, _store(s), s.desk_ai, llm)
+    s.log.log("human", "pasted a message", f"{mid}: {len(text)} characters")
+    sid, _ = _session(request)
+    return _respond(sid, _desk_view(s) | {"id": mid})
+
+
+class SendIn(BaseModel):
+    by_name: str = ""
+
+
+@app.post("/api/desk/{mid}/send")
+def desk_send(request: Request, mid: str, body: SendIn):
+    """Prepare sending the reply: a change card. Nothing goes out until a named person allows it."""
+    s = _loaded(request)
+    _message(s, mid)
+    t = next(t for t in _desk(s) if t["id"] == mid)
+    if t["status"] == "replied":
+        raise Oops(409, "This message was already answered.", "Undo that reply first to send another.")
+    p = next((p for p in s.proposals.values() if p.type == "reply" and p.payload["ticket"] == mid and p.status == "pending"), None)  # fmt: skip
+    if p is None:
+        try:
+            p = copilot_mod.propose_reply(_ctx(s), t)
+        except copilot_mod.Refused as e:
+            raise Oops(422, f"Can't send that: {e}.", "Change it in Settings → Approval policy.") from e
+        p.proposer = body.by_name.strip()[:60]
+    return JSONResponse(jsonable_encoder({"proposal": _card(p, s.policy)}))
 
 
 # --- Settings: the approval policy ------------------------------------------------------------

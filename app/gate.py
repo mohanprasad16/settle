@@ -83,7 +83,7 @@ class Action:
     finding_id: str | None = None  # None only for routine fee journals
     idempotency_key: str = ""
     id: str = ""
-    status: str = "proposed"  # auto | needs_approval | blocked | approved | executed
+    status: str = "proposed"  # auto | needs_approval | blocked | approved | executed | undone
     reason: str = ""
     approved_by: str = ""
     sent: dict | None = None  # what was (or in demo mode, would have been) sent
@@ -121,7 +121,7 @@ class Gate:
             return "blocked", f"unknown action type {a.type!r}"
         if a.amount < 0:
             return "blocked", "amount can't be negative"
-        if any(x.idempotency_key == a.idempotency_key and x.status != "blocked" for x in self.actions.values()):  # fmt: skip
+        if any(x.idempotency_key == a.idempotency_key and x.status not in ("blocked", "undone") for x in self.actions.values()):  # fmt: skip
             return "blocked", "duplicate: this exact action was already proposed"
         if a.finding_id is not None:
             f = self.findings.get(a.finding_id)

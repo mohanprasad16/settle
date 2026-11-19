@@ -1,0 +1,82 @@
+{
+ "0c750c0640c49876": {
+  "category": "refund_status",
+  "body": "Hi Arjun, a refund of ₹349.00 for order KK-11268 was sent on 15 Oct 2026 with reference rfnd_TSYlEp4Dmncu0h. Refunds usually reach your bank within 5-7 working days of being sent. Please allow this time for the amount to show in your account.",
+  "source": "model"
+ },
+ "0f4546a7bfb4a1dc": {
+  "category": "duplicate_charge",
+  "body": "Hi Saanvi, we checked order KK-11307 and found only one payment of ₹1,199.00 received on 15 Oct 2026. If your bank statement shows a second debit, it is a failed attempt. Your bank will automatically return that amount to your account within 5-7 working days.",
+  "source": "model"
+ },
+ "b8b657c8cee97cd4": {
+  "category": "settlement",
+  "body": "Hi Accounts Team, payout setl_ITZIu2TDI695iu of ₹91,148.95 was settled on 11 Oct 2026 under UTR UTIBR54170856495. We can confirm that the amount of ₹91,148.95 was received in the bank on 11 Oct 2026.",
+  "source": "model"
+ },
+ "06afce0d190a666d": {
+  "category": "refund_status",
+  "body": "Hi Ravi, we could not find the reference KK-99817 in our records. If this is about an order, could you please provide your order number? Otherwise, a member of our team will reply to help you shortly.",
+  "source": "model"
+ },
+ "3223a11e4b0d10f7": {
+  "category": "paid_not_confirmed",
+  "body": "Hi Ishaan, we received your payment of ₹4,998.00 on 15 Oct 2026 for order KK-11306. The order hasn't been confirmed in our store yet, but our team is confirming the order in our store now. Thank you for your patience.",
+  "source": "model"
+ },
+ "82e4acf525ad07fe": {
+  "category": "refund_status",
+  "body": "Hi Diya, we checked your query regarding order KK-11513 placed on 18 Oct 2026 for ₹1,499.00. The refund of ₹1,499.00 is recorded in our system, but it has not been sent to your account yet. Our team is sending the refund now and will write to you again as soon as it is on its way. We apologize for the confusion.",
+  "source": "model"
+ },
+ "2f2848710e1d5bfc": {
+  "category": "paid_not_confirmed",
+  "body": "Hi Vihaan, we received your payment of ₹698.00 on 20 Oct 2026 for order KK-11606 (payment ID pay_chQHGhYPOcncsK). We see that your order has not been confirmed in our store yet. Our team is working on confirming the order in our store right now. Thank you for your patience.",
+  "source": "model"
+ },
+ "307630ee1d131186": {
+  "category": "refund_status",
+  "body": "Hi Rohan, we looked into your refund for order KK-11459 placed on 17 Oct 2026. We found that the refund of ₹3,597.00 is recorded in our system, but it has not been sent to you yet. Our team is sending the refund now, and we will write to you again as soon as it is on its way.",
+  "source": "model"
+ },
+ "4b79b6590dcf5fa9": {
+  "category": "refund_status",
+  "body": "Hi Ishaan, your refund of ₹649.00 for order KK-11092 was sent on 12 Oct 2026 under reference rfnd_zaQ9amHp8SduQz. Refunds usually reach the bank within 5-7 working days of being sent. Thank you for your patience.",
+  "source": "model"
+ },
+ "bb8a23187c585673": {
+  "category": "refund_status",
+  "body": "Hi Dev, we checked your order KK-11264 and found that we sent two refunds of ₹2,697.00, and one of them was indeed a mistake. Refunds usually reach the bank within 5-7 working days. Our team will get in touch with you shortly about returning the extra refund. Thank you for letting us know.",
+  "source": "model"
+ },
+ "19421679850deafb": {
+  "category": "settlement",
+  "body": "Hi Accounts Team, we checked payout setl_6ODkowvxYxMciS of ₹21,196.39 settled on 14 Oct 2026 under UTR UTIBR58302335367. It is not showing on the bank statement. We are raising this issue with Razorpay support, quoting the payout ID and UTR to get it resolved.",
+  "source": "model"
+ },
+ "488ae772bcb8ea62": {
+  "category": "other",
+  "body": "Hi Farah, thank you for reaching out to Kaapi Kart Foods. If your request is about a specific order, please share your order number with us so we can check. Otherwise, a member of our team will reply to your query about shipping to Singapore shortly.",
+  "source": "model"
+ },
+ "580b9b39992e28a2": {
+  "category": "other",
+  "body": "Hi Neha, we could not link your message to an order or payment. If this is about an existing order, please share your order number with us. Otherwise, a member of our team will reply to you shortly.",
+  "source": "model"
+ },
+ "4825ac2242c89d01": {
+  "category": "duplicate_charge",
+  "body": "Hi Sunita, we received more than one payment of ₹499.00 around 1 Oct 2026. Please share your order number with us so we can locate your exact transaction and assist you.",
+  "source": "model"
+ },
+ "dfbdcaf5cbb374cf": {
+  "category": "other",
+  "body": "Hi Diya, we reviewed your request for order KK-12151 placed on 29 Oct 2026. We received one payment of ₹2,998.00 for this order on 29 Oct 2026 (payment ID pay_C2KJgm8LGBMzeV). Please let us know if you need any further assistance with this order.",
+  "source": "model"
+ },
+ "04b322cdc63e3eb9": {
+  "category": "paid_not_confirmed",
+  "body": "Hi Vihaan, no payment reached us for order KK-11878, so the order shows failed. If money left your account, your bank returns a failed payment on its own, usually within 5-7 working days. Please check with your bank if it is not credited back within that time.",
+  "source": "model"
+ }
+}

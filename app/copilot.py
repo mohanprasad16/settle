@@ -238,6 +238,27 @@ def propose_transform(ctx: Ctx, file_id: str, plan: dict | transform.Plan, use_a
                               kind="transform"))  # fmt: skip
 
 
+def propose_reply(ctx: Ctx, t: dict, by: str = "human") -> Proposal:
+    """A Desk reply as a change card. Confirming it sends a customer note through the gate,
+    which always needs a named person; in demo mode the send is recorded, not made."""
+    f = t["finding"]
+    amount = abs(f["amount"]) if f else t["amount"]  # the gate caps a note at its finding's amount
+    who = f"{t['from']['name']} ({'WhatsApp' if t['channel'] == 'whatsapp' else t['channel']})"
+    checks = ["Every figure in the reply is checked against Settle's own records" if t["reply"]["source"] == "model"
+              else "The reply is Settle's fixed template, built from its own records",
+              "Goes through the approval gate as a note to a customer: a named person always decides",
+              "Demo mode: recorded, nothing is sent"]  # fmt: skip
+    if t["match"]["status"] != "matched":
+        checks.insert(1, "Settle couldn't tell which payment this is, so the reply asks for the order number")
+    payload = {"ticket": t["id"], "to": f"{t['from']['name']} <{t['from']['address']}>", "channel": t["channel"],
+               "subject": f"Re: {t['subject']}" if t["subject"] else "", "body": t["reply"]["body"],
+               "finding_id": f["id"] if f else None, "about": t["about"],
+               "by": "ai" if t["reply"]["source"] == "model" else "engine"}  # fmt: skip
+    changes = [{"label": f"Reply to {who}", "before": "Not answered", "after": "Answered (recorded in demo mode)"}]  # fmt: skip
+    return _add(ctx, Proposal("reply", f"Send the reply to {t['from']['name']}", changes, checks, payload, by,
+                              kind="customer_note", amount=amount))  # fmt: skip
+
+
 # --- the agent ----------------------------------------------------------------------------------
 
 _INT_LIST = {"type": "array", "items": {"type": "integer"}}
@@ -451,7 +472,7 @@ def dispatcher(ctx: Ctx, made: list[Proposal], plan: list[dict] | None = None):
 
 
 def copilot(ctx: Ctx, message: str, llm: LLM, explanations=None, page: str = "overview",
-            focus: str = "", selection: dict | None = None) -> tuple[Asked, list[Proposal]]:  # fmt: skip
+            focus: str = "", selection: dict | None = None, context: str = "") -> tuple[Asked, list[Proposal]]:  # fmt: skip
     sel = {k: list(v) for k, v in (selection or {}).items()}
     for tag in re.findall(r"@([A-Za-z0-9_]+)", message):  # @F3, @setl_..., @S1 (a sheet)
         key = (
@@ -483,7 +504,7 @@ def copilot(ctx: Ctx, message: str, llm: LLM, explanations=None, page: str = "ov
             parts.append(f"payout {sid}: net {rupees(s['net'])} ({s['net']} paise), status {s['status']}, settled {s['settled_at']:%d %b %Y}")  # fmt: skip
     files = "".join(f"\nAttached file {fid}: {as_data(sh['name'], 80)} ({len(sh['rows'])} rows)" for fid, sh in ctx.sheets.items())  # fmt: skip
     extra = COPILOT.format(page=page, focus=f" Open now: {str(focus)[:40]}." if focus else "",
-                           selection=f"\nSelected: {'; '.join(parts)}." if parts else "", files=files)  # fmt: skip
+                           selection=f"\nSelected: {'; '.join(parts)}." if parts else "", files=files) + context  # fmt: skip
     made: list[Proposal] = []
     plan: list[dict] = []
     read_only = ctx.policy.copilot_mode == "read_only"
@@ -512,6 +533,7 @@ PAGE_FOLLOW = {
     "audit": ["Approve all fee journals under ₹500", "Summarise what was approved today"],
     "rules": ["Suggest rules", "Which issues keep repeating?"],
     "settings": ["Which of this month's changes would auto-apply?"],
+    "desk": ["Which customer messages are about an issue to fix?", "What should I answer first?"],
 }
 
 
