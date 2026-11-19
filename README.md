@@ -139,6 +139,38 @@ generator that plants the month, so its phrasing is regular; real inboxes say "l
 "1.2k". The sample orders export has no email or phone, so the sender's name is the identity
 (with an export that carries them, those come first).
 
+### Connecting a real inbox (designed, not in the demo)
+
+The demo runs on a sample inbox and the paste box. A live merchant would connect their real support
+email and WhatsApp in one of two ways. Both feed the same pipeline above, and every reply still
+needs a person's approval before it goes out.
+
+**Option 1: forward or CC a Settle address (simplest, no login).** Each merchant gets their own
+inbound address, for example `kaapikart@desk.example.com`. They either CC it on support mail or set
+one auto-forward rule on `support@theirstore.in`. An inbound email service (such as SendGrid Inbound
+Parse or Postmark) receives the mail and posts it to a Settle webhook. Settle checks the webhook's
+signature, saves the message, and runs it through Desk: code finds the payment, AI drafts the reply,
+a person approves. Nothing in the merchant's mailbox is read except what they choose to send.
+
+**Option 2: connect Gmail or Microsoft 365 with OAuth.** The merchant clicks "Connect your inbox"
+and signs in with Google or Microsoft, giving read access to the support mailbox only. New mail
+arrives through Gmail push notifications or Microsoft Graph webhooks, and approved replies are sent
+from the merchant's own address so customers see a normal reply in the same thread.
+
+**WhatsApp** works the same way through the WhatsApp Business Cloud API: incoming messages arrive
+on a webhook, and approved replies go back through the API.
+
+**Why the demo doesn't connect a real inbox:** Google treats reading Gmail as a restricted
+permission, so a public app needs Google's verification and a security review before strangers can
+sign in, which takes weeks. And a reviewer shouldn't have to connect their own mailbox to try a
+demo. That's why the "Connect your inbox" card is shown, switched off, and the paste box lets you
+try any message instead.
+
+**Safety rules for a live inbox:** customer mail is untrusted data, never instructions (the same
+fencing as today); webhook signatures are verified; each merchant has a separate address and data;
+attachments aren't opened by the model; and sending a reply is always a change card a named person
+approves.
+
 ## How it works
 
 ![architecture](docs/architecture.svg)
