@@ -8,6 +8,8 @@ Like a coding agent, but for a finance team: it does the reconciliation work, an
 
 **Live demo:** **[https://settle-puvq.onrender.com](https://settle-puvq.onrender.com)** (free host: the first visit after a quiet spell can take up to a minute to wake) · press **Try it with a sample month**, nothing to sign up for.
 
+**Watch the full 2-minute tour (6 chapters, including Desk):** [tour.mp4 on the live site](https://settle-puvq.onrender.com/static/tour.mp4) · [same file in this repo](app/static/tour.mp4). The GIF below is only its first 15 seconds.
+
 > **For reviewers, in 30 seconds**
 > - **Problem:** a merchant's books, Razorpay settlements and bank never match. Finance teams tie them out by hand every month, and real losses hide in the normal differences.
 > - **What Settle does:** reconciles all three to the paisa (every rupee ends on a named line, Unexplained ₹0.00), finds the leaks, explains them, and drafts the fixes.
@@ -175,6 +177,31 @@ approves.
 
 ![architecture](docs/architecture.svg)
 
+The same flow as text:
+
+```
+ Books                     Razorpay                   Bank
+ orders CSV                settlements CSV            CSV, or PDF (scanned too):
+ (Tally via ODBC: mock)    (live API: mock)           AI reads it, code checks the
+       |                         |                    running balance on every row
+       +-------------------------+----------------------------+
+                                 v
+        Load + normalise   (DuckDB, every amount in integer paise)
+                                 v
+        Engine, code only: two bridges (books -> Razorpay -> bank),
+        settlement matching (UTR -> amount + date -> split),
+        findings with the exact rupee amount.  Ends at "Unexplained Rs 0.00"
+                                 v
+        AI layer: explains findings, Settle AI agent (read-only SQL,
+        prepare-only tools, step cap), Desk replies to customers
+           '-- number guard: every figure the AI writes is checked against the engine
+                                 v
+        Approval gate (policy in code): Allow once / Always allow / Reject / Undo
+           '-- decision log under a named person
+                                 v
+        Exports: audit report, bank reconciliation statement, Tally journal, CSV pack
+```
+
 The one rule: **code computes every rupee, the AI only talks about it, and a person approves
 anything that changes something.**
 
@@ -222,6 +249,41 @@ More detail: [Architecture](docs/ARCHITECTURE.md) · [Prompts and why they're wr
 - **AI checks with the real model**: 24/24 explanations verified, 11/11 on a golden set of
   questions, digital, scanned and locked bank PDFs read 36/36 rows exact (the scanned one needed one targeted re-read).
 - **What broke and how it was fixed**, all of it: [Failures log](docs/FAILURES.md).
+
+## The money is tested to the paisa
+
+Every amount is stored as integer paise, so the engine's tests compare money with `==`, never "close enough". From [`tests/test_engine.py`](tests/test_engine.py):
+
+```python
+def test_both_bridges_close_to_zero(world):
+    _, _, result = world
+    for bridge in (result.books_to_razorpay, result.razorpay_to_bank):
+        assert next(s for s in bridge if s.kind == "residual").amount == 0
+        start, end = bridge[0].amount, bridge[-1].amount
+        assert start + sum(s.amount for s in bridge[1:-1]) == end
+
+
+def test_nothing_else_flagged(world):
+    _, truth, result = world
+    assert len(result.findings) == len(truth["planted"])
+```
+
+`world` is a generated month with planted problems and an answer key (`truth.json`). Each planted leak must be found with the same check, the same paise amount and the same reference, and nothing else may be flagged. The same checks run in the evals on 50 held-out random months the engine was never tuned on (100% precision and recall).
+
+## What broke and how I fixed it
+
+Every one of these was found by a test, an eval run or a real model run. A few of the important ones (the full list is in the [failures log](docs/FAILURES.md)):
+
+| What broke | How it showed up | Fix |
+|---|---|---|
+| UTR matching was case-sensitive | A bank line with the UTR in lowercase made a ₹51,638.08 settlement look missing | UTRs compared ignoring case and spaces, in the reference or the narration |
+| A fee charged on a refund fell into no bucket | Found blind: **the bridge didn't close** by ₹5.90 | The refund fee is its own finding and its own bridge line, with a regression test |
+| A bank reversal read as a short credit | A credit, then a reversal two days later, reported as "credited less" by ₹52,404.94 | A matching debit on a credited settlement is now a reversal, by UTR or a REV/RETURN line |
+| Numbers typed into a customer note could "verify" an AI answer | A prompt-injection test planted digits in free text | Only numeric columns and computed facts count; untrusted text is fenced as data |
+| The AI added up figures itself | "Why is money lost?" answers failed the figure check about 2 times in 3 | Code now hands the model ready-made subtotals; real-model runs went to 6 of 6 verified |
+| The two-person approval rule refused a correct approval | A Desk reply approved by the right second person was rejected | Fixed in the apply step, with a test |
+
+Blind batches were run once and the misses published: 6 of 11 on the first batch, 5 of 8 on the second. Each miss was fixed at the root and kept as a regression test.
 
 ## How it was tested
 
